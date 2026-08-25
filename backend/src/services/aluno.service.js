@@ -3,27 +3,27 @@
 const alunoRepository = require("../repositories/aluno.repository");
 const { NotFoundError, ValidationError } = require("../shared/errors");
 
-async function listAlunos(usuarioId) {
-  return alunoRepository.findAllByUsuario(usuarioId);
+async function listAlunos(equipeId) {
+  return alunoRepository.findAllByEquipe(equipeId);
 }
 
-async function getAluno(usuarioId, id) {
-  const aluno = await alunoRepository.findByIdAndUsuario(id, usuarioId);
+async function getAluno(equipeId, id) {
+  const aluno = await alunoRepository.findByIdAndEquipe(id, equipeId);
   if (!aluno) {
     throw new NotFoundError("Aluno não encontrado.");
   }
   return aluno;
 }
 
-async function createAluno(usuarioId, { nome, observacoes }) {
+async function createAluno(equipeId, { nome, observacoes }) {
   if (!nome || !nome.trim()) {
     throw new ValidationError('"nome" é obrigatório.');
   }
-  return alunoRepository.create({ usuarioId, nome: nome.trim(), observacoes });
+  return alunoRepository.create({ equipeId, nome: nome.trim(), observacoes });
 }
 
-async function updateAluno(usuarioId, id, dados) {
-  const aluno = await getAluno(usuarioId, id);
+async function updateAluno(equipeId, id, dados) {
+  const aluno = await getAluno(equipeId, id);
 
   const atualizacao = {};
   if (dados.nome !== undefined) {

@@ -28,7 +28,14 @@ module.exports = (sequelize) => {
         primaryKey: true,
         allowNull: false
       },
+      // Quem capturou este Registro (auditoria) - NÃO é mais usado para
+      // escopo/autorização, ver equipe_id (docs/adr/0011).
       usuario_id: {
+        type: DataTypes.UUID,
+        allowNull: false
+      },
+      // Chave de escopo/autorização - a equipe dona deste Registro.
+      equipe_id: {
         type: DataTypes.UUID,
         allowNull: false
       },
@@ -68,6 +75,7 @@ module.exports = (sequelize) => {
 
   Registro.associate = (models) => {
     Registro.belongsTo(models.Usuario, { foreignKey: "usuario_id", as: "usuario" });
+    Registro.belongsTo(models.Equipe, { foreignKey: "equipe_id", as: "equipe" });
     Registro.belongsTo(models.Aluno, { foreignKey: "aluno_id", as: "aluno" });
     Registro.hasMany(models.RegistroEntrada, { foreignKey: "registro_id", as: "entradas" });
     Registro.hasOne(models.ResultadoIa, { foreignKey: "registro_id", as: "resultadoIa" });

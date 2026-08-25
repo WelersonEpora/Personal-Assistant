@@ -1,8 +1,8 @@
 "use strict";
 
 const registroRepository = require("../repositories/registro.repository");
+const alunoRepository = require("../repositories/aluno.repository");
 const storageAudio = require("../services/storage-audio.service");
-const { Aluno } = require("../models");
 const { ValidationError, ForbiddenError, NotFoundError } = require("../shared/errors");
 const { enfileirarRegistro } = require("../jobs/processador-fila-ia");
 
@@ -39,22 +39,22 @@ function validarMetadata(registroId, metadata) {
 // no cliente - reenviar o mesmo Registro (rede instável, retry automático)
 // nunca duplica entradas nem arquivos de áudio, e só entra na fila de IA
 // uma vez (na 1a vez que chega, ou se ainda não tinha começado a processar).
-async function sincronizar({ usuarioId, registroId, metadata, arquivos }) {
+async function sincronizar({ usuarioId, equipeId, registroId, metadata, arquivos }) {
   validarMetadata(registroId, metadata);
 
-  const aluno = await Aluno.findOne({ where: { id: metadata.alunoId, usuario_id: usuarioId } });
+  const aluno = await alunoRepository.findByIdAndEquipe(metadata.alunoId, equipeId);
   if (!aluno) {
     throw new NotFoundError("Aluno não encontrado.");
   }
 
   const { registro, criado } = await sequelize.transaction(async (transaction) => {
     const resultado = await registroRepository.obterOuCriarRegistro(
-      { id: registroId, usuarioId, alunoId: metadata.alunoId, titulo: metadata.titulo, iniciadoEm: metadata.iniciadoEm },
+      { id: registroId, usuarioId, equipeId, alunoId: metadata.alunoId, titulo: metadata.titulo, iniciadoEm: metadata.iniciadoEm },
       transaction
     );
 
-    if (resultado.registro.usuario_id !== usuarioId) {
-      throw new ForbiddenError("Este Registro pertence a outro usuário.");
+    if (resultado.registro.equipe_id !== equipeId) {
+      throw new ForbiddenError("Este Registro pertence a outra equipe.");
     }
 
     for (const entradaMeta of metadata.entradas) {

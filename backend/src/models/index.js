@@ -5,6 +5,8 @@ const sequelize = require("../config/database");
 const db = {};
 
 db.Usuario = require("./usuario")(sequelize);
+db.Equipe = require("./equipe")(sequelize);
+db.Membro = require("./membro")(sequelize);
 db.Aluno = require("./aluno")(sequelize);
 db.Registro = require("./registro")(sequelize);
 db.RegistroEntrada = require("./registroEntrada")(sequelize);

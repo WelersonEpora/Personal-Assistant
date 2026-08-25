@@ -4,7 +4,8 @@ import { corParaId, iniciais } from '../utils/registroStatus.js'
 const props = defineProps({
   aberto: { type: Boolean, required: true },
   alunos: { type: Array, required: true },
-  alunoAtualId: { type: String, default: null }
+  alunoAtualId: { type: String, default: null },
+  equipeNome: { type: String, default: '' }
 })
 const emit = defineEmits(['fechar', 'selecionar'])
 
@@ -16,6 +17,7 @@ function selecionar(id) {
 <template>
   <div class="sheet-overlay" :class="{ open: aberto }" @click.self="emit('fechar')">
     <div class="sheet">
+      <p v-if="props.equipeNome" class="sheet-team-label">{{ props.equipeNome }}</p>
       <p class="sheet-title">Selecionar aluno</p>
       <button
         v-for="aluno in props.alunos"

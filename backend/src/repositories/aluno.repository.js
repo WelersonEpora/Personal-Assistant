@@ -2,22 +2,22 @@
 
 const { Aluno } = require("../models");
 
-// Todo acesso a Aluno passa por usuario_id - cada personal só enxerga os
-// próprios alunos (seção 12 do pedido: "controle de acesso básico").
-function findAllByUsuario(usuarioId) {
-  return Aluno.findAll({ where: { usuario_id: usuarioId }, order: [["nome", "ASC"]] });
+// Todo acesso a Aluno passa por equipe_id - alunos são compartilhados entre
+// os membros de uma equipe (docs/adr/0011-conceito-de-equipe-e-membro.md).
+function findAllByEquipe(equipeId) {
+  return Aluno.findAll({ where: { equipe_id: equipeId }, order: [["nome", "ASC"]] });
 }
 
-function findByIdAndUsuario(id, usuarioId) {
-  return Aluno.findOne({ where: { id, usuario_id: usuarioId } });
+function findByIdAndEquipe(id, equipeId) {
+  return Aluno.findOne({ where: { id, equipe_id: equipeId } });
 }
 
-function create({ usuarioId, nome, observacoes }) {
-  return Aluno.create({ usuario_id: usuarioId, nome, observacoes: observacoes || null });
+function create({ equipeId, nome, observacoes }) {
+  return Aluno.create({ equipe_id: equipeId, nome, observacoes: observacoes || null });
 }
 
 async function update(aluno, dados) {
   return aluno.update(dados);
 }
 
-module.exports = { findAllByUsuario, findByIdAndUsuario, create, update };
+module.exports = { findAllByEquipe, findByIdAndEquipe, create, update };

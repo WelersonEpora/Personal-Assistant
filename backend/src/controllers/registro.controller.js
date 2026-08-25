@@ -7,12 +7,12 @@ const { success } = require("../shared/utils/api-response");
 const { ValidationError } = require("../shared/errors");
 
 async function list(req, res) {
-  const registros = await registroService.listar(req.usuarioId, { status: req.query.status });
+  const registros = await registroService.listar(req.equipeId, { status: req.query.status });
   success(res, registros);
 }
 
 async function getById(req, res) {
-  const registro = await registroService.obterDetalhe(req.usuarioId, req.params.id);
+  const registro = await registroService.obterDetalhe(req.equipeId, req.params.id);
   success(res, registro);
 }
 
@@ -34,6 +34,7 @@ async function sincronizar(req, res) {
 
   const registro = await registroSyncService.sincronizar({
     usuarioId: req.usuarioId,
+    equipeId: req.equipeId,
     registroId: req.params.id,
     metadata,
     arquivos
@@ -43,7 +44,7 @@ async function sincronizar(req, res) {
 }
 
 async function streamAudio(req, res) {
-  const { buffer, mimeType } = await registroService.obterAudio(req.usuarioId, req.params.id, req.params.entradaId);
+  const { buffer, mimeType } = await registroService.obterAudio(req.equipeId, req.params.id, req.params.entradaId);
   res.set("Content-Type", mimeType);
   res.send(buffer);
 }
@@ -51,6 +52,7 @@ async function streamAudio(req, res) {
 async function confirmar(req, res) {
   const validacao = await registroConfirmacaoService.confirmar({
     usuarioId: req.usuarioId,
+    equipeId: req.equipeId,
     registroId: req.params.id,
     payload: req.body || {}
   });

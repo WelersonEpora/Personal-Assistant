@@ -28,6 +28,12 @@ const routes = [
       },
       { path: 'historico', name: 'admin-historico', component: () => import('../views/admin/HistoricoView.vue'), meta: { titulo: 'Histórico' } },
       {
+        path: 'equipe',
+        name: 'admin-equipe',
+        component: () => import('../views/admin/EquipeView.vue'),
+        meta: { titulo: 'Equipe', somenteOwner: true }
+      },
+      {
         path: 'configuracoes',
         name: 'admin-configuracoes',
         component: () => import('../views/admin/ConfiguracoesView.vue'),
@@ -52,6 +58,11 @@ router.beforeEach((to) => {
   }
   if (to.name === 'login' && auth.autenticado) {
     return window.innerWidth < 760 ? { name: 'captura' } : { name: 'admin-dashboard' }
+  }
+  // Defesa em profundidade - a autorização real é o 403 do backend
+  // (exigirOwner). Aqui só evita mostrar a tela pra quem não deveria vê-la.
+  if (to.meta.somenteOwner && auth.usuario?.papel !== 'owner') {
+    return { name: 'admin-dashboard' }
   }
   return true
 })

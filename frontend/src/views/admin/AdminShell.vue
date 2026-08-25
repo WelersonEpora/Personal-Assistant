@@ -19,6 +19,7 @@ const NAV_ITEMS = [
   {
     grupo: 'Sistema',
     itens: [
+      { nome: 'admin-equipe', icone: '🏢', label: 'Equipe', somenteOwner: true },
       { nome: 'admin-configuracoes', icone: '⚙️', label: 'Configurações' },
       { nome: 'captura', icone: '📱', label: 'Modo captura' }
     ]
@@ -78,7 +79,12 @@ function sair() {
       <nav>
         <template v-for="grupo in NAV_ITEMS" :key="grupo.grupo">
           <div class="nav-group-label">{{ grupo.grupo }}</div>
-          <router-link v-for="item in grupo.itens" :key="item.nome" class="nav-item" :to="{ name: item.nome }">
+          <router-link
+            v-for="item in grupo.itens.filter((i) => !i.somenteOwner || auth.usuario?.papel === 'owner')"
+            :key="item.nome"
+            class="nav-item"
+            :to="{ name: item.nome }"
+          >
             <span class="nav-icon">{{ item.icone }}</span>{{ item.label
             }}<span v-if="item.badge && pendentesRevisao > 0" class="nav-item-badge">{{ pendentesRevisao }}</span>
           </router-link>
@@ -89,6 +95,7 @@ function sair() {
         <span class="avatar" :style="{ background: corParaId(auth.usuario?.id) }">{{ iniciais(auth.usuario?.nome) }}</span>
         <div>
           <div class="sidebar-footer-name">{{ auth.usuario?.nome }}</div>
+          <div class="sidebar-footer-team">{{ auth.usuario?.equipe?.nome }}</div>
           <button class="sidebar-footer-role" type="button" @click="sair">Sair</button>
         </div>
       </div>

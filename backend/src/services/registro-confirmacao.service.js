@@ -9,13 +9,13 @@ const { NotFoundError, ConflictError, ValidationError } = require("../shared/err
 
 const { Registro, sequelize } = registroRepository;
 
-async function confirmar({ usuarioId, registroId, payload }) {
+async function confirmar({ usuarioId, equipeId, registroId, payload }) {
   if (!payload || !Array.isArray(payload.itens)) {
     throw new ValidationError('"itens" é obrigatório e deve ser uma lista.');
   }
 
   const registro = await registroRepository.obterDetalhado(registroId);
-  if (!registro || registro.usuario_id !== usuarioId) {
+  if (!registro || registro.equipe_id !== equipeId) {
     throw new NotFoundError("Registro não encontrado.");
   }
   if (registro.status !== Registro.STATUS.AGUARDANDO_REVISAO) {

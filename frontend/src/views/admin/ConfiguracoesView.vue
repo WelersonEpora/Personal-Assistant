@@ -1,9 +1,12 @@
 <script setup>
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth.store.js'
 
 const auth = useAuthStore()
 const router = useRouter()
+
+const papelLabel = computed(() => ({ owner: 'Owner', colaborador: 'Colaborador' }[auth.usuario?.papel] || '—'))
 
 function sair() {
   auth.logout()
@@ -29,6 +32,8 @@ function sair() {
           <label>Especialidade</label>
           <input type="text" :value="auth.usuario?.especialidade || '—'" disabled />
         </div>
+        <div class="form-field"><label>Equipe</label><input type="text" :value="auth.usuario?.equipe?.nome" disabled /></div>
+        <div class="form-field"><label>Papel</label><input type="text" :value="papelLabel" disabled /></div>
       </div>
     </div>
 

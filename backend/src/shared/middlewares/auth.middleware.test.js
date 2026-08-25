@@ -33,16 +33,18 @@ test("autenticar: rejeita token inválido", () => {
 });
 
 test("autenticar: rejeita token expirado", () => {
-  const tokenExpirado = jwt.sign({ sub: "usuario-1" }, env.jwt.secret, { expiresIn: -10 });
+  const tokenExpirado = jwt.sign({ sub: "usuario-1", equipeId: "equipe-1", papel: "owner" }, env.jwt.secret, { expiresIn: -10 });
   const { erroRecebido } = chamar({ get: () => `Bearer ${tokenExpirado}` });
   assert.equal(erroRecebido?.statusCode, 401);
 });
 
-test("autenticar: token válido chama next() sem erro e define req.usuarioId", () => {
-  const token = jwt.sign({ sub: "usuario-1" }, env.jwt.secret, { expiresIn: "1h" });
+test("autenticar: token válido chama next() sem erro e define req.usuarioId, req.equipeId e req.papel", () => {
+  const token = jwt.sign({ sub: "usuario-1", equipeId: "equipe-1", papel: "owner" }, env.jwt.secret, { expiresIn: "1h" });
   const req = { get: () => `Bearer ${token}` };
   const { chamouNext, erroRecebido } = chamar(req);
   assert.equal(chamouNext, true);
   assert.equal(erroRecebido, undefined);
   assert.equal(req.usuarioId, "usuario-1");
+  assert.equal(req.equipeId, "equipe-1");
+  assert.equal(req.papel, "owner");
 });

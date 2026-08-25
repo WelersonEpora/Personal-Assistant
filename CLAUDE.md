@@ -96,8 +96,9 @@ personal-assistant/
       controllers/            parsing de request/response
       services/               regra de negócio (inclui services/ia/ — Gemini)
       repositories/           acesso a dados (Sequelize)
-      models/                 usuario, aluno, registro, registroEntrada,
-                               arquivoAudio, transcricao, resultadoIa, validacao
+      models/                 usuario, equipe, membro, aluno, registro,
+                               registroEntrada, arquivoAudio, transcricao,
+                               resultadoIa, validacao
       routes/
       jobs/                   processador-fila-ia.js (worker em processo)
       shared/{logger,middlewares,errors,utils}/
@@ -136,13 +137,19 @@ compartilhado).
 
 ## Modelo de dados (provisório — ver ADR-0008)
 
-Só as entidades necessárias para o fluxo: `usuario`, `aluno`, `registro`,
-`registro_entrada`, `arquivo_audio`, `transcricao`, `resultado_ia`,
-`validacao`. **Não antecipar o sistema legado do personal trainer** — nada
-de entidades de plano de treino, catálogo de exercícios, avaliação física
-estruturada etc. até que o legado seja analisado. Dados de domínio ficam
-como JSON semiestruturado (`label`/`valor`/`obs`/`confidence`) dentro de
-`resultado_ia`/`validacao`, não como schema relacional rígido.
+Só as entidades necessárias para o fluxo: `usuario`, `equipe`, `membro`,
+`aluno`, `registro`, `registro_entrada`, `arquivo_audio`, `transcricao`,
+`resultado_ia`, `validacao`. **Não antecipar o sistema legado do personal
+trainer** — nada de entidades de plano de treino, catálogo de exercícios,
+avaliação física estruturada etc. até que o legado seja analisado. Dados de
+domínio ficam como JSON semiestruturado (`label`/`valor`/`obs`/`confidence`)
+dentro de `resultado_ia`/`validacao`, não como schema relacional rígido.
+
+`equipe` e `membro` implementam a multi-tenancy do produto (ver
+docs/adr/0011): `aluno` e `registro` são escopados por `equipe_id`, não
+mais por usuário individual; `membro` associa um `usuario` a uma `equipe`
+com um `papel`, hoje 1:1 (um usuário por equipe) e sem controle de acesso
+por papel — o papel já é gravado, mas nada ainda é bloqueado com base nele.
 
 ## Como rodar localmente
 
@@ -242,7 +249,9 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
 - Fora de escopo neste MVP (não implementar sem decisão explícita nova):
   WhatsApp/Telegram, app nativo, pagamentos, prescrição avançada,
   dashboards/relatórios complexos, avaliação física completa, sistema
-  completo de treinos, réplica do legado, multi-tenant complexo,
+  completo de treinos, réplica do legado, multi-tenant com múltiplas
+  equipes por usuário e controle de acesso por papel (ver docs/adr/0011 —
+  a multi-tenancy básica de Equipe/Membro já está implementada),
   confirmação automática da IA sem revisão humana.
 
 ## Índice de ADRs
@@ -259,12 +268,14 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
 | 0008 | Modelo de dados provisório do MVP |
 | 0009 | Processamento assíncrono em processo (fila em memória) |
 | 0010 | Armazenamento de arquivos de áudio (disco local em volume Docker) |
+| 0011 | Conceito de Equipe e Membro (multi-tenancy simples) |
 
 ## Estado atual
 
 MVP completo e verificado de ponta a ponta:
 
-- **Backend**: auth (JWT), Aluno (CRUD simples escopado por usuário),
+- **Backend**: auth (JWT, com Equipe/Membro — ver docs/adr/0011), Aluno
+  (CRUD simples escopado por equipe),
   sincronização de Registro (idempotente, multipart), pipeline de IA
   (Gemini, fila em processo), revisão/confirmação (`validacao` como único
   dado oficial). 28 testes automatizados (`node --test`, unitários +

@@ -373,6 +373,13 @@ function descartar() {
     </div>
 
     <ToastStack :toasts="toasts" />
-    <AlunoSheet :aberto="sheetAberto" :alunos="alunos" :aluno-atual-id="alunoAtualId" @fechar="sheetAberto = false" @selecionar="selecionarAluno" />
+    <AlunoSheet
+      :aberto="sheetAberto"
+      :alunos="alunos"
+      :aluno-atual-id="alunoAtualId"
+      :equipe-nome="auth.usuario?.equipe?.nome"
+      @fechar="sheetAberto = false"
+      @selecionar="selecionarAluno"
+    />
   </div>
 </template>

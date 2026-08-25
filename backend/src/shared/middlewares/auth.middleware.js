@@ -4,10 +4,12 @@ const jwt = require("jsonwebtoken");
 const env = require("../../config/env");
 const { UnauthorizedError } = require("../errors");
 
-// Autenticacao simples por JWT (secao 6/12 do pedido: "controle de acesso
-// basico", sem multi-tenant complexo). req.usuarioId fica disponivel para
-// todo controller/service depois deste middleware escopar dados por dono
-// (ver aluno.service.js, registro.service.js).
+// Autenticacao por JWT. req.usuarioId, req.equipeId e req.papel ficam
+// disponiveis para todo controller/service depois deste middleware - dados
+// de dominio (aluno, registro) sao escopados por equipe, nao mais por
+// usuario individual (docs/adr/0011-conceito-de-equipe-e-membro.md).
+// Ainda NAO ha checagem de autorizacao por papel - deliberadamente fora de
+// escopo desta fase.
 function autenticar(req, _res, next) {
   const header = req.get("authorization") || "";
   const [scheme, token] = header.split(" ");
@@ -19,6 +21,8 @@ function autenticar(req, _res, next) {
   try {
     const payload = jwt.verify(token, env.jwt.secret);
     req.usuarioId = payload.sub;
+    req.equipeId = payload.equipeId;
+    req.papel = payload.papel;
     return next();
   } catch (_err) {
     return next(new UnauthorizedError("Token de acesso invalido ou expirado."));

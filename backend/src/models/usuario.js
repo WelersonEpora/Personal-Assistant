@@ -52,7 +52,11 @@ module.exports = (sequelize) => {
   );
 
   Usuario.associate = (models) => {
-    Usuario.hasMany(models.Aluno, { foreignKey: "usuario_id", as: "alunos" });
+    // docs/adr/0011: um usuario pertence a exatamente uma equipe por
+    // enquanto (hasOne + uq_membro_usuario_id) - aluno não referencia mais
+    // usuario diretamente (ver models/aluno.js), por isso não há mais
+    // hasMany(Aluno) aqui.
+    Usuario.hasOne(models.Membro, { foreignKey: "usuario_id", as: "membro" });
     Usuario.hasMany(models.Registro, { foreignKey: "usuario_id", as: "registros" });
     Usuario.hasMany(models.Validacao, { foreignKey: "usuario_id", as: "validacoes" });
   };

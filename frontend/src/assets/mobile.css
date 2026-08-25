@@ -328,6 +328,7 @@
   overflow-y: auto;
 }
 .sheet-overlay.open .sheet { transform: translateY(0); }
+.sheet-team-label { font-size: 10.5px; font-weight: 700; color: var(--color-text-faint); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 2px; }
 .sheet-title { font-size: 15px; font-weight: 700; margin-bottom: 12px; }
 .sheet-student {
   display: flex; align-items: center; gap: 12px;

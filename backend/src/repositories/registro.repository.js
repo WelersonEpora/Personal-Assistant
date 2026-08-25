@@ -18,10 +18,10 @@ const INCLUDE_ENTRADAS_COMPLETO = {
 // cliente - se o Registro já existe, devolve o existente sem sobrescrever
 // nada (reenvio seguro). "criado" avisa o chamador se é a 1a vez que este
 // Registro chega ao servidor (só nesse caso ele deve entrar na fila de IA).
-async function obterOuCriarRegistro({ id, usuarioId, alunoId, titulo, iniciadoEm }, transaction) {
+async function obterOuCriarRegistro({ id, usuarioId, equipeId, alunoId, titulo, iniciadoEm }, transaction) {
   const [registro, criado] = await Registro.findOrCreate({
     where: { id },
-    defaults: { usuario_id: usuarioId, aluno_id: alunoId, titulo: titulo || null, iniciado_em: iniciadoEm },
+    defaults: { usuario_id: usuarioId, equipe_id: equipeId, aluno_id: alunoId, titulo: titulo || null, iniciado_em: iniciadoEm },
     transaction
   });
   return { registro, criado };
@@ -53,9 +53,9 @@ async function criarArquivoAudio({ registroEntradaId, caminhoArmazenamento, mime
 // Lista "leve": entradas só com tipo/ordem (sem áudio/transcrição - a tela
 // de Relatos só precisa contar 🎙️/⌨️ por Registro) + validação (quando
 // confirmado, alimenta a tela de Histórico sem uma 2a chamada por linha).
-function listarPorUsuario({ usuarioId, status }) {
+function listarPorEquipe({ equipeId, status }) {
   return Registro.findAll({
-    where: { usuario_id: usuarioId, ...(status ? { status } : {}) },
+    where: { equipe_id: equipeId, ...(status ? { status } : {}) },
     include: [
       { model: Aluno, as: "aluno", attributes: ["id", "nome"] },
       { model: RegistroEntrada, as: "entradas", attributes: ["id", "tipo", "ordem"] },
@@ -108,14 +108,14 @@ function listarIdsEmProcessamento() {
   }).then((linhas) => linhas.map((linha) => linha.id));
 }
 
-// Checa posse (usuario_id do Registro dono da entrada) antes de liberar o
-// arquivo de áudio - docs/adr/0010.
-function obterEntradaAudioAutorizada({ usuarioId, registroId, entradaId }) {
+// Checa posse (equipe_id do Registro dono da entrada) antes de liberar o
+// arquivo de áudio - docs/adr/0010, escopo por equipe via docs/adr/0011.
+function obterEntradaAudioAutorizada({ equipeId, registroId, entradaId }) {
   return RegistroEntrada.findOne({
     where: { id: entradaId, registro_id: registroId },
     include: [
       { model: ArquivoAudio, as: "arquivoAudio" },
-      { model: Registro, as: "registro", attributes: [], where: { usuario_id: usuarioId } }
+      { model: Registro, as: "registro", attributes: [], where: { equipe_id: equipeId } }
     ]
   });
 }
@@ -127,7 +127,7 @@ module.exports = {
   obterOuCriarEntrada,
   entradaTemArquivoAudio,
   criarArquivoAudio,
-  listarPorUsuario,
+  listarPorEquipe,
   obterDetalhado,
   obterParaProcessamento,
   atualizarStatus,

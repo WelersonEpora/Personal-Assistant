@@ -12,7 +12,10 @@ async function login({ email, senha }) {
   }
 
   const usuario = await usuarioRepository.findByEmailComSenha(email.trim().toLowerCase());
-  if (!usuario) {
+  // Provisionamento (scripts/criar-usuario.js) sempre cria um membro junto
+  // com o usuario - usuario sem membro/equipe não deveria existir, mas
+  // tratamos como credencial inválida em vez de estourar um erro interno.
+  if (!usuario || !usuario.membro || !usuario.membro.equipe) {
     throw new UnauthorizedError("E-mail ou senha inválidos.");
   }
 
@@ -21,7 +24,17 @@ async function login({ email, senha }) {
     throw new UnauthorizedError("E-mail ou senha inválidos.");
   }
 
-  const token = jwt.sign({ sub: usuario.id }, env.jwt.secret, { expiresIn: env.jwt.expiresIn });
+  // Membro desativado pelo owner (interface administrativa) perde acesso
+  // imediatamente, mesmo com credenciais corretas.
+  if (!usuario.membro.ativo) {
+    throw new UnauthorizedError("Usuário desativado. Fale com o responsável da equipe.");
+  }
+
+  const token = jwt.sign(
+    { sub: usuario.id, equipeId: usuario.membro.equipe.id, papel: usuario.membro.papel },
+    env.jwt.secret,
+    { expiresIn: env.jwt.expiresIn }
+  );
 
   return {
     token,
@@ -29,7 +42,9 @@ async function login({ email, senha }) {
       id: usuario.id,
       nome: usuario.nome,
       email: usuario.email,
-      especialidade: usuario.especialidade
+      especialidade: usuario.especialidade,
+      equipe: { id: usuario.membro.equipe.id, nome: usuario.membro.equipe.nome },
+      papel: usuario.membro.papel
     }
   };
 }

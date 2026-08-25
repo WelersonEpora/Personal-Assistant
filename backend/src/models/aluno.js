@@ -13,7 +13,9 @@ module.exports = (sequelize) => {
         allowNull: false,
         defaultValue: randomUUID
       },
-      usuario_id: {
+      // docs/adr/0011: aluno pertence à equipe (compartilhado entre seus
+      // membros), não a um usuario individual.
+      equipe_id: {
         type: DataTypes.UUID,
         allowNull: false
       },
@@ -43,7 +45,7 @@ module.exports = (sequelize) => {
   );
 
   Aluno.associate = (models) => {
-    Aluno.belongsTo(models.Usuario, { foreignKey: "usuario_id", as: "usuario" });
+    Aluno.belongsTo(models.Equipe, { foreignKey: "equipe_id", as: "equipe" });
     Aluno.hasMany(models.Registro, { foreignKey: "aluno_id", as: "registros" });
   };
 

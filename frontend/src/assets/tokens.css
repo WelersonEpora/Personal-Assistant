@@ -1,0 +1,156 @@
+/* ==========================================================================
+   Personal Assistant — Design tokens & base reset
+   Portado de prototype/assets/style.css (protótipo de UX aprovado) — ver
+   docs/adr/0003-frontend-unico-pwa.md: a UX do protótipo é preservada
+   diretamente, sem passar por uma biblioteca de componentes.
+   ========================================================================== */
+
+:root {
+  --color-bg: #f4f5f9;
+  --color-surface: #ffffff;
+  --color-surface-alt: #fafafb;
+
+  --color-primary: #4f46e5;
+  --color-primary-dark: #4338ca;
+  --color-primary-light: #eef2ff;
+
+  --color-success: #16a34a;
+  --color-success-light: #dcfce7;
+  --color-success-dark: #15803d;
+
+  --color-warning: #d97706;
+  --color-warning-light: #fef3c7;
+
+  --color-danger: #dc2626;
+  --color-danger-light: #fee2e2;
+
+  --color-info: #0ea5e9;
+  --color-info-light: #e0f2fe;
+
+  --color-text: #12141c;
+  --color-text-secondary: #6b7280;
+  --color-text-faint: #9ca3af;
+  --color-border: #e5e7eb;
+  --color-border-strong: #d1d5db;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --radius-full: 999px;
+
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, .06);
+  --shadow-md: 0 4px 14px rgba(16, 24, 40, .08);
+  --shadow-lg: 0 12px 32px rgba(16, 24, 40, .14);
+
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body, #app { margin: 0; padding: 0; height: 100%; }
+body {
+  font-family: var(--font);
+  color: var(--color-text);
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+ul, ol { list-style: none; margin: 0; padding: 0; }
+h1, h2, h3, h4, p { margin: 0; }
+input, select, textarea { font-family: inherit; }
+img { max-width: 100%; display: block; }
+
+/* ---- shared badge / chip component ---- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+  line-height: 1.6;
+}
+.badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+
+.badge-success { background: var(--color-success-light); color: var(--color-success-dark); }
+.badge-warning { background: var(--color-warning-light); color: var(--color-warning); }
+.badge-danger  { background: var(--color-danger-light);  color: var(--color-danger); }
+.badge-info    { background: var(--color-info-light);    color: #0369a1; }
+.badge-neutral { background: #eef0f4; color: var(--color-text-secondary); }
+.badge-primary { background: var(--color-primary-light); color: var(--color-primary-dark); }
+
+/* ---- shared button component ---- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 9px 16px;
+  border-radius: var(--radius-md);
+  transition: background .15s ease, box-shadow .15s ease, transform .05s ease;
+  white-space: nowrap;
+}
+.btn:active { transform: translateY(1px); }
+.btn-primary { background: var(--color-primary); color: #fff; }
+.btn-primary:hover { background: var(--color-primary-dark); }
+.btn-secondary { background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border-strong); }
+.btn-secondary:hover { background: var(--color-surface-alt); }
+.btn-ghost { background: transparent; color: var(--color-text-secondary); }
+.btn-ghost:hover { background: #ececf1; }
+.btn-danger-ghost { background: transparent; color: var(--color-danger); }
+.btn-danger-ghost:hover { background: var(--color-danger-light); }
+.btn-sm { padding: 6px 12px; font-size: 13px; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ---- toast ---- */
+.toast-stack {
+  position: fixed;
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+  right: 24px;
+  bottom: 24px;
+}
+.toast {
+  background: #17181f;
+  color: #fff;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  font-size: 13.5px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 340px;
+  animation: toast-in .22s cubic-bezier(.2,.8,.2,1);
+}
+.toast.toast-success { background: #14532d; }
+.toast.toast-warning { background: #7c2d12; }
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px) scale(.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.toast.toast-out { animation: toast-out .18s ease forwards; }
+@keyframes toast-out { to { opacity: 0; transform: translateY(-6px); } }
+
+/* ---- utility ---- */
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0,0,0,0); white-space: nowrap; border: 0; padding: 0; margin: -1px;
+}
+
+.switch { width: 42px; height: 25px; border-radius: 999px; background: var(--color-border-strong); position: relative; flex: none; transition: background .15s ease; }
+.switch::after { content: ""; position: absolute; top: 2.5px; left: 2.5px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: var(--shadow-sm); transition: transform .15s ease; }
+.switch.on { background: var(--color-primary); }
+.switch.on::after { transform: translateX(17px); }
+
+.empty-state { text-align: center; padding: 50px 20px; color: var(--color-text-faint); }
+.empty-state-icon { font-size: 32px; margin-bottom: 10px; }

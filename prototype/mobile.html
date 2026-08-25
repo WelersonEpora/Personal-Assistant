@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Personal Assistant — Captura (Mobile)</title>
+<link rel="stylesheet" href="assets/style.css" />
+<link rel="stylesheet" href="assets/mobile.css" />
+</head>
+<body class="mobile-body">
+
+<div class="mobile-caption">
+  ← <a href="index.html">Início</a> &nbsp;|&nbsp; Protótipo Mobile — Captura
+</div>
+
+<div class="phone">
+  <div class="phone-notch"></div>
+  <div class="phone-screen" id="screen">
+
+    <div class="status-bar">
+      <span id="clock">09:42</span>
+      <div class="status-bar-icons">
+        <span id="signal-icon">📶</span>
+        <span>🔋</span>
+      </div>
+    </div>
+
+    <div class="app-topbar">
+      <button class="current-student" id="student-switch-btn">
+        <span class="avatar" id="current-avatar">JS</span>
+        <span class="current-student-info">
+          <span class="current-student-label">Aluno atual</span>
+          <span class="current-student-name" id="current-name">João Silva<span class="current-student-caret">▾</span></span>
+        </span>
+      </button>
+      <button class="icon-btn" id="dev-open-btn" title="Configurações de demonstração">⚙️</button>
+    </div>
+
+    <div class="sync-banner state-ok" id="sync-banner">
+      <span class="sync-banner-dot"></span>
+      <span id="sync-banner-text">Tudo sincronizado</span>
+    </div>
+
+    <div class="stage">
+
+      <!-- ===================== tela ociosa: iniciar registro ===================== -->
+      <div class="idle-view" id="idle-view">
+        <div class="idle-icons">🎙️ ⌨️</div>
+        <p class="idle-title">Pronto para registrar?</p>
+        <p class="idle-subtitle">Inicie um registro e adicione quantos áudios ou textos quiser — treino, avaliação, observação, o que precisar.</p>
+        <input class="registro-title-input" id="registro-title-input" placeholder="Título do registro (opcional)" aria-label="Título do registro (opcional)" />
+        <button class="start-registro-btn" id="start-registro-btn">▶ Iniciar registro</button>
+      </div>
+
+      <!-- ===================== registro aberto: composer ===================== -->
+      <div class="composer-view" id="composer-view" style="display:none;">
+        <div class="registro-header">
+          <span class="registro-header-dot"></span>
+          <span class="registro-header-body">
+            <span class="registro-header-title" id="registro-header-title">Registro aberto — João Silva</span>
+            <span class="registro-header-sub" id="registro-header-sub">0 entradas</span>
+          </span>
+          <button class="registro-header-close" id="registro-discard-x" title="Descartar registro">✕</button>
+        </div>
+
+        <div class="entries-scroll" id="entries-scroll">
+          <div class="entries-empty" id="entries-empty">Toque e segure o microfone para gravar, ou digite um texto abaixo.</div>
+        </div>
+
+        <div class="composer-row">
+          <div class="composer-input-wrap">
+            <input class="composer-input" id="composer-input" placeholder="Adicionar texto ao registro…" aria-label="Adicionar texto ao registro" />
+            <div class="composer-recording" id="composer-recording">
+              <span class="composer-recording-text">Ouvindo… solte para enviar</span>
+              <span class="composer-recording-timer" id="composer-recording-timer">0:00</span>
+            </div>
+          </div>
+          <button class="mic-send-btn" id="mic-send-btn">🎙️</button>
+        </div>
+
+        <div class="composer-actions">
+          <button class="discard-btn" id="discard-registro-btn">Descartar</button>
+          <button class="finalize-btn" id="finalize-registro-btn">✓ Finalizar registro</button>
+        </div>
+      </div>
+
+      <!-- ===================== lista de registros recentes (tela ociosa) ===================== -->
+      <div class="recent-panel" id="recent-panel">
+        <div class="recent-panel-handle"></div>
+        <div class="recent-panel-title">
+          <span>Registros recentes</span>
+          <span id="recent-count" class="badge badge-neutral">0</span>
+        </div>
+        <div class="recent-list" id="recent-list"></div>
+      </div>
+
+    </div>
+
+    <div class="toast-stack" id="toast-stack"></div>
+
+    <!-- seletor de aluno -->
+    <div class="sheet-overlay" id="sheet-overlay">
+      <div class="sheet">
+        <p class="sheet-title">Selecionar aluno</p>
+        <div id="sheet-list"></div>
+      </div>
+    </div>
+
+    <!-- painel de simulação (apenas protótipo) -->
+    <div class="dev-panel" id="dev-panel">
+      <p class="dev-panel-title">Simulação — apenas neste protótipo</p>
+      <div class="dev-row">
+        <div>
+          <div class="dev-row-label">Sem conexão</div>
+          <div class="dev-row-sub">Simula captura offline (sem transcrição no aparelho)</div>
+        </div>
+        <button class="switch" id="offline-switch"></button>
+      </div>
+      <div class="dev-row">
+        <div>
+          <div class="dev-row-label">Sincronizar pendentes agora</div>
+          <div class="dev-row-sub">Envia registros salvos localmente</div>
+        </div>
+        <button class="btn btn-secondary btn-sm" id="force-sync-btn">Sincronizar</button>
+      </div>
+      <div class="dev-row">
+        <div>
+          <div class="dev-row-label">Fechar</div>
+        </div>
+        <button class="btn btn-primary btn-sm" id="dev-close-btn">OK</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="assets/data.js"></script>
+<script src="assets/mobile.js"></script>
+</body>
+</html>

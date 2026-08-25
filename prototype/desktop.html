@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Personal Assistant — Painel (Desktop)</title>
+<link rel="stylesheet" href="assets/style.css" />
+<link rel="stylesheet" href="assets/desktop.css" />
+</head>
+<body class="desktop-body">
+
+<div class="desktop-caption">← <a href="index.html">Início</a> &nbsp;|&nbsp; Protótipo Desktop — Gestão e Validação</div>
+
+<div class="app-shell">
+
+  <!-- ============================================================ SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-mark">🏋️</div>
+      <div>
+        <div class="sidebar-brand-name">Personal Assistant</div>
+        <div class="sidebar-brand-sub">Painel de gestão</div>
+      </div>
+    </div>
+
+    <nav>
+      <div class="nav-group-label">Visão geral</div>
+      <a class="nav-item" data-view="dashboard" href="#dashboard"><span class="nav-icon">📊</span>Dashboard</a>
+
+      <div class="nav-group-label">Operação</div>
+      <a class="nav-item" data-view="alunos" href="#alunos"><span class="nav-icon">👥</span>Alunos</a>
+      <a class="nav-item" data-view="treinos" href="#treinos"><span class="nav-icon">🏋️</span>Treinos</a>
+      <a class="nav-item" data-view="relatos" href="#relatos"><span class="nav-icon">🎙️</span>Relatos</a>
+      <a class="nav-item" data-view="revisao" href="#revisao"><span class="nav-icon">✅</span>Revisão<span class="nav-item-badge" id="nav-revisao-badge">0</span></a>
+
+      <div class="nav-group-label">Registros</div>
+      <a class="nav-item" data-view="historico" href="#historico"><span class="nav-icon">🕒</span>Histórico</a>
+
+      <div class="nav-group-label">Sistema</div>
+      <a class="nav-item" data-view="configuracoes" href="#configuracoes"><span class="nav-icon">⚙️</span>Configurações</a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <span class="avatar" style="background:#4f46e5">WE</span>
+      <div>
+        <div class="sidebar-footer-name">Welerson Eustáquio</div>
+        <div class="sidebar-footer-role">Personal Trainer</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============================================================== MAIN -->
+  <div class="main-col">
+    <header class="topbar">
+      <div class="topbar-title" id="topbar-title">Dashboard</div>
+      <div class="topbar-right">
+        <div class="sync-pill"><span class="sync-pill-dot"></span><span id="sync-pill-text">Sincronizado — última atualização há 2 min</span></div>
+        <span class="avatar sz-sm" style="background:#4f46e5">WE</span>
+      </div>
+    </header>
+
+    <main class="content">
+
+      <!-- ===================================================== DASHBOARD -->
+      <section class="view" id="view-dashboard">
+        <div class="view-header">
+          <div>
+            <h1>Olá, Welerson 👋</h1>
+            <p>Aqui está o resumo do seu dia — sexta-feira, 24 de agosto.</p>
+          </div>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="card kpi-card">
+            <div class="kpi-label">Aguardando revisão</div>
+            <div class="kpi-value" id="kpi-revisao">0</div>
+            <div class="kpi-sub warn">Registros com IA processada</div>
+          </div>
+          <div class="card kpi-card">
+            <div class="kpi-label">Alunos atendidos hoje</div>
+            <div class="kpi-value" id="kpi-alunos-hoje">0</div>
+            <div class="kpi-sub up">de 5 alunos ativos</div>
+          </div>
+          <div class="card kpi-card">
+            <div class="kpi-label">Registros confirmados (semana)</div>
+            <div class="kpi-value">18</div>
+            <div class="kpi-sub up">↑ 12% vs. semana anterior</div>
+          </div>
+          <div class="card kpi-card">
+            <div class="kpi-label">Registros pendentes no app</div>
+            <div class="kpi-value" id="kpi-pendentes">0</div>
+            <div class="kpi-sub">Ainda sincronizando do celular</div>
+          </div>
+        </div>
+
+        <div class="dashboard-grid">
+          <div class="card">
+            <div class="card-header">
+              <h3>Fila de revisão</h3>
+              <a href="#revisao">Ver tudo</a>
+            </div>
+            <div id="dashboard-revisao-list"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3>Atividade recente</h3>
+            </div>
+            <div id="dashboard-activity-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================= ALUNOS -->
+      <section class="view" id="view-alunos">
+        <div id="alunos-grid-view">
+          <div class="view-header">
+            <div>
+              <h1>Alunos</h1>
+              <p>5 alunos ativos no seu plano.</p>
+            </div>
+            <button class="btn btn-primary">+ Novo aluno</button>
+          </div>
+          <div class="students-grid" id="students-grid"></div>
+        </div>
+
+        <div id="aluno-detail-view" style="display:none;">
+          <a class="detail-back" id="aluno-detail-back">← Voltar para Alunos</a>
+          <div class="detail-header">
+            <span class="avatar sz-lg" id="aluno-detail-avatar"></span>
+            <div>
+              <div class="detail-header-name" id="aluno-detail-name"></div>
+              <div class="detail-header-sub" id="aluno-detail-sub"></div>
+              <div class="detail-tags" id="aluno-detail-tags"></div>
+            </div>
+          </div>
+          <div class="dashboard-grid">
+            <div class="card">
+              <div class="card-header"><h3>Histórico de treinos</h3></div>
+              <div id="aluno-detail-historico"></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h3>Relatos recentes</h3></div>
+              <div id="aluno-detail-relatos"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================== TREINOS -->
+      <section class="view" id="view-treinos">
+        <div class="view-header">
+          <div>
+            <h1>Treinos</h1>
+            <p>Planos de treino ativos por aluno.</p>
+          </div>
+          <button class="btn btn-primary">+ Novo treino</button>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Aluno</th><th>Treino atual</th><th>Plano</th><th>Última execução</th><th>Status</th></tr></thead>
+              <tbody id="treinos-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================== RELATOS -->
+      <section class="view" id="view-relatos">
+        <div class="view-header">
+          <div>
+            <h1>Relatos</h1>
+            <p>Registros recebidos do celular — cada um agrupa os áudios e textos capturados até o personal finalizar.</p>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="table-toolbar">
+            <div class="filter-tabs" id="relatos-filter-tabs">
+              <span class="filter-tab active" data-status="todos">Todos</span>
+              <span class="filter-tab" data-status="local">No dispositivo</span>
+              <span class="filter-tab" data-status="aguardando_sincronizacao">Aguardando sinc.</span>
+              <span class="filter-tab" data-status="sincronizando">Sincronizando</span>
+              <span class="filter-tab" data-status="processando_ia">Processando</span>
+              <span class="filter-tab" data-status="aguardando_revisao">Aguardando revisão</span>
+              <span class="filter-tab" data-status="confirmado">Confirmados</span>
+            </div>
+            <input class="search-input" placeholder="Buscar por aluno…" id="relatos-search" />
+          </div>
+        </div>
+        <div id="relatos-tbody" class="registros-list"></div>
+      </section>
+
+      <!-- ====================================================== REVISÃO -->
+      <section class="view" id="view-revisao">
+        <div class="view-header">
+          <div>
+            <h1>Revisão da IA</h1>
+            <p>Confira o que a IA entendeu do registro (áudios + textos) antes de confirmar no histórico do aluno.</p>
+          </div>
+        </div>
+
+        <div class="revisao-grid">
+          <div id="revisao-main"></div>
+
+          <div>
+            <div class="card" style="margin-bottom:16px;">
+              <div class="card-header"><h3>Fila de revisão</h3></div>
+              <div id="revisao-queue"></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h3>Dicas</h3></div>
+              <div class="card-pad" style="font-size:12.5px;color:var(--color-text-secondary);line-height:1.6;">
+                Corrija números e nomes de exercícios antes de confirmar — isso ajuda a IA a aprender o vocabulário do seu treino ao longo do tempo.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================================================== HISTÓRICO -->
+      <section class="view" id="view-historico">
+        <div class="view-header">
+          <div>
+            <h1>Histórico</h1>
+            <p>Registros já confirmados e salvos no perfil de cada aluno.</p>
+          </div>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Data</th><th>Aluno</th><th>Registro</th><th>Itens</th><th>Status</th></tr></thead>
+              <tbody id="historico-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================ CONFIGURAÇÕES -->
+      <section class="view" id="view-configuracoes">
+        <div class="view-header">
+          <div>
+            <h1>Configurações</h1>
+            <p>Preferências da sua conta e do aplicativo de captura.</p>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3>Perfil</h3>
+          <div class="form-grid">
+            <div class="form-field"><label>Nome</label><input type="text" value="Welerson Eustáquio" /></div>
+            <div class="form-field"><label>E-mail</label><input type="email" value="welerson@eporaeducacional.com.br" /></div>
+            <div class="form-field form-field-full"><label>Especialidade</label><input type="text" value="Hipertrofia e condicionamento físico" /></div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3>Captura e sincronização (celular)</h3>
+          <div class="toggle-row">
+            <div><div class="toggle-row-label">Sincronizar apenas via Wi-Fi</div><div class="toggle-row-sub">Evita usar dados móveis para enviar áudios</div></div>
+            <button class="switch" data-setting="wifi-only"></button>
+          </div>
+          <div class="toggle-row">
+            <div><div class="toggle-row-label">Confirmação automática de alta confiança</div><div class="toggle-row-sub">IA confirma sozinha relatos sem ambiguidade</div></div>
+            <button class="switch" data-setting="auto-confirm"></button>
+          </div>
+          <div class="toggle-row">
+            <div><div class="toggle-row-label">Notificar quando a IA terminar de processar</div><div class="toggle-row-sub">Envia um aviso para revisar o relato</div></div>
+            <button class="switch on" data-setting="notify"></button>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3>Sobre</h3>
+          <p style="font-size:13px;color:var(--color-text-secondary);">Personal Assistant — protótipo de UX v0.1</p>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<div class="toast-stack" id="toast-stack" style="right:24px;bottom:24px;"></div>
+
+<script src="assets/data.js"></script>
+<script src="assets/desktop.js"></script>
+</body>
+</html>

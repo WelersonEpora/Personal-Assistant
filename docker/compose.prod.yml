@@ -1,0 +1,48 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_INITDB_DATABASE:-personal_assistant}
+      POSTGRES_USER: ${POSTGRES_INITDB_USER:-personal_assistant}
+      POSTGRES_PASSWORD: ${POSTGRES_INITDB_PASSWORD:-personal_assistant}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_INITDB_USER:-personal_assistant} -d ${POSTGRES_INITDB_DATABASE:-personal_assistant}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    # Sem GitHub Actions/GHCR configurado ainda neste MVP (ver CLAUDE.md
+    # "Como publicar") - troque BACKEND_IMAGE por sua imagem publicada
+    # quando o pipeline de CI/CD existir. Nunca "build:" aqui (produção
+    # sempre consome uma imagem já testada, mesmo critério do ADR-0008 do
+    # AgroMind).
+    image: ${BACKEND_IMAGE:-ghcr.io/CHANGE_ME/personal-assistant-backend}:${BACKEND_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      POSTGRES_HOST: postgres
+    expose:
+      - "${APP_PORT:-3000}"
+    volumes:
+      # docs/adr/0010-armazenamento-arquivos-audio.md - volume nomeado, nunca
+      # servido como estático; só a rota autenticada de streaming acessa.
+      - audio_data:/app/storage/audio
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-ghcr.io/CHANGE_ME/personal-assistant-frontend}:${FRONTEND_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-8081}:80"
+
+volumes:
+  postgres_data:
+  audio_data:

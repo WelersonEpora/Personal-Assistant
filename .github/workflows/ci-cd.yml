@@ -157,8 +157,19 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Deploy automático num servidor real (SSH + docker compose pull/up,
-      # ver scripts/deploy.sh) ainda não está configurado aqui - depende de
-      # onde o Personal Assistant vai rodar em produção (ver docs/deploy.md).
-      # Quando existir, este job ganha um passo final igual ao "Deploy on
-      # Oracle VM" do AgroMind (.github/workflows/deploy.yml de referência).
+      # Mesma VM Oracle do AgroMind (deploy solicitado assim), stack Docker
+      # totalmente separada (projeto "personal-assistant", ver docs/adr/0001).
+      # Login no GHCR não é feito aqui de propósito: o usuário "deploy" já
+      # tem uma sessão docker login persistida no host (usada pelo próprio
+      # deploy do AgroMind, que a renova a cada execução) - reaproveitada em
+      # vez de duplicar GHCR_USERNAME/GHCR_PAT como secrets também aqui.
+      - name: Deploy on Oracle VM
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_USER }}
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          script_stop: true
+          command_timeout: 15m
+          script: |
+            sudo -iu deploy bash -lc 'cd /opt/apps/personal-assistant/app && git pull --ff-only && chmod +x scripts/deploy.sh && bash scripts/deploy.sh'

@@ -8,6 +8,7 @@ import { salvarAlunosCache, listarAlunosCache, salvarAudioLocal } from '../../of
 import { criarGravador } from '../../offline/recorder.js'
 import { useToasts } from '../../composables/useToasts.js'
 import { statusMeta, resumoEntradas, corParaId, iniciais, formatarHora } from '../../utils/registroStatus.js'
+import { gerarUuid } from '../../utils/uuid.js'
 import AlunoSheet from '../../components/AlunoSheet.vue'
 import ToastStack from '../../components/ToastStack.vue'
 
@@ -121,7 +122,7 @@ function selecionarAluno(id) {
 function iniciarRegistro() {
   if (!alunoAtualId.value) return
   activeRegistro.value = {
-    id: crypto.randomUUID(),
+    id: gerarUuid(),
     alunoId: alunoAtualId.value,
     titulo: registroTituloInput.value.trim(),
     iniciadoEm: new Date().toISOString(),
@@ -246,18 +247,13 @@ function descartar() {
       <button class="current-student" :class="{ 'is-locked': Boolean(activeRegistro) }" type="button" @click="abrirSheet">
         <span v-if="alunoAtual" class="avatar" :style="{ background: corParaId(alunoAtual.id) }">{{ iniciais(alunoAtual.nome) }}</span>
         <span class="current-student-info">
-          <span class="current-student-label">Aluno atual</span>
+          <span class="current-student-label">Aluno selecionado</span>
           <span class="current-student-name">{{ alunoAtual ? alunoAtual.nome : 'Selecionar aluno' }}<span class="current-student-caret">▾</span></span>
         </span>
       </button>
       <router-link class="icon-btn" to="/admin" title="Painel admin">🖥️</router-link>
       <button class="icon-btn" type="button" title="Sair" @click="auth.logout(); $router.replace('/login')">🚪</button>
     </div>
-
-    <button class="sync-banner" :class="bannerClasse" type="button" @click="syncQueue.processarFila()">
-      <span class="sync-banner-dot"></span>
-      <span>{{ bannerTexto }}</span>
-    </button>
 
     <div class="stage">
       <!-- ===================== tela ociosa: iniciar registro ===================== -->
@@ -288,6 +284,10 @@ function descartar() {
             <span>Registros recentes</span>
             <span class="badge badge-neutral">{{ recentes.length }}</span>
           </div>
+          <button class="sync-banner" :class="bannerClasse" type="button" @click="syncQueue.processarFila()">
+            <span class="sync-banner-dot"></span>
+            <span>{{ bannerTexto }}</span>
+          </button>
           <div class="recent-list">
             <div v-if="!recentes.length" class="recent-item-empty">Nenhum registro ainda hoje.</div>
             <div v-for="item in recentes" :key="item.id" class="recent-item">

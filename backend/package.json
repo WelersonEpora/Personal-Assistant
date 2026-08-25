@@ -11,6 +11,7 @@
     "db:migrate:undo": "sequelize-cli db:migrate:undo --config sequelize.config.js",
     "db:seed": "sequelize-cli db:seed:all --config sequelize.config.js",
     "db:seed:undo": "sequelize-cli db:seed:undo:all --config sequelize.config.js",
+    "criar-usuario": "node scripts/criar-usuario.js",
     "test": "cross-env NODE_ENV=test node --test"
   },
   "dependencies": {

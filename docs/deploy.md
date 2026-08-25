@@ -2,9 +2,9 @@
 
 Este documento cobre o que falta configurar para publicar o Personal
 Assistant num servidor — os artefatos (Dockerfiles, `docker/compose.prod.yml`,
-`nginx.conf`) já existem no repositório; o que falta é específico do
-ambiente real (servidor, domínio, credenciais, pipeline de CI/CD), que este
-MVP deliberadamente não inventa.
+`nginx.conf`, `.github/workflows/ci-cd.yml`) já existem no repositório; o
+que falta é específico do ambiente real (servidor, domínio, credenciais),
+que este MVP deliberadamente não inventa.
 
 ## Build de produção
 
@@ -18,27 +18,42 @@ dependências de produção (`npm ci --omit=dev`). O frontend builda com Vite
 (`npm run build`) num estágio intermediário e serve os estáticos resultantes
 com nginx (build multi-stage, ver `frontend/Dockerfile`).
 
-## Publicar imagens (GHCR ou outro registry)
+## CI/CD (`.github/workflows/ci-cd.yml`)
 
-Este MVP **não tem pipeline de CI/CD configurado ainda** (sem GitHub Actions,
-sem publicação automática no GHCR). `docker/compose.prod.yml` já está
-preparado para consumir imagens de um registry (`BACKEND_IMAGE`/
-`FRONTEND_IMAGE` em `.env`, ver `.env.example`) — falta só:
+Em todo push/PR para `main`: `test-backend` (Postgres de serviço, migrations,
+`npm test`) e `test-frontend` (`npm test` + `npm run build`). Em push direto
+para `main`, depois dos dois jobs de teste passarem, `build-and-push` builda
+e publica as imagens no GHCR:
 
-1. Publicar as imagens buildadas acima num registry acessível pelo servidor
-   (GHCR, Docker Hub, etc.) — `docker tag` + `docker push`.
-2. Ajustar `BACKEND_IMAGE`/`FRONTEND_IMAGE`/`*_IMAGE_TAG` no `.env` do
-   servidor para apontar para onde elas realmente ficaram.
+- `ghcr.io/welersonepora/personal-assistant-backend:latest` (+ tag do SHA)
+- `ghcr.io/welersonepora/personal-assistant-frontend:latest` (+ tag do SHA)
 
-Automatizar isso (build → push → deploy via GitHub Actions) é uma etapa
-futura, fora do escopo deste MVP.
+Usa só `secrets.GITHUB_TOKEN` (automático, sem configuração) — nenhum
+segredo novo precisa ser cadastrado no repositório para essa parte.
+
+**O que falta — deploy automático no servidor.** O workflow builda e publica
+as imagens, mas ainda **não** faz SSH num servidor e roda `scripts/deploy.sh`
+lá (diferente do `.github/workflows/deploy.yml` do AgroMind, que já tem essa
+etapa porque já existe uma VM real rodando). Falta, quando houver um
+servidor real:
+
+1. Provisionar o servidor (Docker + Docker Compose instalados, repositório
+   clonado, `.env` configurado).
+2. Cadastrar os secrets do repositório GitHub: host/usuário/chave SSH do
+   servidor.
+3. Adicionar ao final do job `build-and-push` um passo de deploy via SSH
+   (`appleboy/ssh-action`, mesmo padrão do AgroMind) que roda
+   `scripts/deploy.sh` no servidor.
+
+Até lá, publicar em produção é manual: `docker tag` + `docker push` das
+imagens buildadas localmente, ou puxar as imagens já publicadas pelo CI
+(`docker compose ... pull`) direto no servidor.
 
 ## Subir em produção
 
 ```bash
 cp .env.example .env   # ajustar todos os valores para o ambiente real
-docker compose --project-directory . -f docker/compose.prod.yml up -d
-docker exec $(docker compose --project-directory . -f docker/compose.prod.yml ps -q backend) npm run db:migrate
+bash scripts/deploy.sh   # pull + up -d + migrations + limpeza de imagens antigas
 ```
 
 - O backend nunca expõe porta no host (`expose`, não `ports`) — só o
@@ -46,7 +61,22 @@ docker exec $(docker compose --project-directory . -f docker/compose.prod.yml ps
   interno de `/api` e `/health` para o `backend` pela rede Docker (mesma
   origem, sem CORS).
 - Rollback: trocar `BACKEND_IMAGE_TAG`/`FRONTEND_IMAGE_TAG` no `.env` para
-  uma tag anterior e rodar `up -d` de novo — sem editar o compose.
+  uma tag anterior e rodar `scripts/deploy.sh` de novo — sem editar o
+  compose.
+
+### Primeiro usuário
+
+Não existe cadastro público neste MVP (seção 12 do pedido original —
+superfície de auth mínima). Depois do primeiro deploy, criar o primeiro
+personal trainer real dentro do container do backend:
+
+```bash
+docker compose -p personal-assistant --project-directory . -f docker/compose.prod.yml \
+  exec backend npm run criar-usuario -- --nome="Fulano" --email="fulano@exemplo.com" --senha="uma-senha-forte"
+```
+
+O seeder de desenvolvimento (`personal@dev.local` / `personal123`) nunca
+roda em produção — `scripts/deploy.sh` não chama `db:seed` de propósito.
 
 ## Domínio e TLS
 

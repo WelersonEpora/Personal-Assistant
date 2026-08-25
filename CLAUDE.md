@@ -85,9 +85,11 @@ Antes de qualquer alteração que toque nesse fluxo, ler
 ```text
 personal-assistant/
   CLAUDE.md
+  .github/workflows/ci-cd.yml  testes + build/push das imagens (GHCR)
   docs/adr/                 decisões arquiteturais (ver índice abaixo)
   docs/deploy.md             publicação, health checks, backup
   prototype/                protótipo de UX original — referência, não é o app
+  scripts/deploy.sh          pull + up -d + migrations no servidor de produção
   backend/
     src/
       config/                env.js, database.js
@@ -101,6 +103,7 @@ personal-assistant/
       shared/{logger,middlewares,errors,utils}/
       app.js  server.js
     database/{migrations,seeders}/
+    scripts/criar-usuario.js  único jeito de provisionar login (sem cadastro público)
     storage/audio/           arquivos de áudio (dev; produção usa volume Docker)
     Dockerfile  .dockerignore
   frontend/
@@ -185,19 +188,28 @@ cd backend && npm run build    # se aplicável (JS puro, normalmente não há bu
 cd frontend && npm run build   # Vite — gera frontend/dist
 ```
 
+## CI/CD
+
+`.github/workflows/ci-cd.yml`: testa backend e frontend em todo push/PR
+para `main` (Postgres de serviço para os testes de integração do backend);
+em push direto para `main`, depois dos testes passarem, builda e publica as
+imagens no GHCR (`ghcr.io/welersonepora/personal-assistant-{backend,frontend}`).
+**Ainda não faz deploy automático num servidor** — falta um servidor real
+configurado (host/SSH nos secrets do repositório) para adicionar esse
+último passo. Detalhes: `docs/deploy.md`.
+
 ## Como publicar
 
 ```bash
-docker compose --project-directory . -f docker/compose.prod.yml pull
-docker compose --project-directory . -f docker/compose.prod.yml up -d
-docker exec $(docker compose --project-directory . -f docker/compose.prod.yml ps -q backend) npm run db:migrate
+cp .env.example .env   # ajustar para o ambiente real
+bash scripts/deploy.sh   # pull + up -d + migrations + limpeza de imagens antigas
 ```
 
 Backend nunca expõe porta no host (`expose`, não `ports`) — quem fica
 exposto é o `frontend`, cujo nginx faz proxy interno de `/api` e `/health`
-para o backend (mesma origem, sem CORS). Sem GitHub Actions/GHCR
-configurado ainda neste MVP — `BACKEND_IMAGE`/`FRONTEND_IMAGE` em `.env`
-apontam para onde as imagens publicadas manualmente ficarem. Health checks,
+para o backend (mesma origem, sem CORS). Sem cadastro público — o primeiro
+usuário de produção é criado via `npm run criar-usuario` dentro do
+container do backend (nunca o seeder de desenvolvimento). Health checks,
 logs, backup do Postgres e do volume de áudio (`audio_data`), domínio/TLS:
 `docs/deploy.md`.
 
@@ -272,6 +284,9 @@ MVP completo e verificado de ponta a ponta:
   confirmar no modo `/admin` → dado oficial persistido em `validacao`, nunca
   sobrescrito por reconfirmação. Navegação pelas telas verificada num
   navegador real (Playwright), sem erros de console.
+- **CI/CD**: `.github/workflows/ci-cd.yml` testa backend e frontend em todo
+  push/PR e publica as imagens no GHCR a cada push em `main`.
 - **Pendências reais**: nenhuma chamada real ao Gemini foi validada (precisa
-  de `GEMINI_API_KEY` de verdade); CI/CD (GitHub Actions → GHCR → deploy) e
+  de `GEMINI_API_KEY` de verdade); deploy automático num servidor real ainda
+  não existe (falta o servidor em si — host/SSH nos secrets do repositório);
   domínio/TLS de produção não configurados — ver `docs/deploy.md`.

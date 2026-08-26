@@ -10,7 +10,8 @@ import {
   listarRegistrosLocais,
   removerRegistroLocal,
   salvarAudioLocal,
-  obterAudioLocal
+  obterAudioLocal,
+  removerAudioLocal
 } from './db.js'
 
 test('salvarRegistroLocal aceita um objeto vindo de um Proxy reativo (round-trip JSON)', async () => {
@@ -45,4 +46,17 @@ test('removerRegistroLocal remove também os áudios associados (nunca deixa ór
   const todos = await listarRegistrosLocais()
   assert.equal(todos.find((r) => r.id === 'r-audio'), undefined)
   assert.equal(await obterAudioLocal('r-audio', 0), null)
+})
+
+// docs/adr/0012-registros-em-andamento-simultaneos.md: remover uma entrada
+// de um Registro ainda em andamento não pode afetar os áudios das outras
+// entradas do mesmo Registro.
+test('removerAudioLocal remove só o áudio da ordem indicada, mantendo os demais', async () => {
+  await salvarAudioLocal('r-multi-audio', 0, new Blob(['audio-0'], { type: 'audio/webm' }))
+  await salvarAudioLocal('r-multi-audio', 2, new Blob(['audio-2'], { type: 'audio/webm' }))
+
+  await removerAudioLocal('r-multi-audio', 0)
+
+  assert.equal(await obterAudioLocal('r-multi-audio', 0), null)
+  assert.ok(await obterAudioLocal('r-multi-audio', 2), 'o áudio de outra ordem não deve ser afetado')
 })

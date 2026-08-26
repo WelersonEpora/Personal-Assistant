@@ -41,12 +41,12 @@ function novaStoreOnline() {
   return store
 }
 
-test('registrarFinalizado grava o Registro localmente e ele aparece em registrosLocais', async () => {
+test('salvarLocal grava o Registro localmente e ele aparece em registrosLocais', async () => {
   const store = novaStoreOnline()
   mock.method(registrosService, 'sincronizar', async () => new Promise(() => {})) // nunca resolve neste teste
   store.online = false // evita disparar processarFila automaticamente
 
-  await store.registrarFinalizado(registroLocal('reg-a'))
+  await store.salvarLocal(registroLocal('reg-a'))
 
   assert.ok(store.registrosLocais.some((r) => r.id === 'reg-a'))
   mock.restoreAll()
@@ -56,7 +56,7 @@ test('processarFila: sucesso remove o Registro do dispositivo', async () => {
   const store = novaStoreOnline()
   const chamadaSincronizar = mock.method(registrosService, 'sincronizar', async () => ({ id: 'reg-b', status: 'recebido' }))
 
-  await store.registrarFinalizado(registroLocal('reg-b'))
+  await store.salvarLocal(registroLocal('reg-b'))
   await store.processarFila()
 
   assert.equal(chamadaSincronizar.mock.callCount(), 1)
@@ -70,7 +70,7 @@ test('processarFila: falha mantém o Registro local como erro_sincronizacao (nã
     throw new Error('rede instável')
   })
 
-  await store.registrarFinalizado(registroLocal('reg-c'))
+  await store.salvarLocal(registroLocal('reg-c'))
   await store.processarFila()
 
   const local = store.registrosLocais.find((r) => r.id === 'reg-c')
@@ -88,7 +88,7 @@ test('processarFila: um Registro em erro_sincronizacao é retentado na próxima 
     return { id: 'reg-d', status: 'recebido' }
   })
 
-  await store.registrarFinalizado(registroLocal('reg-d'))
+  await store.salvarLocal(registroLocal('reg-d'))
   await store.processarFila() // falha
   assert.equal(store.registrosLocais.find((r) => r.id === 'reg-d')?.status, 'erro_sincronizacao')
 
@@ -103,10 +103,33 @@ test('processarFila: offline nunca chama o serviço de sincronização', async (
   const chamadaSincronizar = mock.method(registrosService, 'sincronizar', async () => ({ id: 'reg-e', status: 'recebido' }))
   store.online = false
 
-  await store.registrarFinalizado(registroLocal('reg-e'))
+  await store.salvarLocal(registroLocal('reg-e'))
   await store.processarFila()
 
   assert.equal(chamadaSincronizar.mock.callCount(), 0)
   assert.ok(store.registrosLocais.some((r) => r.id === 'reg-e'), 'continua salvo localmente, aguardando conexão')
   mock.restoreAll()
+})
+
+// docs/adr/0012-registros-em-andamento-simultaneos.md: um Registro 'em_andamento'
+// é rascunho, nunca fila de sincronização.
+test('processarFila nunca sincroniza um Registro em_andamento', async () => {
+  const store = novaStoreOnline()
+  const chamadaSincronizar = mock.method(registrosService, 'sincronizar', async () => ({ id: 'reg-f', status: 'recebido' }))
+
+  await store.salvarLocal(registroLocal('reg-f', { status: 'em_andamento' }))
+  await store.processarFila()
+
+  assert.equal(chamadaSincronizar.mock.callCount(), 0)
+  assert.equal(store.registrosLocais.find((r) => r.id === 'reg-f')?.status, 'em_andamento')
+  mock.restoreAll()
+})
+
+test('pendentes exclui Registros em_andamento da contagem', async () => {
+  const store = novaStoreOnline()
+  await store.salvarLocal(registroLocal('reg-g', { status: 'em_andamento' }))
+  await store.salvarLocal(registroLocal('reg-h', { status: 'pendente_sincronizacao' }))
+
+  assert.equal(store.pendentes.length, 1)
+  assert.equal(store.pendentes[0].id, 'reg-h')
 })

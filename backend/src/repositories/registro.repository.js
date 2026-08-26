@@ -55,7 +55,7 @@ async function criarArquivoAudio({ registroEntradaId, caminhoArmazenamento, mime
 // confirmado, alimenta a tela de Histórico sem uma 2a chamada por linha).
 function listarPorEquipe({ equipeId, status }) {
   return Registro.findAll({
-    where: { equipe_id: equipeId, ...(status ? { status } : {}) },
+    where: { equipe_id: equipeId, deletado_em: null, ...(status ? { status } : {}) },
     include: [
       { model: Aluno, as: "aluno", attributes: ["id", "nome"] },
       { model: RegistroEntrada, as: "entradas", attributes: ["id", "tipo", "ordem"] },
@@ -66,13 +66,27 @@ function listarPorEquipe({ equipeId, status }) {
 }
 
 function obterDetalhado(id) {
-  return Registro.findByPk(id, {
+  return Registro.findOne({
+    where: { id, deletado_em: null },
     include: [
       { model: Aluno, as: "aluno", attributes: ["id", "nome"] },
       INCLUDE_ENTRADAS_COMPLETO,
-      { model: ResultadoIa, as: "resultadoIa" }
+      { model: ResultadoIa, as: "resultadoIa" },
+      { model: Validacao, as: "validacao" }
     ]
   });
+}
+
+// Fetch leve (sem includes) usado só para checar posse/status antes de
+// excluir - não precisa carregar entradas/resultadoIa/validacao inteiros.
+function obterPorIdEquipe({ id, equipeId }) {
+  return Registro.findOne({ where: { id, equipe_id: equipeId, deletado_em: null } });
+}
+
+// Soft-delete (docs/adr/0007): a checagem de "não confirmado" é
+// responsabilidade do service, não daqui - este método só marca.
+function marcarComoExcluido({ id, equipeId }) {
+  return Registro.update({ deletado_em: new Date() }, { where: { id, equipe_id: equipeId, deletado_em: null } });
 }
 
 function obterParaProcessamento(id) {
@@ -115,7 +129,7 @@ function obterEntradaAudioAutorizada({ equipeId, registroId, entradaId }) {
     where: { id: entradaId, registro_id: registroId },
     include: [
       { model: ArquivoAudio, as: "arquivoAudio" },
-      { model: Registro, as: "registro", attributes: [], where: { equipe_id: equipeId } }
+      { model: Registro, as: "registro", attributes: [], where: { equipe_id: equipeId, deletado_em: null } }
     ]
   });
 }
@@ -129,6 +143,8 @@ module.exports = {
   criarArquivoAudio,
   listarPorEquipe,
   obterDetalhado,
+  obterPorIdEquipe,
+  marcarComoExcluido,
   obterParaProcessamento,
   atualizarStatus,
   salvarTranscricao,

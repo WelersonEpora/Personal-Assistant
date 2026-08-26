@@ -28,6 +28,13 @@ const routes = [
       },
       { path: 'historico', name: 'admin-historico', component: () => import('../views/admin/HistoricoView.vue'), meta: { titulo: 'Histórico' } },
       {
+        path: 'historico/:id',
+        name: 'admin-historico-detalhe',
+        component: () => import('../views/admin/HistoricoDetalheView.vue'),
+        props: true,
+        meta: { titulo: 'Histórico' }
+      },
+      {
         path: 'equipe',
         name: 'admin-equipe',
         component: () => import('../views/admin/EquipeView.vue'),

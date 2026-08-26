@@ -16,5 +16,6 @@ router.get("/:id", registroController.getById);
 router.post("/:id/sincronizar", upload.any(), registroController.sincronizar);
 router.get("/:id/entradas/:entradaId/audio", registroController.streamAudio);
 router.post("/:id/confirmar", registroController.confirmar);
+router.delete("/:id", registroController.excluir);
 
 module.exports = router;

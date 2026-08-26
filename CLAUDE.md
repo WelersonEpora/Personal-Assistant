@@ -28,11 +28,16 @@ novos.
   Depois de finalizado, o Registro não é mais editável no cliente.
 - `registro.id` é **gerado no cliente** (`crypto.randomUUID()`) no momento
   de iniciar — é a chave de idempotência de toda a sincronização.
-- Estados **locais** (só no dispositivo, nunca no servidor): `local`,
+- Estados **locais** (só no dispositivo, nunca no servidor): `em_andamento`
+  (rascunho, ainda sendo editado — ver docs/adr/0012), `local`,
   `aguardando_sincronizacao`, `sincronizando`.
 - Estados de **servidor** (`registro.status`): `recebido → transcrevendo →
   interpretando → aguardando_revisao → confirmado` (+ `erro_transcricao` /
   `erro_interpretacao`, retomáveis).
+- O personal pode ter **um Registro `em_andamento` por aluno ao mesmo
+  tempo** (ex.: atendimento em família) — cada entrada (texto ou áudio) é
+  persistida no IndexedDB assim que capturada, não só ao finalizar (ver
+  docs/adr/0012-registros-em-andamento-simultaneos.md).
 
 Detalhes e alternativas consideradas: `docs/adr/0002-conceito-de-registro.md`.
 
@@ -269,6 +274,7 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
 | 0009 | Processamento assíncrono em processo (fila em memória) |
 | 0010 | Armazenamento de arquivos de áudio (disco local em volume Docker) |
 | 0011 | Conceito de Equipe e Membro (multi-tenancy simples) |
+| 0012 | Múltiplos Registros em andamento simultâneos (persistência incremental de entradas) |
 
 ## Estado atual
 
@@ -282,8 +288,10 @@ MVP completo e verificado de ponta a ponta:
   integração contra banco de teste dedicado).
 - **Frontend**: app Vue 3 + Vite + PWA único (`/captura` mobile-first
   offline, `/admin` gestão/validação), IndexedDB + fila de sincronização
-  própria, gravador de áudio (MediaRecorder). 8 testes automatizados
-  (`node --test` + `fake-indexeddb`, `registros.service` mockado).
+  própria, gravador de áudio (MediaRecorder), múltiplos Registros
+  `em_andamento` simultâneos com persistência incremental (docs/adr/0012).
+  11 testes automatizados (`node --test` + `fake-indexeddb`,
+  `registros.service` mockado).
 - **Docker**: `compose.dev.yml` (Postgres + pgAdmin) e `compose.prod.yml`
   (Postgres + backend + frontend) validados; Dockerfiles com healthcheck
   em ambos os serviços da aplicação.

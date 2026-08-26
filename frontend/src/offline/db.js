@@ -87,3 +87,10 @@ export async function obterAudioLocal(registroId, ordem) {
   const registro = await db.get('audios', [registroId, ordem])
   return registro?.blob ?? null
 }
+
+// Remove um único áudio (ex.: entrada apagada de um Registro ainda em
+// andamento, sem descartar o Registro inteiro).
+export async function removerAudioLocal(registroId, ordem) {
+  const db = await getDb()
+  await db.delete('audios', [registroId, ordem])
+}

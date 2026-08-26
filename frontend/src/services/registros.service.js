@@ -10,6 +10,15 @@ async function obter(id) {
   return data.data
 }
 
+// O endpoint exige o header Authorization (ver services/http.js) - uma tag
+// <audio src="..."> direta não manda esse header, por isso o áudio precisa
+// ser buscado como Blob e virar um object URL (mesmo padrão do áudio local
+// gravado no dispositivo, ver offline/db.js).
+async function obterAudio(registroId, entradaId) {
+  const { data } = await http.get(`/api/v1/registros/${registroId}/entradas/${entradaId}/audio`, { responseType: 'blob' })
+  return data
+}
+
 // Envia um Registro completo (metadados + arquivos de áudio) numa única
 // requisição multipart, atômica e idempotente pelo id gerado no cliente
 // (docs/adr/0005-estrategia-sincronizacao.md). `registro` vem do formato
@@ -46,4 +55,11 @@ async function confirmar(id, { itens, notaGeral }) {
   return data.data
 }
 
-export default { listar, obter, sincronizar, confirmar }
+// Soft-delete (docs/adr/0007) - o backend rejeita quando o Registro já está
+// confirmado, ver comentário em registro.service.js.
+async function excluir(id) {
+  const { data } = await http.delete(`/api/v1/registros/${id}`)
+  return data.data
+}
+
+export default { listar, obter, obterAudio, sincronizar, confirmar, excluir }

@@ -1,7 +1,10 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import registrosService from '../../services/registros.service.js'
 import { corParaId, iniciais, formatarData } from '../../utils/registroStatus.js'
+
+const router = useRouter()
 
 const registros = ref([])
 const carregando = ref(true)
@@ -38,7 +41,12 @@ const ordenados = computed(() => [...registros.value].sort((a, b) => (a.validaca
             </tr>
           </thead>
           <tbody>
-            <tr v-for="registro in ordenados" :key="registro.id">
+            <tr
+              v-for="registro in ordenados"
+              :key="registro.id"
+              class="row-clickable"
+              @click="router.push({ name: 'admin-historico-detalhe', params: { id: registro.id } })"
+            >
               <td>{{ formatarData(registro.validacao?.confirmado_em || registro.created_at) }}</td>
               <td>
                 <div style="display: flex; align-items: center; gap: 10px;">

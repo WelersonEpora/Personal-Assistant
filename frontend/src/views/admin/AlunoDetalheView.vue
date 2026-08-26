@@ -46,7 +46,12 @@ const emAndamento = computed(() => registros.value.filter((r) => r.status !== 'c
       <div class="card">
         <div class="card-header"><h3>Histórico confirmado</h3></div>
         <div v-if="!confirmados.length" class="empty-state" style="padding: 20px;">Sem registros confirmados ainda.</div>
-        <div v-for="registro in confirmados" :key="registro.id" class="list-row">
+        <div
+          v-for="registro in confirmados"
+          :key="registro.id"
+          class="list-row row-clickable"
+          @click="router.push({ name: 'admin-historico-detalhe', params: { id: registro.id } })"
+        >
           <span class="list-row-body">
             <span class="list-row-title">{{ registro.titulo || 'Registro' }}</span>
             <span class="list-row-sub">{{ formatarData(registro.created_at) }} — {{ registro.validacao?.payload_confirmado_json?.itens?.length || 0 }} item(ns)</span>

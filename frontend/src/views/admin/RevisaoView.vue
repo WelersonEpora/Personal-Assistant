@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import registrosService from '../../services/registros.service.js'
 import { corParaId, iniciais, formatarData, formatarHora, resumoEntradas } from '../../utils/registroStatus.js'
@@ -35,6 +35,7 @@ async function selecionar(id) {
   editando.value = false
   carregandoDetalhe.value = true
   transcricaoAberta.value = false
+  revogarAudiosEntradas(selecionado.value?.entradas)
   try {
     selecionado.value = await registrosService.obter(id)
     router.replace({ name: 'admin-revisao', params: { id } })
@@ -43,7 +44,34 @@ async function selecionar(id) {
   }
 }
 
+// Áudio já sincronizado só existe no servidor - buscado como Blob sob
+// demanda (ver services/registros.service.js) quando o personal abre "Ver
+// entradas originais", não no carregamento da fila inteira.
+async function alternarEntradasOriginais() {
+  transcricaoAberta.value = !transcricaoAberta.value
+  if (!transcricaoAberta.value || !selecionado.value) return
+  await Promise.all(
+    selecionado.value.entradas
+      .filter((entrada) => entrada.tipo === 'audio' && entrada.arquivoAudio && !entrada.audioUrl)
+      .map(async (entrada) => {
+        try {
+          const blob = await registrosService.obterAudio(selecionado.value.id, entrada.id)
+          entrada.audioUrl = URL.createObjectURL(blob)
+        } catch (_err) {
+          // sem áudio disponível - a entrada só fica sem player, sem travar as demais
+        }
+      })
+  )
+}
+
+function revogarAudiosEntradas(entradas) {
+  ;(entradas || []).forEach((entrada) => {
+    if (entrada.audioUrl) URL.revokeObjectURL(entrada.audioUrl)
+  })
+}
+
 onMounted(carregarFila)
+onBeforeUnmount(() => revogarAudiosEntradas(selecionado.value?.entradas))
 watch(
   () => props.id,
   (novo) => {
@@ -113,15 +141,16 @@ function confirmarSemEditar() {
         <template v-if="!editando">
           <div class="revisao-source">
             {{ resumoEntradas(selecionado.entradas || []) }} neste registro
-            <button class="revisao-source-toggle" type="button" @click="transcricaoAberta = !transcricaoAberta">
+            <button class="revisao-source-toggle" type="button" @click="alternarEntradasOriginais">
               {{ transcricaoAberta ? 'Ocultar entradas originais' : 'Ver entradas originais' }}
             </button>
           </div>
           <div class="transcript-box" :class="{ open: transcricaoAberta }">
             <div v-for="entrada in selecionado.entradas" :key="entrada.id" class="source-entry">
               <span class="source-entry-icon">{{ entrada.tipo === 'audio' ? '🎙️' : '⌨️' }}</span>
-              <div>
+              <div class="source-entry-body">
                 <div class="source-entry-meta">{{ entrada.tipo === 'audio' ? `Áudio · ${entrada.duracao_segundos}s` : 'Texto' }}</div>
+                <audio v-if="entrada.audioUrl" :src="entrada.audioUrl" controls class="source-entry-audio"></audio>
                 <div class="source-entry-text">
                   <template v-if="entrada.tipo === 'audio'">
                     <template v-if="entrada.arquivoAudio?.transcricao?.texto">"{{ entrada.arquivoAudio.transcricao.texto }}"</template>

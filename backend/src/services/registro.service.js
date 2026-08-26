@@ -2,7 +2,7 @@
 
 const registroRepository = require("../repositories/registro.repository");
 const storageAudio = require("./storage-audio.service");
-const { NotFoundError } = require("../shared/errors");
+const { NotFoundError, ConflictError } = require("../shared/errors");
 
 async function listar(equipeId, { status } = {}) {
   return registroRepository.listarPorEquipe({ equipeId, status });
@@ -25,4 +25,18 @@ async function obterAudio(equipeId, registroId, entradaId) {
   return { buffer, mimeType: entrada.arquivoAudio.mime_type };
 }
 
-module.exports = { listar, obterDetalhe, obterAudio };
+// Soft-delete (docs/adr/0007): só Registros ainda não confirmados podem ser
+// excluídos - depois de "confirmado" o Registro já virou Validacao, dado
+// oficial do histórico do aluno.
+async function excluir(equipeId, registroId) {
+  const registro = await registroRepository.obterPorIdEquipe({ id: registroId, equipeId });
+  if (!registro) {
+    throw new NotFoundError("Registro não encontrado.");
+  }
+  if (registro.status === "confirmado") {
+    throw new ConflictError("Um Registro confirmado não pode ser excluído.");
+  }
+  await registroRepository.marcarComoExcluido({ id: registroId, equipeId });
+}
+
+module.exports = { listar, obterDetalhe, obterAudio, excluir };

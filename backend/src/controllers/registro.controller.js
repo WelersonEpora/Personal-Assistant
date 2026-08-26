@@ -59,4 +59,9 @@ async function confirmar(req, res) {
   success(res, validacao, { statusCode: 201 });
 }
 
-module.exports = { list, getById, sincronizar, streamAudio, confirmar };
+async function excluir(req, res) {
+  await registroService.excluir(req.equipeId, req.params.id);
+  success(res, { id: req.params.id });
+}
+
+module.exports = { list, getById, sincronizar, streamAudio, confirmar, excluir };

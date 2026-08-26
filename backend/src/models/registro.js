@@ -60,6 +60,12 @@ module.exports = (sequelize) => {
         allowNull: false,
         defaultValue: "recebido",
         validate: { isIn: [STATUS_VALIDOS] }
+      },
+      // Soft-delete - só permitido para Registros ainda não confirmados
+      // (docs/adr/0007). NULL = não excluído.
+      deletado_em: {
+        type: DataTypes.DATE,
+        allowNull: true
       }
     },
     {

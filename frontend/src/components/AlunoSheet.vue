@@ -5,7 +5,8 @@ const props = defineProps({
   aberto: { type: Boolean, required: true },
   alunos: { type: Array, required: true },
   alunoAtualId: { type: String, default: null },
-  equipeNome: { type: String, default: '' }
+  equipeNome: { type: String, default: '' },
+  emAndamentoIds: { type: Set, default: () => new Set() }
 })
 const emit = defineEmits(['fechar', 'selecionar'])
 
@@ -32,6 +33,7 @@ function selecionar(id) {
           <span class="sheet-student-name">{{ aluno.nome }}</span>
           <span v-if="aluno.observacoes" class="sheet-student-sub">{{ aluno.observacoes }}</span>
         </span>
+        <span v-if="props.emAndamentoIds.has(aluno.id)" class="sheet-student-badge" title="Registro em andamento">✏️</span>
       </button>
       <div v-if="!props.alunos.length" class="empty-state" style="padding: 20px;">Nenhum aluno cadastrado ainda.</div>
     </div>

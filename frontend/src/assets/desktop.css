@@ -142,6 +142,13 @@ html, body { height: 100%; }
 .registro-card.row-clickable:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
 .registro-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .registro-card-who { display: flex; align-items: center; gap: 10px; }
+.registro-card-head-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.registro-card-delete {
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px;
+}
+.registro-card-delete:hover { background: var(--color-danger-light); }
 .registro-card-entries { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .entry-chip {
   display: inline-flex; align-items: center; justify-content: center;
@@ -157,7 +164,9 @@ html, body { height: 100%; }
 .source-entry { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--color-border); }
 .source-entry:last-child { border-bottom: none; }
 .source-entry-icon { font-size: 14px; flex: none; margin-top: 1px; }
+.source-entry-body { flex: 1; min-width: 0; }
 .source-entry-meta { font-size: 11px; font-weight: 700; color: var(--color-text-faint); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 2px; }
+.source-entry-audio { display: block; width: 100%; max-width: 480px; height: 40px; margin-bottom: 4px; }
 .source-entry-text { font-size: 13px; color: var(--color-text-secondary); font-style: italic; line-height: 1.5; }
 
 /* -------------------------------------------------------------- tables */

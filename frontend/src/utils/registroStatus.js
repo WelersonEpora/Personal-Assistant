@@ -3,6 +3,7 @@
 // 0002-conceito-de-registro.md). Nunca persistidos juntos no mesmo lugar,
 // mas a UI precisa apresentar os dois de forma consistente.
 export const STATUS_META = {
+  em_andamento: { label: 'Em andamento', badge: 'primary', icon: '✏️' },
   pendente_sincronizacao: { label: 'Salvo no dispositivo', badge: 'warning', icon: '📴' },
   sincronizando: { label: 'Sincronizando…', badge: 'info', icon: '⇅' },
   erro_sincronizacao: { label: 'Falha ao sincronizar', badge: 'danger', icon: '⚠️' },
@@ -60,4 +61,11 @@ export function formatarHora(dataIso) {
 export function formatarData(dataIso) {
   if (!dataIso) return ''
   return new Date(dataIso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+}
+
+export function formatarDataHora(dataIso) {
+  if (!dataIso) return ''
+  const data = new Date(dataIso)
+  const dataStr = data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  return `${dataStr} às ${formatarHora(dataIso)}`
 }

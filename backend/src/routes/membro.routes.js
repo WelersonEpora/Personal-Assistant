@@ -17,5 +17,6 @@ router.post("/", membroController.create);
 router.put("/:id", membroController.update);
 router.post("/:id/foto", upload.single("foto"), membroController.enviarFoto);
 router.get("/:id/foto", membroController.streamFoto);
+router.delete("/:id/foto", membroController.removerFoto);
 
 module.exports = router;

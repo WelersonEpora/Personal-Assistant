@@ -9,6 +9,7 @@ const { randomUUID } = require("node:crypto");
 
 const { Equipe, Membro, Usuario } = require("../models");
 const membroService = require("./membro.service");
+const authService = require("./auth.service");
 
 let equipeA;
 let equipeB;
@@ -135,6 +136,45 @@ test("atualizarMembro: permite desativar um owner quando existe outro owner ativ
   assert.equal(atualizado.ativo, false);
 });
 
+test("atualizarMembro: rejeita nova senha com menos de 8 caracteres", async () => {
+  await assert.rejects(() => membroService.atualizarMembro(equipeB.id, ownerB.id, { senha: "curta" }), /senha/i);
+});
+
+test("atualizarMembro: string vazia em senha não altera a senha atual (campo opcional no formulário)", async (t) => {
+  const membro = await membroService.criarMembro(equipeB.id, {
+    nome: "Membro senha vazia",
+    email: `membro-senha-vazia-${randomUUID()}@exemplo.com`,
+    senha: "senha-original-123"
+  });
+  t.after(async () => {
+    await Membro.destroy({ where: { id: membro.id } });
+    await Usuario.destroy({ where: { id: membro.usuario.id } });
+  });
+
+  await membroService.atualizarMembro(equipeB.id, membro.id, { senha: "" });
+
+  const resultado = await authService.login({ email: membro.usuario.email, senha: "senha-original-123" });
+  assert.equal(resultado.usuario.id, membro.usuario.id);
+});
+
+test("atualizarMembro: troca a senha e o login passa a exigir a nova senha", async (t) => {
+  const membro = await membroService.criarMembro(equipeB.id, {
+    nome: "Membro para trocar senha",
+    email: `membro-troca-senha-${randomUUID()}@exemplo.com`,
+    senha: "senha-antiga-123"
+  });
+  t.after(async () => {
+    await Membro.destroy({ where: { id: membro.id } });
+    await Usuario.destroy({ where: { id: membro.usuario.id } });
+  });
+
+  await membroService.atualizarMembro(equipeB.id, membro.id, { senha: "senha-nova-456" });
+
+  await assert.rejects(() => authService.login({ email: membro.usuario.email, senha: "senha-antiga-123" }), /inválidos/);
+  const resultado = await authService.login({ email: membro.usuario.email, senha: "senha-nova-456" });
+  assert.equal(resultado.usuario.id, membro.usuario.id);
+});
+
 test("atualizarFotoMembro: rejeita formato de imagem não suportado", async () => {
   await assert.rejects(
     () => membroService.atualizarFotoMembro(equipeB.id, ownerB.id, { buffer: Buffer.from("x"), mimeType: "image/gif" }),
@@ -144,4 +184,24 @@ test("atualizarFotoMembro: rejeita formato de imagem não suportado", async () =
 
 test("obterFotoMembro: rejeita quando o membro pertence a outra equipe", async () => {
   await assert.rejects(() => membroService.obterFotoMembro(equipeA.id, ownerB.id), /não encontrado/);
+});
+
+test("removerFotoMembro: rejeita quando o membro não tem foto cadastrada", async () => {
+  await assert.rejects(() => membroService.removerFotoMembro(equipeB.id, ownerB.id), /não tem foto/);
+});
+
+test("removerFotoMembro: limpa foto_caminho depois de um upload", async (t) => {
+  const membro = await membroService.criarMembro(equipeB.id, {
+    nome: "Membro com foto",
+    email: `membro-foto-${randomUUID()}@exemplo.com`,
+    senha: "senha-valida-123"
+  });
+  t.after(async () => {
+    await Membro.destroy({ where: { id: membro.id } });
+    await Usuario.destroy({ where: { id: membro.usuario.id } });
+  });
+
+  await membroService.atualizarFotoMembro(equipeB.id, membro.id, { buffer: Buffer.from("fake-jpeg"), mimeType: "image/jpeg" });
+  const atualizado = await membroService.removerFotoMembro(equipeB.id, membro.id);
+  assert.equal(atualizado.usuario.foto_caminho, null);
 });

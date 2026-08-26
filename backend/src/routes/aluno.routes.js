@@ -18,5 +18,6 @@ router.put("/:id", alunoController.update);
 router.delete("/:id", alunoController.excluir);
 router.post("/:id/foto", upload.single("foto"), alunoController.enviarFoto);
 router.get("/:id/foto", alunoController.streamFoto);
+router.delete("/:id/foto", alunoController.removerFoto);
 
 module.exports = router;

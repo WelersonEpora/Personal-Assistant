@@ -66,4 +66,13 @@ async function obterFoto(equipeId, id) {
   return storageFoto.ler(aluno.foto_caminho);
 }
 
-module.exports = { listAlunos, getAluno, createAluno, updateAluno, excluirAluno, atualizarFoto, obterFoto };
+async function removerFoto(equipeId, id) {
+  const aluno = await getAluno(equipeId, id);
+  if (!aluno.foto_caminho) {
+    throw new NotFoundError("Aluno não tem foto cadastrada.");
+  }
+  await storageFoto.remover(aluno.foto_caminho);
+  return alunoRepository.update(aluno, { foto_caminho: null });
+}
+
+module.exports = { listAlunos, getAluno, createAluno, updateAluno, excluirAluno, atualizarFoto, obterFoto, removerFoto };

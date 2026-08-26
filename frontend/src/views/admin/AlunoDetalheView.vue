@@ -22,6 +22,7 @@ const telefoneEdit = ref('')
 const observacoesEdit = ref('')
 const salvando = ref(false)
 const enviandoFoto = ref(false)
+const removendoFoto = ref(false)
 const fotoInput = ref(null)
 
 async function carregarFoto() {
@@ -99,6 +100,19 @@ async function onFotoSelecionada(evento) {
     showToast('Não foi possível enviar a foto (use JPEG, PNG ou WebP, até 5MB).', 'warning')
   } finally {
     enviandoFoto.value = false
+  }
+}
+
+async function removerFoto() {
+  removendoFoto.value = true
+  try {
+    aluno.value = await alunosService.removerFoto(props.id)
+    await carregarFoto()
+    showToast('Foto removida.', 'neutral')
+  } catch (_err) {
+    showToast('Não foi possível remover a foto.', 'warning')
+  } finally {
+    removendoFoto.value = false
   }
 }
 
@@ -197,6 +211,17 @@ function notaGeralConfirmada(registro) {
         <span v-else class="avatar sz-lg" :style="{ background: corParaId(aluno.id) }">{{ iniciais(aluno.nome) }}</span>
         <button type="button" class="btn btn-ghost" style="position: absolute; bottom: -8px; right: -8px; padding: 2px 6px; font-size: 11px;" :disabled="enviandoFoto" @click="selecionarFoto">
           📷
+        </button>
+        <button
+          v-if="fotoUrl"
+          type="button"
+          class="btn btn-ghost"
+          title="Remover foto"
+          style="position: absolute; bottom: -8px; left: -8px; padding: 2px 6px; font-size: 11px;"
+          :disabled="removendoFoto"
+          @click="removerFoto"
+        >
+          🗑️
         </button>
         <input ref="fotoInput" type="file" accept="image/jpeg,image/png,image/webp" style="display: none;" @change="onFotoSelecionada" />
       </div>

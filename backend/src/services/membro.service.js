@@ -77,6 +77,12 @@ async function atualizarMembro(equipeId, id, dados) {
     atualizacaoUsuario.email = emailNormalizado;
   }
   if (dados.especialidade !== undefined) atualizacaoUsuario.especialidade = dados.especialidade || null;
+  if (dados.senha !== undefined && dados.senha !== "") {
+    if (dados.senha.length < 8) {
+      throw new ValidationError('"senha" precisa ter ao menos 8 caracteres.');
+    }
+    atualizacaoUsuario.senha_hash = await bcrypt.hash(dados.senha, 10);
+  }
 
   const atualizacaoMembro = {};
   if (dados.papel !== undefined) {
@@ -128,4 +134,22 @@ async function obterFotoMembro(equipeId, id) {
   return storageFoto.ler(membro.usuario.foto_caminho);
 }
 
-module.exports = { listarMembros, obterMembro, criarMembro, atualizarMembro, atualizarFotoMembro, obterFotoMembro };
+async function removerFotoMembro(equipeId, id) {
+  const membro = await obterMembro(equipeId, id);
+  if (!membro.usuario.foto_caminho) {
+    throw new NotFoundError("Membro não tem foto cadastrada.");
+  }
+  await storageFoto.remover(membro.usuario.foto_caminho);
+  await membroRepository.atualizarUsuario(membro.usuario, { foto_caminho: null });
+  return obterMembro(equipeId, id);
+}
+
+module.exports = {
+  listarMembros,
+  obterMembro,
+  criarMembro,
+  atualizarMembro,
+  atualizarFotoMembro,
+  obterFotoMembro,
+  removerFotoMembro
+};

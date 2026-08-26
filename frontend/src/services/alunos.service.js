@@ -41,4 +41,9 @@ async function enviarFoto(id, arquivo) {
   return data.data
 }
 
-export default { listar, obter, criar, atualizar, excluir, obterFoto, enviarFoto }
+async function removerFoto(id) {
+  const { data } = await http.delete(`/api/v1/alunos/${id}/foto`)
+  return data.data
+}
+
+export default { listar, obter, criar, atualizar, excluir, obterFoto, enviarFoto, removerFoto }

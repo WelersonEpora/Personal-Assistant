@@ -40,4 +40,15 @@ async function ler(nomeArquivo) {
   return { buffer, mimeType };
 }
 
-module.exports = { salvar, ler, mimeSuportado };
+// Idempotente: já não ter o arquivo em disco não é erro (ex.: remoção
+// repetida, ou registro com foto_caminho apontando para um arquivo já
+// limpo manualmente).
+async function remover(nomeArquivo) {
+  try {
+    await fs.unlink(path.join(BASE_DIR, nomeArquivo));
+  } catch (err) {
+    if (err.code !== "ENOENT") throw err;
+  }
+}
+
+module.exports = { salvar, ler, remover, mimeSuportado };

@@ -111,6 +111,7 @@ function abrirModalEditarMembro(membro) {
 // também a sessão em memória (auth.store.js) pra topbar/sidebar refletirem
 // na hora, sem precisar deslogar/logar de novo.
 const enviandoFoto = ref(false)
+const removendoFoto = ref(false)
 const fotoInput = ref(null)
 
 function selecionarFoto() {
@@ -139,6 +140,25 @@ async function onFotoSelecionada(evento) {
   }
 }
 
+async function removerFoto() {
+  if (!membroEditando.value) return
+  removendoFoto.value = true
+  try {
+    const atualizado = await membrosService.removerFoto(membroEditando.value.id)
+    membroEditando.value.usuario.foto_caminho = atualizado.usuario.foto_caminho
+    if (membroEditando.value.fotoUrl) URL.revokeObjectURL(membroEditando.value.fotoUrl)
+    membroEditando.value.fotoUrl = null
+    if (membroEditando.value.usuario.id === auth.usuario?.id) {
+      auth.atualizarUsuario({ foto_caminho: null })
+    }
+    showToast('Foto removida.', 'neutral')
+  } catch (_err) {
+    showToast('Não foi possível remover a foto.', 'warning')
+  } finally {
+    removendoFoto.value = false
+  }
+}
+
 async function salvarMembro() {
   if (!form.value.nome.trim() || !form.value.email.trim()) return
   salvandoMembro.value = true
@@ -149,7 +169,8 @@ async function salvarMembro() {
         email: form.value.email.trim(),
         especialidade: form.value.especialidade.trim() || null,
         papel: form.value.papel,
-        ativo: form.value.ativo
+        ativo: form.value.ativo,
+        ...(form.value.senha ? { senha: form.value.senha } : {})
       })
       showToast('Membro atualizado.', 'success')
     } else {
@@ -255,6 +276,17 @@ async function salvarMembro() {
             <button type="button" class="btn btn-ghost" style="position: absolute; bottom: -8px; right: -8px; padding: 2px 6px; font-size: 11px;" :disabled="enviandoFoto" @click="selecionarFoto">
               📷
             </button>
+            <button
+              v-if="membroEditando.fotoUrl"
+              type="button"
+              class="btn btn-ghost"
+              title="Remover foto"
+              style="position: absolute; bottom: -8px; left: -8px; padding: 2px 6px; font-size: 11px;"
+              :disabled="removendoFoto"
+              @click="removerFoto"
+            >
+              🗑️
+            </button>
             <input ref="fotoInput" type="file" accept="image/jpeg,image/png,image/webp" style="display: none;" @change="onFotoSelecionada" />
           </div>
         </div>
@@ -268,9 +300,16 @@ async function salvarMembro() {
               <label>E-mail</label>
               <input v-model="form.email" type="email" required />
             </div>
-            <div v-if="!membroEditando" class="form-field form-field-full">
-              <label>Senha</label>
-              <input v-model="form.senha" type="password" required minlength="8" autocomplete="new-password" />
+            <div class="form-field form-field-full">
+              <label>{{ membroEditando ? 'Nova senha (opcional)' : 'Senha' }}</label>
+              <input
+                v-model="form.senha"
+                type="password"
+                :required="!membroEditando"
+                minlength="8"
+                autocomplete="new-password"
+                :placeholder="membroEditando ? 'Deixe em branco para manter a atual' : ''"
+              />
             </div>
             <div class="form-field form-field-full">
               <label>Especialidade (opcional)</label>

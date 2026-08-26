@@ -43,4 +43,9 @@ async function streamFoto(req, res) {
   res.send(buffer);
 }
 
-module.exports = { list, getById, create, update, excluir, enviarFoto, streamFoto };
+async function removerFoto(req, res) {
+  const aluno = await alunoService.removerFoto(req.equipeId, req.params.id);
+  success(res, aluno);
+}
+
+module.exports = { list, getById, create, update, excluir, enviarFoto, streamFoto, removerFoto };

@@ -74,6 +74,22 @@ test("atualizarFoto: rejeita formato de imagem não suportado", async (t) => {
   );
 });
 
+test("removerFoto: rejeita quando o aluno não tem foto cadastrada", async (t) => {
+  const aluno = await alunoService.createAluno(equipeA.id, { nome: "Aluno sem foto" });
+  t.after(() => Aluno.destroy({ where: { id: aluno.id } }));
+
+  await assert.rejects(() => alunoService.removerFoto(equipeA.id, aluno.id), /não tem foto/);
+});
+
+test("removerFoto: limpa foto_caminho depois de um upload", async (t) => {
+  const aluno = await alunoService.createAluno(equipeA.id, { nome: "Aluno com foto" });
+  t.after(() => Aluno.destroy({ where: { id: aluno.id } }));
+
+  await alunoService.atualizarFoto(equipeA.id, aluno.id, { buffer: Buffer.from("fake-jpeg"), mimeType: "image/jpeg" });
+  const atualizado = await alunoService.removerFoto(equipeA.id, aluno.id);
+  assert.equal(atualizado.foto_caminho, null);
+});
+
 // Regra central desta feature: excluir um aluno leva consigo todos os seus
 // Registros (docs de arquitetura do produto - relatos/avaliações não fazem
 // sentido sem o aluno dono).

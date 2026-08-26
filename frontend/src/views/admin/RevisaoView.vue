@@ -112,6 +112,20 @@ function salvarEdicaoEConfirmar() {
 function confirmarSemEditar() {
   confirmarRegistro(itensIa.value, notaGeralIa.value)
 }
+
+// Exclusão (soft-delete, docs/adr/0007) - mesmo padrão de RegistrosView: o
+// backend já rejeita "confirmado", mas nesta tela isso nunca acontece porque
+// só chegam registros 'aguardando_revisao'.
+async function excluirRegistro() {
+  if (!window.confirm('Excluir este registro? Essa ação não pode ser desfeita.')) return
+  try {
+    await registrosService.excluir(selecionado.value.id)
+    showToast('Registro excluído.', 'neutral')
+    await carregarFila()
+  } catch (_err) {
+    showToast('Não foi possível excluir o registro.', 'warning')
+  }
+}
 </script>
 
 <template>
@@ -184,6 +198,7 @@ function confirmarSemEditar() {
           <div class="revisao-actions">
             <button class="btn btn-secondary" type="button" @click="entrarEdicao">Editar</button>
             <button class="btn btn-primary" type="button" :disabled="confirmando" @click="confirmarSemEditar">Confirmar</button>
+            <button class="btn btn-danger-ghost" type="button" style="margin-left: auto;" @click="excluirRegistro">Excluir Registro</button>
           </div>
         </template>
 
@@ -211,6 +226,7 @@ function confirmarSemEditar() {
           <div class="revisao-actions">
             <button class="btn btn-primary" type="button" :disabled="confirmando" @click="salvarEdicaoEConfirmar">Salvar e confirmar</button>
             <button class="btn btn-ghost" type="button" @click="editando = false">Cancelar</button>
+            <button class="btn btn-danger-ghost" type="button" style="margin-left: auto;" @click="excluirRegistro">Excluir Registro</button>
           </div>
         </template>
       </div>

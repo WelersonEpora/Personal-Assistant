@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import alunosService from '../../services/alunos.service.js'
 import registrosService from '../../services/registros.service.js'
@@ -15,8 +15,24 @@ const registrosPorAluno = ref({})
 const carregando = ref(true)
 const modalAberto = ref(false)
 const novoNome = ref('')
+const novoTelefone = ref('')
 const novasObservacoes = ref('')
 const salvando = ref(false)
+
+async function carregarFotos() {
+  await Promise.all(
+    alunos.value
+      .filter((aluno) => aluno.foto_caminho)
+      .map(async (aluno) => {
+        try {
+          const blob = await alunosService.obterFoto(aluno.id)
+          aluno.fotoUrl = URL.createObjectURL(blob)
+        } catch (_err) {
+          // sem foto disponível - card fica só com as iniciais
+        }
+      })
+  )
+}
 
 async function carregar() {
   carregando.value = true
@@ -27,11 +43,19 @@ async function carregar() {
       mapa[registro.aluno_id] = (mapa[registro.aluno_id] || 0) + 1
       return mapa
     }, {})
+    await carregarFotos()
   } finally {
     carregando.value = false
   }
 }
 onMounted(carregar)
+
+function revogarFotos() {
+  alunos.value.forEach((aluno) => {
+    if (aluno.fotoUrl) URL.revokeObjectURL(aluno.fotoUrl)
+  })
+}
+onBeforeUnmount(revogarFotos)
 
 function abrirDetalhe(id) {
   router.push({ name: 'admin-aluno-detalhe', params: { id } })
@@ -39,6 +63,7 @@ function abrirDetalhe(id) {
 
 function abrirModal() {
   novoNome.value = ''
+  novoTelefone.value = ''
   novasObservacoes.value = ''
   modalAberto.value = true
 }
@@ -47,7 +72,11 @@ async function salvarNovoAluno() {
   if (!novoNome.value.trim()) return
   salvando.value = true
   try {
-    await alunosService.criar({ nome: novoNome.value.trim(), observacoes: novasObservacoes.value.trim() || null })
+    await alunosService.criar({
+      nome: novoNome.value.trim(),
+      telefone: novoTelefone.value.trim() || null,
+      observacoes: novasObservacoes.value.trim() || null
+    })
     modalAberto.value = false
     showToast('Aluno cadastrado.', 'success')
     await carregar()
@@ -72,7 +101,8 @@ async function salvarNovoAluno() {
     <div class="students-grid">
       <div v-for="aluno in alunos" :key="aluno.id" class="card student-card" @click="abrirDetalhe(aluno.id)">
         <div class="student-card-top">
-          <span class="avatar sz-lg" :style="{ background: corParaId(aluno.id) }">{{ iniciais(aluno.nome) }}</span>
+          <img v-if="aluno.fotoUrl" :src="aluno.fotoUrl" class="avatar sz-lg" alt="" />
+          <span v-else class="avatar sz-lg" :style="{ background: corParaId(aluno.id) }">{{ iniciais(aluno.nome) }}</span>
           <div>
             <div class="student-card-name">{{ aluno.nome }}</div>
             <div class="student-card-plan" v-if="!aluno.ativo">Inativo</div>
@@ -94,6 +124,10 @@ async function salvarNovoAluno() {
           <div class="form-field" style="margin-bottom: 12px;">
             <label>Nome</label>
             <input v-model="novoNome" type="text" required autofocus />
+          </div>
+          <div class="form-field" style="margin-bottom: 12px;">
+            <label>Telefone (opcional)</label>
+            <input v-model="novoTelefone" type="tel" placeholder="(11) 99999-0000" />
           </div>
           <div class="form-field" style="margin-bottom: 16px;">
             <label>Observações (opcional)</label>

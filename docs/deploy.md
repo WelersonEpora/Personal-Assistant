@@ -139,6 +139,12 @@ para a decisão de manter os áudios em disco local (não object storage) neste
 MVP — migrar para object storage no futuro elimina a necessidade deste
 backup manual.
 
+### Fotos de aluno (volume `foto_data`)
+
+Mesmo critério do volume `audio_data` acima (troque `audio_data` por
+`foto_data` e `/app/storage/audio` por `/app/storage/fotos` no comando de
+backup) — arquivos pequenos, mesma lógica de `tar` + `cron`.
+
 ## Variáveis de ambiente
 
 Ver `.env.example` (raiz) — usado tanto pelo Docker Compose quanto pelo

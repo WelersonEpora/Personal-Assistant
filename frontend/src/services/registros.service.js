@@ -62,4 +62,11 @@ async function excluir(id) {
   return data.data
 }
 
-export default { listar, obter, obterAudio, sincronizar, confirmar, excluir }
+// Reprocessamento manual - o backend rejeita quando o Registro não está em
+// erro_transcricao/erro_interpretacao, ver comentário em registro.service.js.
+async function reprocessar(id) {
+  const { data } = await http.post(`/api/v1/registros/${id}/reprocessar`)
+  return data.data
+}
+
+export default { listar, obter, obterAudio, sincronizar, confirmar, excluir, reprocessar }

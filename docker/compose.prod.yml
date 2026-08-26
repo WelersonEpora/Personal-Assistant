@@ -33,6 +33,8 @@ services:
       # docs/adr/0010-armazenamento-arquivos-audio.md - volume nomeado, nunca
       # servido como estático; só a rota autenticada de streaming acessa.
       - audio_data:/app/storage/audio
+      # Mesmo critério para a foto (avatar) do aluno.
+      - foto_data:/app/storage/fotos
     depends_on:
       postgres:
         condition: service_healthy
@@ -46,3 +48,4 @@ services:
 volumes:
   postgres_data:
   audio_data:
+  foto_data:

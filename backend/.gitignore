@@ -2,4 +2,6 @@ node_modules/
 .env
 storage/audio/*
 !storage/audio/.gitkeep
+storage/fotos/*
+!storage/fotos/.gitkeep
 *.log

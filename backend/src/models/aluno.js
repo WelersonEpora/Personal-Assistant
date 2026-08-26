@@ -29,10 +29,26 @@ module.exports = (sequelize) => {
         type: DataTypes.TEXT,
         allowNull: true
       },
+      telefone: {
+        type: DataTypes.STRING(20),
+        allowNull: true
+      },
+      // Nome do arquivo em storage/fotos (ver services/storage-foto.service.js),
+      // não a imagem em si - mesmo padrão de arquivo_audio.caminho_armazenamento.
+      foto_caminho: {
+        type: DataTypes.STRING(255),
+        allowNull: true
+      },
       ativo: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: true
+      },
+      // Soft-delete - excluir um aluno leva consigo seus Registros/Validacoes
+      // (ver aluno.service.js::excluir). NULL = não excluído.
+      deletado_em: {
+        type: DataTypes.DATE,
+        allowNull: true
       }
     },
     {

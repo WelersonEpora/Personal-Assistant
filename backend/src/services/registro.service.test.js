@@ -83,3 +83,37 @@ test("excluir: chamado duas vezes no mesmo Registro rejeita a segunda vez", asyn
 
   await assert.rejects(() => registroService.excluir(equipe.id, registro.id), /não encontrado/);
 });
+
+// Reprocessamento manual (botão "Tentar novamente" na revisão): só o status
+// de reenfileiramento (recebido) é verificado aqui - o resto do pipeline
+// (transcrição/interpretação de fato) já é coberto por
+// jobs/processador-fila-ia.test.js e não é reexecutado nestes testes.
+test("reprocessar: Registro com erro_transcricao volta para recebido e é reenfileirado", async (t) => {
+  const registro = await criarRegistro(Registro.STATUS.ERRO_TRANSCRICAO);
+  t.after(() => Registro.destroy({ where: { id: registro.id } }));
+
+  const resultado = await registroService.reprocessar(equipe.id, registro.id);
+  assert.equal(resultado.status, Registro.STATUS.RECEBIDO);
+});
+
+test("reprocessar: Registro com erro_interpretacao volta para recebido e é reenfileirado", async (t) => {
+  const registro = await criarRegistro(Registro.STATUS.ERRO_INTERPRETACAO);
+  t.after(() => Registro.destroy({ where: { id: registro.id } }));
+
+  const resultado = await registroService.reprocessar(equipe.id, registro.id);
+  assert.equal(resultado.status, Registro.STATUS.RECEBIDO);
+});
+
+test("reprocessar: rejeita quando o Registro não está em estado de erro", async (t) => {
+  const registro = await criarRegistro(Registro.STATUS.AGUARDANDO_REVISAO);
+  t.after(() => Registro.destroy({ where: { id: registro.id } }));
+
+  await assert.rejects(() => registroService.reprocessar(equipe.id, registro.id), /falha de transcrição ou interpretação/);
+});
+
+test("reprocessar: rejeita quando o Registro pertence a outra equipe", async (t) => {
+  const registro = await criarRegistro(Registro.STATUS.ERRO_TRANSCRICAO);
+  t.after(() => Registro.destroy({ where: { id: registro.id } }));
+
+  await assert.rejects(() => registroService.reprocessar(outraEquipe.id, registro.id), /não encontrado/);
+});

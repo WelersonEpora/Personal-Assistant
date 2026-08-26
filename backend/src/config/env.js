@@ -38,5 +38,7 @@ module.exports = {
   },
   // docs/adr/0010-armazenamento-arquivos-audio.md - caminho relativo a
   // backend/ em dev; em producao e o ponto de montagem do volume Docker.
-  audioStorageDir: process.env.AUDIO_STORAGE_DIR || "storage/audio"
+  audioStorageDir: process.env.AUDIO_STORAGE_DIR || "storage/audio",
+  // Mesmo critério do audioStorageDir, para a foto (avatar) do aluno.
+  fotoStorageDir: process.env.FOTO_STORAGE_DIR || "storage/fotos"
 };

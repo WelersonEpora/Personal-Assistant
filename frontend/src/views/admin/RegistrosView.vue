@@ -107,6 +107,19 @@ async function excluirRegistro(registro) {
     showToast('Não foi possível excluir o registro.', 'warning')
   }
 }
+
+// Reprocessamento manual (só oferecido para Registros parados em
+// erro_transcricao/erro_interpretacao) - volta pra fila de IA sem precisar
+// gravar tudo de novo, já que áudios e textos capturados não se perdem.
+async function reprocessarRegistro(registro) {
+  try {
+    const atualizado = await registrosService.reprocessar(registro.id)
+    registro.status = atualizado.status
+    showToast('Registro reenviado para a IA.', 'neutral')
+  } catch (_err) {
+    showToast('Não foi possível reprocessar o registro.', 'warning')
+  }
+}
 </script>
 
 <template>
@@ -152,6 +165,15 @@ async function excluirRegistro(registro) {
           </div>
           <div class="registro-card-head-actions">
             <span class="badge" :class="'badge-' + statusMeta(registro.status).badge">{{ statusMeta(registro.status).icon }} {{ statusMeta(registro.status).label }}</span>
+            <button
+              v-if="registro.status === 'erro_transcricao' || registro.status === 'erro_interpretacao'"
+              type="button"
+              class="registro-card-delete"
+              title="Tentar novamente"
+              @click.stop="reprocessarRegistro(registro)"
+            >
+              🔁
+            </button>
             <button
               v-if="registro.status !== 'confirmado'"
               type="button"

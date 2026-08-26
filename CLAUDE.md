@@ -111,6 +111,7 @@ personal-assistant/
     database/{migrations,seeders}/
     scripts/criar-usuario.js  único jeito de provisionar login (sem cadastro público)
     storage/audio/           arquivos de áudio (dev; produção usa volume Docker)
+    storage/fotos/           foto (avatar) de aluno (mesmo critério do storage/audio)
     Dockerfile  .dockerignore
   frontend/
     src/

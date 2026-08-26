@@ -64,4 +64,9 @@ async function excluir(req, res) {
   success(res, { id: req.params.id });
 }
 
-module.exports = { list, getById, sincronizar, streamAudio, confirmar, excluir };
+async function reprocessar(req, res) {
+  const registro = await registroService.reprocessar(req.equipeId, req.params.id);
+  success(res, registro);
+}
+
+module.exports = { list, getById, sincronizar, streamAudio, confirmar, excluir, reprocessar };

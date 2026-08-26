@@ -149,6 +149,12 @@ html, body { height: 100%; }
   font-size: 13px;
 }
 .registro-card-delete:hover { background: var(--color-danger-light); }
+.student-card-favorite {
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+}
+.student-card-favorite:hover { background: var(--color-warning-light); }
 .registro-card-entries { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .entry-chip {
   display: inline-flex; align-items: center; justify-content: center;

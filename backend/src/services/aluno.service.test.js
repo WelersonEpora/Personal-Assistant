@@ -103,3 +103,33 @@ test("excluirAluno: soft-delete some da listagem e leva os Registros do aluno ju
 test("excluirAluno: rejeita quando o aluno pertence a outra equipe", async () => {
   await assert.rejects(() => alunoService.excluirAluno(equipeA.id, alunoDeB.id), /não encontrado/);
 });
+
+test("createAluno: nasce inativo=false e favorito=false por padrão; updateAluno altera os dois", async (t) => {
+  const aluno = await alunoService.createAluno(equipeA.id, { nome: "Aluno padrão" });
+  t.after(() => Aluno.destroy({ where: { id: aluno.id } }));
+
+  assert.equal(aluno.ativo, true);
+  assert.equal(aluno.favorito, false);
+
+  const atualizado = await alunoService.updateAluno(equipeA.id, aluno.id, { ativo: false, favorito: true });
+  assert.equal(atualizado.ativo, false);
+  assert.equal(atualizado.favorito, true);
+});
+
+// Ordenação da listagem (aluno.repository.js::findAllByEquipe): ativos
+// antes de inativos e, dentro de cada grupo, favoritos antes do resto -
+// alfabético como critério final nos dois casos.
+test("listAlunos: ordena ativos antes de inativos e favoritos antes do resto dentro de cada grupo", async (t) => {
+  const zeca = await alunoService.createAluno(equipeA.id, { nome: "Zeca Ativo" });
+  const ana = await alunoService.createAluno(equipeA.id, { nome: "Ana Ativa Favorita" });
+  const bruno = await alunoService.createAluno(equipeA.id, { nome: "Bruno Inativo" });
+  await alunoService.updateAluno(equipeA.id, ana.id, { favorito: true });
+  await alunoService.updateAluno(equipeA.id, bruno.id, { ativo: false });
+  t.after(() => Aluno.destroy({ where: { id: [zeca.id, ana.id, bruno.id] } }));
+
+  const lista = await alunoService.listAlunos(equipeA.id);
+  assert.deepEqual(
+    lista.map((a) => a.nome),
+    ["Ana Ativa Favorita", "Zeca Ativo", "Bruno Inativo"]
+  );
+});

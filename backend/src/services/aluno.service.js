@@ -36,6 +36,7 @@ async function updateAluno(equipeId, id, dados) {
   if (dados.observacoes !== undefined) atualizacao.observacoes = dados.observacoes;
   if (dados.telefone !== undefined) atualizacao.telefone = dados.telefone ? dados.telefone.trim() : null;
   if (dados.ativo !== undefined) atualizacao.ativo = Boolean(dados.ativo);
+  if (dados.favorito !== undefined) atualizacao.favorito = Boolean(dados.favorito);
 
   return alunoRepository.update(aluno, atualizacao);
 }

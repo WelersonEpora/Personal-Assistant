@@ -102,6 +102,28 @@ async function onFotoSelecionada(evento) {
   }
 }
 
+async function alternarFavorito() {
+  const favorito = !aluno.value.favorito
+  try {
+    aluno.value = await alunosService.atualizar(props.id, { favorito })
+  } catch (_err) {
+    showToast('Não foi possível atualizar o favorito.', 'warning')
+  }
+}
+
+// Inativo é diferente de excluído (ver excluirAluno abaixo) - o aluno some
+// da lista de "Ativos" mas o histórico e o cadastro continuam intactos
+// para quando ele voltar.
+async function alternarAtivo() {
+  const ativo = !aluno.value.ativo
+  try {
+    aluno.value = await alunosService.atualizar(props.id, { ativo })
+    showToast(ativo ? 'Aluno marcado como ativo.' : 'Aluno marcado como inativo.', 'neutral')
+  } catch (_err) {
+    showToast('Não foi possível atualizar o status do aluno.', 'warning')
+  }
+}
+
 // Soft-delete (docs/adr/0007) - leva consigo todos os Registros/Validações
 // do aluno, por isso o aviso explícito antes de confirmar.
 async function excluirAluno() {
@@ -180,11 +202,30 @@ function notaGeralConfirmada(registro) {
       </div>
       <div style="flex: 1;">
         <template v-if="!editando">
-          <div class="detail-header-name">{{ aluno.nome }}</div>
+          <div class="detail-header-name" style="display: flex; align-items: center; gap: 8px;">
+            {{ aluno.nome }}
+            <button
+              type="button"
+              class="student-card-favorite"
+              :title="aluno.favorito ? 'Remover dos favoritos' : 'Marcar como favorito'"
+              @click="alternarFavorito"
+            >
+              {{ aluno.favorito ? '⭐' : '☆' }}
+            </button>
+          </div>
           <div v-if="aluno.telefone" class="detail-header-sub">📞 {{ aluno.telefone }}</div>
           <div v-if="aluno.observacoes" class="detail-header-sub">{{ aluno.observacoes }}</div>
           <div class="detail-tags">
-            <span class="badge" :class="aluno.ativo ? 'badge-success' : 'badge-neutral'">{{ aluno.ativo ? 'Ativo' : 'Inativo' }}</span>
+            <button
+              type="button"
+              class="badge"
+              style="border: none; cursor: pointer;"
+              :class="aluno.ativo ? 'badge-success' : 'badge-neutral'"
+              :title="aluno.ativo ? 'Marcar como inativo' : 'Marcar como ativo'"
+              @click="alternarAtivo"
+            >
+              {{ aluno.ativo ? 'Ativo' : 'Inativo' }}
+            </button>
           </div>
           <div style="display: flex; gap: 10px; margin-top: 10px;">
             <button type="button" class="btn btn-ghost" @click="iniciarEdicao">Editar</button>

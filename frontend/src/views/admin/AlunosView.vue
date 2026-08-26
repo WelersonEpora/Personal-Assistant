@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import alunosService from '../../services/alunos.service.js'
 import registrosService from '../../services/registros.service.js'
@@ -57,8 +57,32 @@ function revogarFotos() {
 }
 onBeforeUnmount(revogarFotos)
 
+// A ordenação (ativo > favorito > nome) é a mesma do backend (ver
+// aluno.repository.js::findAllByEquipe) - reaplicada aqui depois de um
+// toggle de favorito/ativo pra reordenar na hora, sem precisar de um
+// recarregamento completo (que re-buscaria todas as fotos de novo).
+function compararAlunos(a, b) {
+  if (a.ativo !== b.ativo) return a.ativo ? -1 : 1
+  if (a.favorito !== b.favorito) return a.favorito ? -1 : 1
+  return a.nome.localeCompare(b.nome, 'pt-BR')
+}
+
+const ativos = computed(() => alunos.value.filter((a) => a.ativo))
+const inativos = computed(() => alunos.value.filter((a) => !a.ativo))
+
 function abrirDetalhe(id) {
   router.push({ name: 'admin-aluno-detalhe', params: { id } })
+}
+
+async function alternarFavorito(aluno) {
+  const favorito = !aluno.favorito
+  try {
+    await alunosService.atualizar(aluno.id, { favorito })
+    aluno.favorito = favorito
+    alunos.value.sort(compararAlunos)
+  } catch (_err) {
+    showToast('Não foi possível atualizar o favorito.', 'warning')
+  }
 }
 
 function abrirModal() {
@@ -98,20 +122,61 @@ async function salvarNovoAluno() {
       <button class="btn btn-primary" type="button" @click="abrirModal">+ Novo aluno</button>
     </div>
 
-    <div class="students-grid">
-      <div v-for="aluno in alunos" :key="aluno.id" class="card student-card" @click="abrirDetalhe(aluno.id)">
+    <p v-if="alunos.length" style="font-size: 12px; font-weight: 700; color: var(--color-text-faint); text-transform: uppercase; letter-spacing: .03em; margin: 0 0 10px;">
+      Ativos
+    </p>
+    <div v-if="alunos.length" class="students-grid" style="margin-bottom: 26px;">
+      <div v-for="aluno in ativos" :key="aluno.id" class="card student-card" style="position: relative;" @click="abrirDetalhe(aluno.id)">
+        <button
+          type="button"
+          class="student-card-favorite"
+          style="position: absolute; top: 10px; right: 10px;"
+          :title="aluno.favorito ? 'Remover dos favoritos' : 'Marcar como favorito'"
+          @click.stop="alternarFavorito(aluno)"
+        >
+          {{ aluno.favorito ? '⭐' : '☆' }}
+        </button>
         <div class="student-card-top">
           <img v-if="aluno.fotoUrl" :src="aluno.fotoUrl" class="avatar sz-lg" alt="" />
           <span v-else class="avatar sz-lg" :style="{ background: corParaId(aluno.id) }">{{ iniciais(aluno.nome) }}</span>
           <div>
             <div class="student-card-name">{{ aluno.nome }}</div>
-            <div class="student-card-plan" v-if="!aluno.ativo">Inativo</div>
           </div>
         </div>
         <div v-if="aluno.observacoes" class="student-card-workout">{{ aluno.observacoes }}</div>
         <div style="font-size: 12px; color: var(--color-text-faint);">{{ registrosPorAluno[aluno.id] || 0 }} registro(s)</div>
       </div>
+      <div v-if="!ativos.length" class="card empty-state">Nenhum aluno ativo.</div>
     </div>
+
+    <template v-if="inativos.length">
+      <p style="font-size: 12px; font-weight: 700; color: var(--color-text-faint); text-transform: uppercase; letter-spacing: .03em; margin: 0 0 10px;">
+        Inativos
+      </p>
+      <div class="students-grid">
+        <div v-for="aluno in inativos" :key="aluno.id" class="card student-card" style="position: relative; opacity: .7;" @click="abrirDetalhe(aluno.id)">
+          <button
+            type="button"
+            class="student-card-favorite"
+            style="position: absolute; top: 10px; right: 10px;"
+            :title="aluno.favorito ? 'Remover dos favoritos' : 'Marcar como favorito'"
+            @click.stop="alternarFavorito(aluno)"
+          >
+            {{ aluno.favorito ? '⭐' : '☆' }}
+          </button>
+          <div class="student-card-top">
+            <img v-if="aluno.fotoUrl" :src="aluno.fotoUrl" class="avatar sz-lg" alt="" />
+            <span v-else class="avatar sz-lg" :style="{ background: corParaId(aluno.id) }">{{ iniciais(aluno.nome) }}</span>
+            <div>
+              <div class="student-card-name">{{ aluno.nome }}</div>
+              <div class="student-card-plan">Inativo</div>
+            </div>
+          </div>
+          <div v-if="aluno.observacoes" class="student-card-workout">{{ aluno.observacoes }}</div>
+          <div style="font-size: 12px; color: var(--color-text-faint);">{{ registrosPorAluno[aluno.id] || 0 }} registro(s)</div>
+        </div>
+      </div>
+    </template>
 
     <div v-if="!carregando && !alunos.length" class="empty-state">
       <div class="empty-state-icon">👥</div>Nenhum aluno cadastrado ainda.

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth.store.js'
 import registrosService from '../../services/registros.service.js'
@@ -31,21 +31,14 @@ const router = useRouter()
 const auth = useAuthStore()
 
 const pendentesRevisao = ref(0)
-const pendentesProcessamento = ref(0)
 let intervalId = null
 
 async function atualizarContadores() {
   try {
-    const [revisao, processando] = await Promise.all([
-      registrosService.listar({ status: 'aguardando_revisao' }),
-      registrosService.listar({})
-    ])
+    const revisao = await registrosService.listar({ status: 'aguardando_revisao' })
     pendentesRevisao.value = revisao.length
-    pendentesProcessamento.value = processando.filter((r) =>
-      ['recebido', 'transcrevendo', 'interpretando'].includes(r.status)
-    ).length
   } catch (_err) {
-    // silencioso - contadores só refletem a última leitura bem-sucedida
+    // silencioso - contador só reflete a última leitura bem-sucedida
   }
 }
 
@@ -54,10 +47,6 @@ onMounted(() => {
   intervalId = setInterval(atualizarContadores, 20000)
 })
 onBeforeUnmount(() => clearInterval(intervalId))
-
-const syncPillTexto = computed(() =>
-  pendentesProcessamento.value > 0 ? `Processando ${pendentesProcessamento.value} registro(s)…` : 'Sincronizado'
-)
 
 function sair() {
   auth.logout()
@@ -105,9 +94,6 @@ function sair() {
       <header class="topbar">
         <div class="topbar-title">{{ route.meta.titulo || '' }}</div>
         <div class="topbar-right">
-          <div class="sync-pill" :class="{ 'state-pending': pendentesProcessamento > 0 }">
-            <span class="sync-pill-dot"></span><span>{{ syncPillTexto }}</span>
-          </div>
           <span class="avatar sz-sm" :style="{ background: corParaId(auth.usuario?.id) }">{{ iniciais(auth.usuario?.nome) }}</span>
         </div>
       </header>

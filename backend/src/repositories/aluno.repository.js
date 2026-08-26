@@ -4,8 +4,17 @@ const { sequelize, Aluno, Registro } = require("../models");
 
 // Todo acesso a Aluno passa por equipe_id - alunos são compartilhados entre
 // os membros de uma equipe (docs/adr/0011-conceito-de-equipe-e-membro.md).
+// Ordenação: ativos antes de inativos e, dentro de cada grupo, favoritos
+// antes dos demais - nome alfabético como critério final em ambos os casos.
 function findAllByEquipe(equipeId) {
-  return Aluno.findAll({ where: { equipe_id: equipeId, deletado_em: null }, order: [["nome", "ASC"]] });
+  return Aluno.findAll({
+    where: { equipe_id: equipeId, deletado_em: null },
+    order: [
+      ["ativo", "DESC"],
+      ["favorito", "DESC"],
+      ["nome", "ASC"]
+    ]
+  });
 }
 
 function findByIdAndEquipe(id, equipeId) {

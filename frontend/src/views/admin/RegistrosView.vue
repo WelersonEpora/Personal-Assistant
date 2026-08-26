@@ -23,6 +23,7 @@ const registros = ref([])
 const carregando = ref(true)
 const filtroAtivo = ref('todos')
 const busca = ref('')
+let intervalId = null
 
 async function carregar() {
   carregando.value = true
@@ -32,7 +33,22 @@ async function carregar() {
     carregando.value = false
   }
 }
-onMounted(carregar)
+onMounted(() => {
+  carregar()
+  intervalId = setInterval(carregar, 20000)
+})
+onBeforeUnmount(() => clearInterval(intervalId))
+
+// Fila de IA (docs/adr/0009) - quantos Registros ainda não chegaram a
+// aguardando_revisao. Só faz sentido nesta tela (onde os status do
+// pipeline aparecem nos cards) - não é "sincronização" (esse termo é do
+// fluxo offline→servidor do celular, ver docs/adr/0005).
+const pendentesProcessamento = computed(
+  () => registros.value.filter((r) => ['recebido', 'transcrevendo', 'interpretando'].includes(r.status)).length
+)
+const filaTexto = computed(() =>
+  pendentesProcessamento.value > 0 ? `Processando ${pendentesProcessamento.value} registro(s)…` : 'Nada na fila de IA'
+)
 
 const listaFiltrada = computed(() => {
   let lista = registros.value
@@ -128,6 +144,9 @@ async function reprocessarRegistro(registro) {
       <div>
         <h1>Relatos</h1>
         <p>Registros recebidos do celular — cada um agrupa os áudios e textos capturados até o personal finalizar.</p>
+      </div>
+      <div class="sync-pill" :class="{ 'state-pending': pendentesProcessamento > 0 }">
+        <span class="sync-pill-dot"></span><span>{{ filaTexto }}</span>
       </div>
     </div>
 

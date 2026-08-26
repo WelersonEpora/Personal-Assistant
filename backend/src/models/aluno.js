@@ -44,6 +44,13 @@ module.exports = (sequelize) => {
         allowNull: false,
         defaultValue: true
       },
+      // Estrela de favorito - só prioriza a posição do aluno nas listagens
+      // (ver aluno.repository.js::findAllByEquipe), sem outro efeito.
+      favorito: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false
+      },
       // Soft-delete - excluir um aluno leva consigo seus Registros/Validacoes
       // (ver aluno.service.js::excluir). NULL = não excluído.
       deletado_em: {

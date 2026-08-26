@@ -1,8 +1,9 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth.store.js'
 import registrosService from '../../services/registros.service.js'
+import usuariosService from '../../services/usuarios.service.js'
 import { iniciais, corParaId } from '../../utils/registroStatus.js'
 
 const NAV_ITEMS = [
@@ -48,6 +49,28 @@ onMounted(() => {
 })
 onBeforeUnmount(() => clearInterval(intervalId))
 
+// Avatar do próprio usuário logado (topbar + rodapé da sidebar) - blob
+// buscado sob autenticação, mesmo padrão de AlunosView/AlunoDetalheView.
+const fotoUrl = ref(null)
+async function carregarFotoPropria() {
+  if (fotoUrl.value) {
+    URL.revokeObjectURL(fotoUrl.value)
+    fotoUrl.value = null
+  }
+  if (!auth.usuario?.foto_caminho) return
+  try {
+    const blob = await usuariosService.obterFotoPropria()
+    fotoUrl.value = URL.createObjectURL(blob)
+  } catch (_err) {
+    // sem foto disponível - fica só com as iniciais
+  }
+}
+onMounted(carregarFotoPropria)
+watch(() => auth.usuario?.foto_caminho, carregarFotoPropria)
+onBeforeUnmount(() => {
+  if (fotoUrl.value) URL.revokeObjectURL(fotoUrl.value)
+})
+
 function sair() {
   auth.logout()
   router.replace('/login')
@@ -81,7 +104,8 @@ function sair() {
       </nav>
 
       <div class="sidebar-footer">
-        <span class="avatar" :style="{ background: corParaId(auth.usuario?.id) }">{{ iniciais(auth.usuario?.nome) }}</span>
+        <img v-if="fotoUrl" :src="fotoUrl" class="avatar" alt="" />
+        <span v-else class="avatar" :style="{ background: corParaId(auth.usuario?.id) }">{{ iniciais(auth.usuario?.nome) }}</span>
         <div>
           <div class="sidebar-footer-name">{{ auth.usuario?.nome }}</div>
           <div class="sidebar-footer-team">{{ auth.usuario?.equipe?.nome }}</div>
@@ -94,7 +118,8 @@ function sair() {
       <header class="topbar">
         <div class="topbar-title">{{ route.meta.titulo || '' }}</div>
         <div class="topbar-right">
-          <span class="avatar sz-sm" :style="{ background: corParaId(auth.usuario?.id) }">{{ iniciais(auth.usuario?.nome) }}</span>
+          <img v-if="fotoUrl" :src="fotoUrl" class="avatar sz-sm" alt="" />
+          <span v-else class="avatar sz-sm" :style="{ background: corParaId(auth.usuario?.id) }">{{ iniciais(auth.usuario?.nome) }}</span>
         </div>
       </header>
 

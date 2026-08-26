@@ -28,9 +28,13 @@ function selecionar(id) {
         type="button"
         @click="selecionar(aluno.id)"
       >
-        <span class="avatar" :style="{ background: corParaId(aluno.id) }">{{ iniciais(aluno.nome) }}</span>
+        <img v-if="aluno.fotoUrl" :src="aluno.fotoUrl" class="avatar" alt="" />
+        <span v-else class="avatar" :style="{ background: corParaId(aluno.id) }">{{ iniciais(aluno.nome) }}</span>
         <span>
-          <span class="sheet-student-name">{{ aluno.nome }}</span>
+          <span class="sheet-student-name">
+            {{ aluno.nome }}
+            <span v-if="aluno.favorito" title="Favorito">⭐</span>
+          </span>
           <span v-if="aluno.observacoes" class="sheet-student-sub">{{ aluno.observacoes }}</span>
         </span>
         <span v-if="props.emAndamentoIds.has(aluno.id)" class="sheet-student-badge" title="Registro em andamento">✏️</span>

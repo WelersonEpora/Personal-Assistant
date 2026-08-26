@@ -61,7 +61,7 @@ html, body { height: 100%; }
   padding: 10px 10px 4px;
   border-top: 1px solid #262838;
 }
-.sidebar-footer .avatar { width: 32px; height: 32px; font-size: 12px; }
+.sidebar-footer .avatar { width: 40px; height: 40px; font-size: 14px; }
 .sidebar-footer-name { font-size: 12.5px; font-weight: 700; color: #fff; }
 .sidebar-footer-team { font-size: 11px; color: #7d8093; }
 .sidebar-footer-role { font-size: 11px; color: #7d8093; background: none; border: none; text-align: left; cursor: pointer; }
@@ -79,6 +79,7 @@ html, body { height: 100%; }
 }
 .topbar-title { font-size: 16px; font-weight: 700; }
 .topbar-right { display: flex; align-items: center; gap: 14px; }
+.topbar-right .avatar.sz-sm { width: 36px; height: 36px; font-size: 13px; }
 .sync-pill {
   display: flex; align-items: center; gap: 7px;
   font-size: 12.5px; font-weight: 600;

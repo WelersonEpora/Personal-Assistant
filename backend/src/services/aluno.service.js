@@ -54,7 +54,7 @@ async function atualizarFoto(equipeId, id, { buffer, mimeType }) {
   if (!storageFoto.mimeSuportado(mimeType)) {
     throw new ValidationError("Formato de imagem não suportado - use JPEG, PNG ou WebP.");
   }
-  const fotoCaminho = await storageFoto.salvar({ alunoId: id, buffer, mimeType });
+  const fotoCaminho = await storageFoto.salvar({ chave: `aluno-${id}`, buffer, mimeType });
   return alunoRepository.update(aluno, { foto_caminho: fotoCaminho });
 }
 

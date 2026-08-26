@@ -6,6 +6,7 @@ const alunoRoutes = require("./aluno.routes");
 const registroRoutes = require("./registro.routes");
 const equipeRoutes = require("./equipe.routes");
 const membroRoutes = require("./membro.routes");
+const usuarioRoutes = require("./usuario.routes");
 
 const router = Router();
 
@@ -22,5 +23,6 @@ router.use("/api/v1/alunos", alunoRoutes);
 router.use("/api/v1/registros", registroRoutes);
 router.use("/api/v1/equipe", equipeRoutes);
 router.use("/api/v1/membros", membroRoutes);
+router.use("/api/v1/usuarios", usuarioRoutes);
 
 module.exports = router;

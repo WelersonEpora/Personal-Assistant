@@ -43,6 +43,7 @@ async function login({ email, senha }) {
       nome: usuario.nome,
       email: usuario.email,
       especialidade: usuario.especialidade,
+      foto_caminho: usuario.foto_caminho,
       equipe: { id: usuario.membro.equipe.id, nome: usuario.membro.equipe.nome },
       papel: usuario.membro.papel
     }

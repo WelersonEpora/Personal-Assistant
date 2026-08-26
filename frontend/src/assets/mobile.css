@@ -25,12 +25,18 @@
   justify-content: space-between;
   gap: 10px;
 }
+.topbar-meta-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.topbar-meta-group .avatar { width: 36px; height: 36px; font-size: 13px; }
 .topbar-meta {
   display: flex;
   flex-direction: column;
   gap: 1px;
   min-width: 0;
-  padding-top: 4px;
 }
 .topbar-meta-line {
   max-width: 55vw;
@@ -334,6 +340,7 @@
   width: 30px; height: 30px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   color: #fff; font-size: 11px; font-weight: 700; flex: none;
+  object-fit: cover;
 }
 .recent-item-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .recent-item-nome { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -394,6 +401,7 @@
 }
 .sheet-student:active { background: var(--color-surface-alt); }
 .sheet-student-name { font-size: 14.5px; font-weight: 600; display: block; }
+.sheet-student-favorito { font-size: 11px; vertical-align: middle; }
 .sheet-student-sub { font-size: 12px; color: var(--color-text-faint); }
 .sheet-student.is-current { background: var(--color-primary-light); }
 .sheet-student.is-current .sheet-student-name { color: var(--color-primary-dark); }

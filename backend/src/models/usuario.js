@@ -29,6 +29,12 @@ module.exports = (sequelize) => {
       especialidade: {
         type: DataTypes.STRING(160),
         allowNull: true
+      },
+      // Nome do arquivo em storage/fotos (ver services/storage-foto.service.js),
+      // não a imagem em si - mesmo padrão de aluno.foto_caminho.
+      foto_caminho: {
+        type: DataTypes.STRING(255),
+        allowNull: true
       }
     },
     {

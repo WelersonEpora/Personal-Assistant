@@ -4,6 +4,7 @@ import { useAuthStore } from '../../stores/auth.store.js'
 import { useSyncQueueStore } from '../../stores/syncQueue.store.js'
 import alunosService from '../../services/alunos.service.js'
 import registrosService from '../../services/registros.service.js'
+import usuariosService from '../../services/usuarios.service.js'
 import { salvarAlunosCache, listarAlunosCache, salvarAudioLocal, removerAudioLocal, obterAudioLocal } from '../../offline/db.js'
 import { criarGravador } from '../../offline/recorder.js'
 import { useToasts } from '../../composables/useToasts.js'
@@ -33,6 +34,11 @@ let recordStart = 0
 let cronometroInterval = null
 
 const alunoAtual = computed(() => alunos.value.find((a) => a.id === alunoAtualId.value) || null)
+// Só alunos ativos podem ser selecionados pra um novo Registro (inativo =
+// "vai voltar depois", ver aluno.service.js) - mas `alunos.value` continua
+// com todo mundo, senão "Registros recentes" perde nome/foto de um Registro
+// antigo de um aluno hoje inativo.
+const alunosAtivos = computed(() => alunos.value.filter((a) => a.ativo))
 
 // Fonte da verdade do Registro em edição do aluno selecionado - persistido
 // desde "Iniciar registro" (docs/adr/0012), não mais um estado só em
@@ -75,7 +81,10 @@ const recentes = computed(() => {
     .filter((r) => !locaisIds.has(r.id))
     .map((r) => ({
       id: r.id,
-      aluno: r.aluno,
+      // Prefere o registro completo de alunos.value (tem fotoUrl já
+      // buscada) - o aluno embutido no Registro só traz id/nome (ver
+      // registro.repository.js).
+      aluno: alunos.value.find((a) => a.id === r.aluno_id) || r.aluno,
       titulo: r.titulo,
       iniciadoLabel: formatarDataHora(r.iniciado_em),
       entradas: r.entradas || [],
@@ -87,13 +96,35 @@ const recentes = computed(() => {
 async function carregarAlunos() {
   try {
     const lista = await alunosService.listar()
-    alunos.value = lista
+    // IndexedDB não aceita o Proxy reativo do Vue (ver db.test.js) - salva o
+    // array plano ANTES de atribuir a alunos.value, não depois.
     await salvarAlunosCache(lista)
+    alunos.value = lista
   } catch (_err) {
     alunos.value = await listarAlunosCache()
   }
   const salvo = localStorage.getItem(ULTIMO_ALUNO_KEY)
-  alunoAtualId.value = salvo && alunos.value.some((a) => a.id === salvo) ? salvo : (alunos.value[0]?.id ?? null)
+  alunoAtualId.value = salvo && alunosAtivos.value.some((a) => a.id === salvo) ? salvo : (alunosAtivos.value[0]?.id ?? null)
+  carregarFotosAlunos()
+}
+
+// Foto de cada aluno (avatar em "Aluno selecionado", "Registros recentes" e
+// no seletor) - offline ou sem foto cadastrada, cai silenciosamente para as
+// iniciais (mesmo padrão de carregarFotoPropria acima). Roda em paralelo
+// sem bloquear a tela, já que o app precisa continuar utilizável offline.
+async function carregarFotosAlunos() {
+  await Promise.all(
+    alunos.value
+      .filter((aluno) => aluno.foto_caminho)
+      .map(async (aluno) => {
+        try {
+          const blob = await alunosService.obterFoto(aluno.id)
+          aluno.fotoUrl = URL.createObjectURL(blob)
+        } catch (_err) {
+          // offline ou sem foto disponível - fica só com as iniciais
+        }
+      })
+  )
 }
 
 async function carregarRecentesServidor() {
@@ -203,11 +234,35 @@ onMounted(async () => {
   await carregarRecentesServidor()
 })
 
+// Avatar do personal na topbar (mesmo padrão de AdminShell.vue) - se
+// estiver offline, a busca do blob falha silenciosamente e fica só com as
+// iniciais (auth.usuario?.foto_caminho já vem do login, cacheado).
+const fotoUrl = ref(null)
+async function carregarFotoPropria() {
+  if (fotoUrl.value) {
+    URL.revokeObjectURL(fotoUrl.value)
+    fotoUrl.value = null
+  }
+  if (!auth.usuario?.foto_caminho) return
+  try {
+    const blob = await usuariosService.obterFotoPropria()
+    fotoUrl.value = URL.createObjectURL(blob)
+  } catch (_err) {
+    // offline ou sem foto - fica só com as iniciais
+  }
+}
+onMounted(carregarFotoPropria)
+watch(() => auth.usuario?.foto_caminho, carregarFotoPropria)
+
 onBeforeUnmount(() => {
   clearInterval(cronometroInterval)
   gravador.cancelar()
   syncQueue.registrosLocais.forEach((r) => revogarAudioUrls(r.entradas))
   registrosServidorRecentes.value.forEach((r) => revogarAudioUrls(r.entradas || []))
+  if (fotoUrl.value) URL.revokeObjectURL(fotoUrl.value)
+  alunos.value.forEach((aluno) => {
+    if (aluno.fotoUrl) URL.revokeObjectURL(aluno.fotoUrl)
+  })
 })
 
 // Object URLs de áudio só existem em memória, presas à sessão da página -
@@ -380,9 +435,13 @@ async function descartar() {
 <template>
   <div class="captura-screen">
     <div class="app-topbar">
-      <div v-if="auth.usuario?.equipe?.nome || auth.usuario?.nome" class="topbar-meta">
-        <span v-if="auth.usuario?.equipe?.nome" class="topbar-meta-line">{{ auth.usuario.equipe.nome }}</span>
-        <span v-if="auth.usuario?.nome" class="topbar-meta-line">{{ auth.usuario.nome }}</span>
+      <div v-if="auth.usuario?.equipe?.nome || auth.usuario?.nome" class="topbar-meta-group">
+        <img v-if="fotoUrl" :src="fotoUrl" class="avatar" alt="" />
+        <span v-else class="avatar" :style="{ background: corParaId(auth.usuario?.id) }">{{ iniciais(auth.usuario?.nome) }}</span>
+        <div class="topbar-meta">
+          <span v-if="auth.usuario?.equipe?.nome" class="topbar-meta-line">{{ auth.usuario.equipe.nome }}</span>
+          <span v-if="auth.usuario?.nome" class="topbar-meta-line">{{ auth.usuario.nome }}</span>
+        </div>
       </div>
       <div class="topbar-actions">
         <router-link class="icon-btn" to="/admin" title="Painel admin">🖥️</router-link>
@@ -392,7 +451,8 @@ async function descartar() {
 
     <div class="student-bar">
       <button class="current-student" type="button" @click="abrirSheet">
-        <span v-if="alunoAtual" class="avatar" :style="{ background: corParaId(alunoAtual.id) }">{{ iniciais(alunoAtual.nome) }}</span>
+        <img v-if="alunoAtual?.fotoUrl" :src="alunoAtual.fotoUrl" class="avatar" alt="" />
+        <span v-else-if="alunoAtual" class="avatar" :style="{ background: corParaId(alunoAtual.id) }">{{ iniciais(alunoAtual.nome) }}</span>
         <span class="current-student-info">
           <span class="current-student-label">Aluno selecionado</span>
           <span class="current-student-name">{{ alunoAtual ? alunoAtual.nome : 'Selecionar aluno' }}<span class="current-student-caret">▾</span></span>
@@ -404,7 +464,7 @@ async function descartar() {
       <!-- ===================== tela ociosa: iniciar registro ===================== -->
       <template v-if="estagio === 'idle'">
         <div class="idle-view">
-          <template v-if="!alunos.length">
+          <template v-if="!alunosAtivos.length">
             <p class="idle-title">Nenhum aluno cadastrado</p>
             <p class="idle-subtitle">Cadastre um aluno no painel desktop antes de iniciar um registro.</p>
           </template>
@@ -437,7 +497,8 @@ async function descartar() {
             <div v-if="!recentes.length" class="recent-item-empty">Nenhum registro ainda hoje.</div>
             <div v-for="item in recentes" :key="item.id" class="recent-item-wrap">
               <button class="recent-item" type="button" @click="alternarExpandidoRecente(item)">
-                <span class="recent-item-avatar" :style="{ background: item.aluno ? corParaId(item.aluno.id) : '#9ca3af' }">
+                <img v-if="item.aluno?.fotoUrl" :src="item.aluno.fotoUrl" class="recent-item-avatar" alt="" />
+                <span v-else class="recent-item-avatar" :style="{ background: item.aluno ? corParaId(item.aluno.id) : '#9ca3af' }">
                   {{ item.aluno ? iniciais(item.aluno.nome) : '?' }}
                 </span>
                 <span class="recent-item-body">
@@ -547,7 +608,7 @@ async function descartar() {
     <ToastStack :toasts="toasts" />
     <AlunoSheet
       :aberto="sheetAberto"
-      :alunos="alunos"
+      :alunos="alunosAtivos"
       :aluno-atual-id="alunoAtualId"
       :equipe-nome="auth.usuario?.equipe?.nome"
       :em-andamento-ids="alunosComRegistroEmAndamento"

@@ -2,6 +2,7 @@
 
 const bcrypt = require("bcryptjs");
 const membroRepository = require("../repositories/membro.repository");
+const storageFoto = require("./storage-foto.service");
 const { Membro } = require("../models");
 const { NotFoundError, ValidationError, ConflictError } = require("../shared/errors");
 
@@ -109,4 +110,22 @@ async function atualizarMembro(equipeId, id, dados) {
   return obterMembro(equipeId, id);
 }
 
-module.exports = { listarMembros, obterMembro, criarMembro, atualizarMembro };
+async function atualizarFotoMembro(equipeId, id, { buffer, mimeType }) {
+  const membro = await obterMembro(equipeId, id);
+  if (!storageFoto.mimeSuportado(mimeType)) {
+    throw new ValidationError("Formato de imagem não suportado - use JPEG, PNG ou WebP.");
+  }
+  const fotoCaminho = await storageFoto.salvar({ chave: `usuario-${membro.usuario.id}`, buffer, mimeType });
+  await membroRepository.atualizarUsuario(membro.usuario, { foto_caminho: fotoCaminho });
+  return obterMembro(equipeId, id);
+}
+
+async function obterFotoMembro(equipeId, id) {
+  const membro = await obterMembro(equipeId, id);
+  if (!membro.usuario.foto_caminho) {
+    throw new NotFoundError("Membro não tem foto cadastrada.");
+  }
+  return storageFoto.ler(membro.usuario.foto_caminho);
+}
+
+module.exports = { listarMembros, obterMembro, criarMembro, atualizarMembro, atualizarFotoMembro, obterFotoMembro };

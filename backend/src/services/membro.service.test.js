@@ -134,3 +134,14 @@ test("atualizarMembro: permite desativar um owner quando existe outro owner ativ
   const atualizado = await membroService.atualizarMembro(equipeB.id, ownerB.id, { ativo: false });
   assert.equal(atualizado.ativo, false);
 });
+
+test("atualizarFotoMembro: rejeita formato de imagem não suportado", async () => {
+  await assert.rejects(
+    () => membroService.atualizarFotoMembro(equipeB.id, ownerB.id, { buffer: Buffer.from("x"), mimeType: "image/gif" }),
+    /não suportado/
+  );
+});
+
+test("obterFotoMembro: rejeita quando o membro pertence a outra equipe", async () => {
+  await assert.rejects(() => membroService.obterFotoMembro(equipeA.id, ownerB.id), /não encontrado/);
+});

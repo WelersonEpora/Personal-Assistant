@@ -1,15 +1,33 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import equipeService from '../../services/equipe.service.js'
 import membrosService from '../../services/membros.service.js'
+import { useAuthStore } from '../../stores/auth.store.js'
+import { corParaId, iniciais } from '../../utils/registroStatus.js'
 import { useToasts } from '../../composables/useToasts.js'
 import ToastStack from '../../components/ToastStack.vue'
 
 const { toasts, showToast } = useToasts()
+const auth = useAuthStore()
 
 const equipe = ref(null)
 const membros = ref([])
 const carregando = ref(true)
+
+async function carregarFotos() {
+  await Promise.all(
+    membros.value
+      .filter((membro) => membro.usuario.foto_caminho)
+      .map(async (membro) => {
+        try {
+          const blob = await membrosService.obterFoto(membro.id)
+          membro.fotoUrl = URL.createObjectURL(blob)
+        } catch (_err) {
+          // sem foto disponível - fica só com as iniciais
+        }
+      })
+  )
+}
 
 async function carregar() {
   carregando.value = true
@@ -17,11 +35,19 @@ async function carregar() {
     const [dadosEquipe, listaMembros] = await Promise.all([equipeService.obter(), membrosService.listar()])
     equipe.value = dadosEquipe
     membros.value = listaMembros
+    await carregarFotos()
   } finally {
     carregando.value = false
   }
 }
 onMounted(carregar)
+
+function revogarFotos() {
+  membros.value.forEach((membro) => {
+    if (membro.fotoUrl) URL.revokeObjectURL(membro.fotoUrl)
+  })
+}
+onBeforeUnmount(revogarFotos)
 
 function papelLabel(papel) {
   return { owner: 'Owner', colaborador: 'Colaborador' }[papel] || papel
@@ -78,6 +104,39 @@ function abrirModalEditarMembro(membro) {
     ativo: membro.ativo
   }
   modalMembroAberto.value = true
+}
+
+// Foto (avatar) do personal - só disponível editando (não faz sentido antes
+// do membro existir). Se for a própria foto do usuário logado, atualiza
+// também a sessão em memória (auth.store.js) pra topbar/sidebar refletirem
+// na hora, sem precisar deslogar/logar de novo.
+const enviandoFoto = ref(false)
+const fotoInput = ref(null)
+
+function selecionarFoto() {
+  fotoInput.value?.click()
+}
+
+async function onFotoSelecionada(evento) {
+  const arquivo = evento.target.files?.[0]
+  evento.target.value = ''
+  if (!arquivo || !membroEditando.value) return
+  enviandoFoto.value = true
+  try {
+    const atualizado = await membrosService.enviarFoto(membroEditando.value.id, arquivo)
+    membroEditando.value.usuario.foto_caminho = atualizado.usuario.foto_caminho
+    if (membroEditando.value.fotoUrl) URL.revokeObjectURL(membroEditando.value.fotoUrl)
+    const blob = await membrosService.obterFoto(membroEditando.value.id)
+    membroEditando.value.fotoUrl = URL.createObjectURL(blob)
+    if (membroEditando.value.usuario.id === auth.usuario?.id) {
+      auth.atualizarUsuario({ foto_caminho: atualizado.usuario.foto_caminho })
+    }
+    showToast('Foto atualizada.', 'success')
+  } catch (_err) {
+    showToast('Não foi possível enviar a foto (use JPEG, PNG ou WebP, até 5MB).', 'warning')
+  } finally {
+    enviandoFoto.value = false
+  }
 }
 
 async function salvarMembro() {
@@ -151,7 +210,13 @@ async function salvarMembro() {
           </thead>
           <tbody>
             <tr v-for="membro in membros" :key="membro.id">
-              <td>{{ membro.usuario.nome }}</td>
+              <td>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <img v-if="membro.fotoUrl" :src="membro.fotoUrl" class="avatar sz-sm" alt="" />
+                  <span v-else class="avatar sz-sm" :style="{ background: corParaId(membro.usuario.id) }">{{ iniciais(membro.usuario.nome) }}</span>
+                  {{ membro.usuario.nome }}
+                </div>
+              </td>
               <td>{{ membro.usuario.email }}</td>
               <td>{{ membro.usuario.especialidade || '—' }}</td>
               <td><span class="badge" :class="membro.papel === 'owner' ? 'badge-primary' : 'badge-neutral'">{{ papelLabel(membro.papel) }}</span></td>
@@ -183,6 +248,16 @@ async function salvarMembro() {
     <div v-if="modalMembroAberto" class="sheet-overlay open" style="position: fixed;" @click.self="modalMembroAberto = false">
       <div class="card" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 420px; padding: 22px;">
         <h3 style="margin-bottom: 14px;">{{ membroEditando ? 'Editar membro' : 'Novo membro' }}</h3>
+        <div v-if="membroEditando" style="display: flex; justify-content: center; margin-bottom: 16px;">
+          <div style="position: relative;">
+            <img v-if="membroEditando.fotoUrl" :src="membroEditando.fotoUrl" class="avatar sz-lg" alt="" />
+            <span v-else class="avatar sz-lg" :style="{ background: corParaId(membroEditando.usuario.id) }">{{ iniciais(membroEditando.usuario.nome) }}</span>
+            <button type="button" class="btn btn-ghost" style="position: absolute; bottom: -8px; right: -8px; padding: 2px 6px; font-size: 11px;" :disabled="enviandoFoto" @click="selecionarFoto">
+              📷
+            </button>
+            <input ref="fotoInput" type="file" accept="image/jpeg,image/png,image/webp" style="display: none;" @change="onFotoSelecionada" />
+          </div>
+        </div>
         <form @submit.prevent="salvarMembro">
           <div class="form-grid" style="margin-bottom: 16px;">
             <div class="form-field form-field-full">

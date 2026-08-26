@@ -15,4 +15,18 @@ async function atualizar(id, dados) {
   return data.data
 }
 
-export default { listar, criar, atualizar }
+// Mesmo padrão de alunos.service.js::obterFoto/enviarFoto - o endpoint
+// exige Authorization, então a foto precisa ser buscada como Blob.
+async function obterFoto(id) {
+  const { data } = await http.get(`/api/v1/membros/${id}/foto`, { responseType: 'blob' })
+  return data
+}
+
+async function enviarFoto(id, arquivo) {
+  const formData = new FormData()
+  formData.append('foto', arquivo)
+  const { data } = await http.post(`/api/v1/membros/${id}/foto`, formData)
+  return data.data
+}
+
+export default { listar, criar, atualizar, obterFoto, enviarFoto }

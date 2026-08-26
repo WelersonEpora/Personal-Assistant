@@ -37,6 +37,15 @@ export const useAuthStore = defineStore('auth', {
       this.usuario = null
       localStorage.removeItem(TOKEN_STORAGE_KEY)
       localStorage.removeItem(USUARIO_STORAGE_KEY)
+    },
+    // Usado depois que o próprio usuário logado tem a foto atualizada via
+    // EquipeView (o token/localStorage não se atualiza sozinho até o
+    // próximo login) - mantém a sessão em memória em dia sem precisar
+    // deslogar/logar de novo.
+    atualizarUsuario(patch) {
+      if (!this.usuario) return
+      this.usuario = { ...this.usuario, ...patch }
+      localStorage.setItem(USUARIO_STORAGE_KEY, JSON.stringify(this.usuario))
     }
   }
 })

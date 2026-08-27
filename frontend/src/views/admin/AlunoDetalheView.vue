@@ -257,7 +257,10 @@ function notaGeralConfirmada(registro) {
               <button type="button" class="btn btn-secondary" @click="iniciarEdicao">Editar</button>
               <button type="button" class="btn btn-danger-ghost" @click="excluirAluno">Excluir aluno</button>
             </div>
-            <router-link class="btn btn-primary" :to="{ name: 'admin-aluno-ficha-treino', params: { id: props.id } }">📋 Ficha de Treino</router-link>
+            <div style="display: flex; gap: 10px;">
+              <router-link class="btn btn-secondary" :to="{ name: 'admin-aluno-acompanhamento', params: { id: props.id } }">📈 Acompanhamento</router-link>
+              <router-link class="btn btn-primary" :to="{ name: 'admin-aluno-ficha-treino', params: { id: props.id } }">📋 Ficha de Treino</router-link>
+            </div>
           </div>
         </template>
         <form v-else @submit.prevent="salvarEdicao" style="max-width: 360px;">

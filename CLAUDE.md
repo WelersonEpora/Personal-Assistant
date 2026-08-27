@@ -103,9 +103,11 @@ personal-assistant/
       repositories/           acesso a dados (Sequelize)
       models/                 usuario, equipe, membro, aluno, registro,
                                registroEntrada, arquivoAudio, transcricao,
-                               resultadoIa, validacao
+                               resultadoIa, validacao, avaliacaoMensal,
+                               analiseSobDemanda
       routes/
-      jobs/                   processador-fila-ia.js (worker em processo)
+      jobs/                   processador-fila-ia.js (worker em processo),
+                               gerador-avaliacao-mensal.js (lote mensal, docs/adr/0015)
       shared/{logger,middlewares,errors,utils}/
       app.js  server.js
     database/{migrations,seeders}/
@@ -145,7 +147,9 @@ compartilhado).
 
 Só as entidades necessárias para o fluxo: `usuario`, `equipe`, `membro`,
 `aluno`, `registro`, `registro_entrada`, `arquivo_audio`, `transcricao`,
-`resultado_ia`, `validacao`. **Não antecipar o sistema legado do personal
+`resultado_ia`, `validacao`, `avaliacao_mensal` + `analise_sob_demanda`
+(docs/adr/0015 — camada interpretativa derivada, nunca dado oficial).
+**Não antecipar o sistema legado do personal
 trainer** — nada de entidades de plano de treino, catálogo de exercícios,
 avaliação física estruturada etc. até que o legado seja analisado. Dados de
 domínio ficam como JSON semiestruturado (`label`/`valor`/`obs`/`confidence`)
@@ -276,17 +280,24 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
 | 0010 | Armazenamento de arquivos de áudio (disco local em volume Docker) |
 | 0011 | Conceito de Equipe e Membro (multi-tenancy simples) |
 | 0012 | Múltiplos Registros em andamento simultâneos (persistência incremental de entradas) |
+| 0013 | Catálogo de exercícios e Ficha de Treino |
+| 0014 | Acesso do aluno à ficha por link temporário |
+| 0015 | Acompanhamento Individual Mensal (avaliação da IA por contexto consolidado) |
 
 ## Estado atual
 
 MVP completo e verificado de ponta a ponta:
 
 - **Backend**: auth (JWT, com Equipe/Membro — ver docs/adr/0011), Aluno
-  (CRUD simples escopado por equipe),
+  (CRUD simples escopado por equipe), catálogo de exercícios + Ficha de
+  Treino (docs/adr/0013) com link público por token (docs/adr/0014),
   sincronização de Registro (idempotente, multipart), pipeline de IA
   (Gemini, fila em processo), revisão/confirmação (`validacao` como único
-  dado oficial). 28 testes automatizados (`node --test`, unitários +
-  integração contra banco de teste dedicado).
+  dado oficial), Acompanhamento Individual Mensal (docs/adr/0015 — avaliação
+  da IA por contexto consolidado, lote mensal + geração manual; + análise sob
+  demanda com limite de 1 a cada 7 dias; IA atua como personal trainer
+  sênior; nunca dado oficial). 135 testes automatizados (`node --test`,
+  unitários + integração contra banco de teste dedicado).
 - **Frontend**: app Vue 3 + Vite + PWA único (`/captura` mobile-first
   offline, `/admin` gestão/validação), IndexedDB + fila de sincronização
   própria, gravador de áudio (MediaRecorder), múltiplos Registros

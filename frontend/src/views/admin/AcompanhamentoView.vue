@@ -265,19 +265,23 @@ async function excluirAvaliacaoPersonal(avaliacao) {
     <!-- ===== Barra de ações ===== -->
     <div class="card card-pad" style="margin-bottom: 18px;">
       <div class="acomp-acoes-linha">
-        <button
-          type="button"
-          class="btn btn-primary"
-          :disabled="solicitandoAnalise || (disponibilidade && !disponibilidade.disponivel_agora)"
-          @click="solicitarAnalise"
-        >
-          {{ solicitandoAnalise ? 'Analisando…' : '🔎 Solicitar análise' }}
-        </button>
-        <button type="button" class="btn btn-secondary" @click="abrirEditorNova">✍️ Escrever avaliação</button>
-        <input v-model="mesSelecionado" type="month" aria-label="Mês de referência" class="acomp-mes" />
-        <button type="button" class="btn btn-secondary" :disabled="gerando" @click="gerar">
-          {{ gerando ? 'Gerando…' : jaExisteMesSelecionado ? '🗓️ Regenerar mês' : '🗓️ Gerar mês' }}
-        </button>
+        <div class="acomp-acoes-grupo">
+          <button
+            type="button"
+            class="btn btn-primary"
+            :disabled="solicitandoAnalise || (disponibilidade && !disponibilidade.disponivel_agora)"
+            @click="solicitarAnalise"
+          >
+            {{ solicitandoAnalise ? 'Analisando…' : '✨ Solicitar análise de IA' }}
+          </button>
+          <button type="button" class="btn btn-primary" @click="abrirEditorNova">✍️ Escrever avaliação</button>
+        </div>
+        <div class="acomp-acoes-grupo">
+          <input v-model="mesSelecionado" type="month" aria-label="Mês de referência" class="acomp-mes" />
+          <button type="button" class="btn btn-primary" :disabled="gerando" @click="gerar">
+            {{ gerando ? 'Gerando…' : jaExisteMesSelecionado ? '✨ Regenerar mês' : '✨ Gerar mês' }}
+          </button>
+        </div>
       </div>
 
       <div class="acomp-acoes-info">
@@ -336,7 +340,7 @@ async function excluirAvaliacaoPersonal(avaliacao) {
             <div class="acomp-feed-cab">
               <span class="list-row-title">
                 <template v-if="item.tipo === 'mensal'">🗓️ Avaliação mensal — {{ rotuloMes(item.dados.ano_mes) }}</template>
-                <template v-else>🔎 Análise sob demanda — {{ dataCurta(item.dados.solicitada_em) }}</template>
+                <template v-else>✨ Análise sob demanda — {{ dataCurta(item.dados.solicitada_em) }}</template>
               </span>
               <span class="list-row-sub">{{ subLinha(item) }}</span>
             </div>
@@ -380,6 +384,13 @@ async function excluirAvaliacaoPersonal(avaliacao) {
 
 <style scoped>
 .acomp-acoes-linha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+.acomp-acoes-grupo {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;

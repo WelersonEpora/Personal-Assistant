@@ -6,12 +6,14 @@ import avaliacoesPersonalService from '../services/avaliacoesPersonal.service.js
 import registrosService from '../services/registros.service.js'
 import { formatarDataHora } from '../utils/registroStatus.js'
 import { useToasts } from '../composables/useToasts.js'
+import { useConfirm } from '../composables/useConfirm.js'
 import ToastStack from './ToastStack.vue'
 import AcompanhamentoDetalhe from './AcompanhamentoDetalhe.vue'
 import RegistroCard from './RegistroCard.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const { toasts, showToast } = useToasts()
+const { confirmar } = useConfirm()
 
 const carregando = ref(true)
 
@@ -78,10 +80,6 @@ function rotuloMes(anoMes) {
 function rotuloMesLongo(anoMes) {
   const [ano, mes] = String(anoMes).split('-')
   return `${NOMES_MES_LONGO[Number(mes) - 1]} ${ano}`
-}
-
-function dataCurta(iso) {
-  return iso ? new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''
 }
 
 // ---- Agrupamento por mês --------------------------------------------------
@@ -317,7 +315,12 @@ async function salvarAvaliacaoPersonal() {
 }
 
 async function excluirAvaliacaoPersonal(avaliacao) {
-  if (!window.confirm('Excluir esta avaliação? Ela não será mais considerada nos próximos ciclos de IA.')) return
+  const ok = await confirmar({
+    titulo: 'Excluir esta avaliação?',
+    mensagem: 'Ela não será mais considerada nos próximos ciclos de IA.',
+    perigo: true
+  })
+  if (!ok) return
   try {
     await avaliacoesPersonalService.excluir(props.id, avaliacao.id)
     showToast('Avaliação excluída.', 'neutral')
@@ -438,7 +441,7 @@ async function excluirAvaliacaoPersonal(avaliacao) {
         <div v-if="mostrarMensal(m)" class="acomp-linha">
           <div class="registro-card-head row-clickable" @click="alternarExpandido('m:' + m.anoMes)">
             <div class="acomp-feed-cab">
-              <span class="list-row-title">🗓️ Avaliação mensal — {{ formatarDataHora(m.mensal.gerada_em) }}</span>
+              <span class="list-row-title">🗓️ Avaliação mensal<span class="acomp-linha-data"> · {{ formatarDataHora(m.mensal.gerada_em) }}</span></span>
               <span class="list-row-sub">{{ subLinhaMensal(m.mensal) }}</span>
             </div>
             <span class="acomp-chevron">{{ expandidoId === 'm:' + m.anoMes ? '▲' : '▼' }}</span>
@@ -465,7 +468,7 @@ async function excluirAvaliacaoPersonal(avaliacao) {
           <template v-else-if="item.tipo === 'sob_demanda'">
             <div class="registro-card-head row-clickable" @click="alternarExpandido(item.chave)">
               <div class="acomp-feed-cab">
-                <span class="list-row-title">✨ Análise sob demanda — {{ dataCurta(item.dados.solicitada_em) }}</span>
+                <span class="list-row-title">✨ Análise sob demanda<span class="acomp-linha-data"> · {{ formatarDataHora(item.dados.solicitada_em) }}</span></span>
                 <span class="list-row-sub">{{ subLinhaAnalise(item.dados) }}</span>
               </div>
               <span class="badge" :class="statusMeta(item.dados.status).badge">{{ statusMeta(item.dados.status).label }}</span>
@@ -478,7 +481,7 @@ async function excluirAvaliacaoPersonal(avaliacao) {
           <template v-else>
             <div class="acomp-pessoal-head">
               <div class="acomp-feed-cab">
-                <span class="list-row-title">✍️ Sua avaliação — {{ formatarDataHora(item.dados.created_at) }}</span>
+                <span class="list-row-title">✍️ Sua avaliação<span class="acomp-linha-data"> · {{ formatarDataHora(item.dados.created_at) }}</span></span>
                 <span class="list-row-sub">
                   {{ item.dados.autor?.nome || 'personal' }}
                   <template v-if="item.dados.updated_at && item.dados.updated_at !== item.dados.created_at"> · editada</template>
@@ -560,6 +563,11 @@ async function excluirAvaliacaoPersonal(avaliacao) {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+}
+.acomp-linha-data {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--color-text-secondary);
 }
 .acomp-obs-item {
   display: block;

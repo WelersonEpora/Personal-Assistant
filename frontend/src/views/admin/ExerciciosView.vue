@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import exerciciosService from '../../services/exercicios.service.js'
 import { useAuthStore } from '../../stores/auth.store.js'
 import { useToasts } from '../../composables/useToasts.js'
+import { useConfirm } from '../../composables/useConfirm.js'
 import ToastStack from '../../components/ToastStack.vue'
 import ExercicioMidia from '../../components/ExercicioMidia.vue'
 
@@ -18,6 +19,7 @@ const POSICOES = [
 
 const auth = useAuthStore()
 const { toasts, showToast } = useToasts()
+const { confirmar } = useConfirm()
 
 const exercicios = ref([])
 const carregando = ref(true)
@@ -198,7 +200,12 @@ async function alternarAtivo(exercicio) {
 }
 
 async function excluir(exercicio) {
-  if (!window.confirm(`Excluir "${exercicio.nome}" do catálogo? Fichas de treino que já usam este exercício não são afetadas.`)) return
+  const ok = await confirmar({
+    titulo: `Excluir "${exercicio.nome}" do catálogo?`,
+    mensagem: 'Fichas de treino que já usam este exercício não são afetadas.',
+    perigo: true
+  })
+  if (!ok) return
   try {
     await exerciciosService.excluir(exercicio.id)
     showToast('Exercício excluído.', 'neutral')

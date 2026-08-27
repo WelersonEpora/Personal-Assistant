@@ -4,12 +4,14 @@ import { useRouter } from 'vue-router'
 import alunosService from '../../services/alunos.service.js'
 import { corParaId, iniciais } from '../../utils/registroStatus.js'
 import { useToasts } from '../../composables/useToasts.js'
+import { useConfirm } from '../../composables/useConfirm.js'
 import ToastStack from '../../components/ToastStack.vue'
 import AcompanhamentoAluno from '../../components/AcompanhamentoAluno.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const router = useRouter()
 const { toasts, showToast } = useToasts()
+const { confirmar } = useConfirm()
 
 const aluno = ref(null)
 const carregando = ref(true)
@@ -135,7 +137,13 @@ async function alternarAtivo() {
 // Soft-delete (docs/adr/0007) - leva consigo todos os Registros/Validações
 // do aluno, por isso o aviso explícito antes de confirmar.
 async function excluirAluno() {
-  if (!window.confirm(`Excluir ${aluno.value.nome}? Isso também remove todos os relatos e avaliações deste aluno. Essa ação não pode ser desfeita.`)) return
+  const ok = await confirmar({
+    titulo: `Excluir ${aluno.value.nome}?`,
+    mensagem: 'Isso também remove todos os relatos e avaliações deste aluno. Essa ação não pode ser desfeita.',
+    perigo: true,
+    confirmarLabel: 'Excluir aluno'
+  })
+  if (!ok) return
   try {
     await alunosService.excluir(props.id)
     showToast('Aluno excluído.', 'neutral')
@@ -154,15 +162,17 @@ async function excluirAluno() {
       <div style="position: relative;">
         <img v-if="fotoUrl" :src="fotoUrl" class="avatar sz-lg" alt="" />
         <span v-else class="avatar sz-lg" :style="{ background: corParaId(aluno.id) }">{{ iniciais(aluno.nome) }}</span>
-        <button type="button" class="btn btn-ghost" style="position: absolute; bottom: -8px; right: -8px; padding: 2px 6px; font-size: 11px;" :disabled="enviandoFoto" @click="selecionarFoto">
-          📷
+        <button type="button" class="btn btn-ghost" title="Enviar foto" style="position: absolute; bottom: -8px; right: -8px; padding: 4px 7px;" :disabled="enviandoFoto" @click="selecionarFoto">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 15V4M7 9l5-5 5 5M5 20h14" />
+          </svg>
         </button>
         <button
           v-if="fotoUrl"
           type="button"
           class="btn btn-ghost"
           title="Remover foto"
-          style="position: absolute; bottom: -8px; left: -8px; padding: 2px 6px; font-size: 11px;"
+          style="position: absolute; bottom: -8px; left: -8px; padding: 3px 7px; font-size: 15px;"
           :disabled="removendoFoto"
           @click="removerFoto"
         >
@@ -198,8 +208,8 @@ async function excluirAluno() {
             </button>
           </div>
           <div style="display: flex; gap: 10px; margin-top: 10px; justify-content: space-between; align-items: center;">
-            <div style="display: flex; gap: 10px;">
-              <button type="button" class="btn btn-secondary" @click="iniciarEdicao">Editar</button>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <button type="button" class="btn btn-primary" @click="iniciarEdicao">Editar</button>
               <button type="button" class="btn btn-danger-ghost" @click="excluirAluno">Excluir aluno</button>
             </div>
             <div style="display: flex; gap: 10px;">
@@ -234,3 +244,12 @@ async function excluirAluno() {
   </div>
   <div v-else-if="!carregando" class="empty-state">Aluno não encontrado.</div>
 </template>
+
+<style scoped>
+/* Avatar maior só nesta tela (a lista de Alunos mantém o .sz-lg padrão). */
+.detail-header .avatar.sz-lg {
+  width: 80px;
+  height: 80px;
+  font-size: 26px;
+}
+</style>

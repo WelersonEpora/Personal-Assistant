@@ -77,8 +77,7 @@ onBeforeUnmount(() => {
     <div class="registro-card-head row-clickable" @click="emit('toggle')">
       <div class="acomp-feed-cab">
         <span class="list-row-title">
-          📋 {{ confirmado() ? 'Relato confirmado' : 'Relato' }} —
-          {{ formatarDataHora(registro.validacao?.confirmado_em || registro.created_at) }}
+          📋 {{ confirmado() ? 'Relato confirmado' : 'Relato' }}<span class="acomp-linha-data"> · {{ formatarDataHora(registro.validacao?.confirmado_em || registro.created_at) }}</span>
         </span>
         <span class="list-row-sub">
           <template v-if="confirmado()">
@@ -152,6 +151,11 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+}
+.acomp-linha-data {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--color-text-secondary);
 }
 .acomp-detalhe-box {
   margin-top: 10px;

@@ -104,6 +104,8 @@ img { max-width: 100%; display: block; }
 .btn-ghost:hover { background: #ececf1; }
 .btn-danger-ghost { background: transparent; color: var(--color-danger); border: 1px solid var(--color-danger); }
 .btn-danger-ghost:hover { background: var(--color-danger-light); }
+.btn-danger { background: var(--color-danger); color: #fff; }
+.btn-danger:hover { background: #b91c1c; }
 .btn-sm { padding: 6px 12px; font-size: 13px; }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 

@@ -5,11 +5,13 @@ import exerciciosService from '../../services/exercicios.service.js'
 import fichasTreinoService from '../../services/fichasTreino.service.js'
 import { formatarData } from '../../utils/registroStatus.js'
 import { useToasts } from '../../composables/useToasts.js'
+import { useConfirm } from '../../composables/useConfirm.js'
 import ToastStack from '../../components/ToastStack.vue'
 import ExercicioMidia from '../../components/ExercicioMidia.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const { toasts, showToast } = useToasts()
+const { confirmar } = useConfirm()
 
 const aluno = ref(null)
 const catalogo = ref([])
@@ -62,7 +64,16 @@ async function carregar() {
 onMounted(carregar)
 
 async function gerarLink() {
-  if (link.value?.status === 'ativo' && !window.confirm('Gerar um novo link invalida o link atual. Continuar?')) return
+  if (
+    link.value?.status === 'ativo' &&
+    !(await confirmar({
+      titulo: 'Gerar um novo link?',
+      mensagem: 'Isso invalida o link atual imediatamente.',
+      confirmarLabel: 'Gerar novo link'
+    }))
+  ) {
+    return
+  }
   linkOcupado.value = true
   try {
     link.value = await fichasTreinoService.gerarLink(props.id)
@@ -84,7 +95,13 @@ async function copiarLink() {
 }
 
 async function revogarLink() {
-  if (!window.confirm('Revogar o link? O aluno perde o acesso imediatamente.')) return
+  const ok = await confirmar({
+    titulo: 'Revogar o link?',
+    mensagem: 'O aluno perde o acesso imediatamente.',
+    perigo: true,
+    confirmarLabel: 'Revogar'
+  })
+  if (!ok) return
   linkOcupado.value = true
   try {
     await fichasTreinoService.revogarLink(props.id)

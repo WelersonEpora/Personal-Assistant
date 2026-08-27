@@ -4,9 +4,11 @@ import { useRouter } from 'vue-router'
 import registrosService from '../../services/registros.service.js'
 import { statusMeta, resumoEntradas, entradaIcon, corParaId, iniciais, formatarData, formatarHora } from '../../utils/registroStatus.js'
 import { useToasts } from '../../composables/useToasts.js'
+import { useConfirm } from '../../composables/useConfirm.js'
 import ToastStack from '../../components/ToastStack.vue'
 
 const { toasts, showToast } = useToasts()
+const { confirmar } = useConfirm()
 
 const FILTROS = [
   { status: 'todos', label: 'Todos' },
@@ -114,7 +116,12 @@ onBeforeUnmount(revogarAudios)
 // Exclusão (soft-delete, docs/adr/0007) - o backend já rejeita "confirmado",
 // mas a UI nem oferece o botão nesse caso, pra não convidar a tentativa.
 async function excluirRegistro(registro) {
-  if (!window.confirm('Excluir este registro? Essa ação não pode ser desfeita.')) return
+  const ok = await confirmar({
+    titulo: 'Excluir este registro?',
+    mensagem: 'Essa ação não pode ser desfeita.',
+    perigo: true
+  })
+  if (!ok) return
   try {
     await registrosService.excluir(registro.id)
     registros.value = registros.value.filter((r) => r.id !== registro.id)

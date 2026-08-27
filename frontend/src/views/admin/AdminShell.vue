@@ -5,6 +5,7 @@ import { useAuthStore } from '../../stores/auth.store.js'
 import registrosService from '../../services/registros.service.js'
 import usuariosService from '../../services/usuarios.service.js'
 import { iniciais, corParaId } from '../../utils/registroStatus.js'
+import ConfirmDialog from '../../components/ConfirmDialog.vue'
 
 const NAV_ITEMS = [
   { grupo: 'Visão geral', itens: [{ nome: 'admin-dashboard', icone: '📊', label: 'Dashboard' }] },
@@ -128,5 +129,7 @@ function sair() {
         <router-view @registro-processado="atualizarContadores" />
       </main>
     </div>
+
+    <ConfirmDialog />
   </div>
 </template>

@@ -4,12 +4,14 @@ import { useRouter } from 'vue-router'
 import registrosService from '../../services/registros.service.js'
 import { corParaId, iniciais, formatarData, formatarHora, resumoEntradas } from '../../utils/registroStatus.js'
 import { useToasts } from '../../composables/useToasts.js'
+import { useConfirm } from '../../composables/useConfirm.js'
 import ToastStack from '../../components/ToastStack.vue'
 
 const props = defineProps({ id: { type: String, default: null } })
 const emit = defineEmits(['registro-processado'])
 const router = useRouter()
 const { toasts, showToast } = useToasts()
+const { confirmar } = useConfirm()
 
 const fila = ref([])
 const selecionado = ref(null)
@@ -117,7 +119,12 @@ function confirmarSemEditar() {
 // backend já rejeita "confirmado", mas nesta tela isso nunca acontece porque
 // só chegam registros 'aguardando_revisao'.
 async function excluirRegistro() {
-  if (!window.confirm('Excluir este registro? Essa ação não pode ser desfeita.')) return
+  const ok = await confirmar({
+    titulo: 'Excluir este registro?',
+    mensagem: 'Essa ação não pode ser desfeita.',
+    perigo: true
+  })
+  if (!ok) return
   try {
     await registrosService.excluir(selecionado.value.id)
     showToast('Registro excluído.', 'neutral')

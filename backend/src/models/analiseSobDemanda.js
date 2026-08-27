@@ -27,6 +27,8 @@ module.exports = (sequelize) => {
       status: { type: DataTypes.STRING(20), allowNull: false, validate: { isIn: [STATUS_VALIDOS] } },
       relatos_considerados: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
       baseada_em_registro_ids: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+      // Avaliações do personal (docs/adr/0015) que entraram nesta análise.
+      baseada_em_avaliacao_personal_ids: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
       contexto_referencia_id: { type: DataTypes.UUID, allowNull: true },
       analise_json: { type: DataTypes.JSONB, allowNull: true },
       provedor: { type: DataTypes.STRING(40), allowNull: false, defaultValue: "gemini" },

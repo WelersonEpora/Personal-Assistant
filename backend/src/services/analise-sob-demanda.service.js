@@ -10,6 +10,7 @@
 //   - NUNCA é dado oficial (docs/adr/0007).
 // Toda solicitação registra data/hora, aluno e quem pediu.
 const analiseSobDemandaRepository = require("../repositories/analiseSobDemanda.repository");
+const avaliacaoPersonalRepository = require("../repositories/avaliacaoPersonal.repository");
 const alunoRepository = require("../repositories/aluno.repository");
 const geminiService = require("./ia/gemini.service");
 const env = require("../config/env");
@@ -62,21 +63,31 @@ function formatarRelato(registro) {
   return `[relato:${registro.id} | sessão em ${sessao} | confirmado em ${confirmado}]\n${linhasItens}${nota}`;
 }
 
-function montarPromptAnalise({ alunoId, contextoReferencia, relatos }) {
+function blocoAvaliacoesPersonal(avaliacoesPersonal) {
+  if (!avaliacoesPersonal.length) return "";
+  const linhas = avaliacoesPersonal
+    .map((avaliacao) => `[personal:${avaliacao.id} | escrita em ${new Date(avaliacao.created_at).toISOString().slice(0, 10)}]\n${avaliacao.texto}`)
+    .join("\n\n");
+  return `\n\n=== AVALIAÇÃO DO PERSONAL (escrita pelo profissional, ainda não consolidada, ${avaliacoesPersonal.length}) ===\n${linhas}`;
+}
+
+function montarPromptAnalise({ alunoId, contextoReferencia, relatos, avaliacoesPersonal = [] }) {
   const blocoContexto = contextoReferencia
     ? JSON.stringify(contextoReferencia, null, 2)
     : "Nenhum - o aluno ainda não teve um fechamento mensal.";
 
-  return [
-    `ALUNO: ${alunoId}`,
-    `DATA DA ANÁLISE: ${new Date().toISOString().slice(0, 10)}`,
-    "",
-    "=== CONTEXTO CONSOLIDADO (último fechamento mensal, somente referência) ===",
-    blocoContexto,
-    "",
-    `=== RELATOS CONFIRMADOS RECENTES (${relatos.length}, ainda não consolidados, na ordem de confirmação) ===`,
-    relatos.map(formatarRelato).join("\n\n")
-  ].join("\n");
+  return (
+    [
+      `ALUNO: ${alunoId}`,
+      `DATA DA ANÁLISE: ${new Date().toISOString().slice(0, 10)}`,
+      "",
+      "=== CONTEXTO CONSOLIDADO (último fechamento mensal, somente referência) ===",
+      blocoContexto,
+      "",
+      `=== RELATOS CONFIRMADOS RECENTES (${relatos.length}, ainda não consolidados, na ordem de confirmação) ===`,
+      relatos.map(formatarRelato).join("\n\n") || "  (nenhum)"
+    ].join("\n") + blocoAvaliacoesPersonal(avaliacoesPersonal)
+  );
 }
 
 // Resultado NÃO persistido: nada chegou a ser produzido, então não vira
@@ -111,6 +122,7 @@ async function solicitar({ equipeId, alunoId, usuarioId }) {
     : new Date(Date.now() - JANELA_SEM_MENSAL_DIAS * MS_POR_DIA);
 
   const relatos = await analiseSobDemandaRepository.listarRelatosConfirmadosDesde({ equipeId, alunoId, desde });
+  const avaliacoesPersonal = await avaliacaoPersonalRepository.listarDesde({ equipeId, alunoId, desde });
 
   const base = {
     aluno_id: alunoId,
@@ -119,24 +131,26 @@ async function solicitar({ equipeId, alunoId, usuarioId }) {
     solicitada_em: new Date(),
     relatos_considerados: relatos.length,
     baseada_em_registro_ids: relatos.map((registro) => registro.id),
+    baseada_em_avaliacao_personal_ids: avaliacoesPersonal.map((avaliacao) => avaliacao.id),
     contexto_referencia_id: mensalMaisRecente?.id || null,
     provedor: "gemini"
   };
 
-  // Sem relato recente: não chega a chamar a IA -> não registra nada e não
-  // consome a janela de 7 dias. Só informa o personal.
-  if (relatos.length === 0) {
-    logger.info({ alunoId, usuarioId }, "[analise-sob-demanda] solicitação sem relatos recentes - não registrada");
+  // Nada recente para analisar (nem relato confirmado nem avaliação do
+  // personal): não chega a chamar a IA -> não registra nada e não consome a
+  // janela de 7 dias. Só informa o personal.
+  if (relatos.length === 0 && avaliacoesPersonal.length === 0) {
+    logger.info({ alunoId, usuarioId }, "[analise-sob-demanda] solicitação sem material recente - não registrada");
     return resultadoInsuficiente({
       relatosConsiderados: 0,
       mensagem:
-        "Não há relatos confirmados recentes o suficiente para uma análise. " +
-        "Registre e confirme novos relatos e solicite novamente - nada foi consumido."
+        "Não há relatos confirmados nem avaliações suas recentes para analisar. " +
+        "Registre novos relatos ou escreva uma avaliação e solicite novamente - nada foi consumido."
     });
   }
 
   try {
-    const promptContexto = montarPromptAnalise({ alunoId, contextoReferencia, relatos });
+    const promptContexto = montarPromptAnalise({ alunoId, contextoReferencia, relatos, avaliacoesPersonal });
     const { analise } = await geminiService.gerarAnaliseSobDemanda({ promptContexto });
     if (!analise) {
       throw new Error("Resposta da IA incompleta (sem 'analise').");

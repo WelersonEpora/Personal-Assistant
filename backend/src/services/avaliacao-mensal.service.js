@@ -10,6 +10,7 @@
 // este service jamais escreve em `validacao` (docs/adr/0007). Para corrigir
 // algo, o personal registra um novo relato, que entra no ciclo seguinte.
 const avaliacaoMensalRepository = require("../repositories/avaliacaoMensal.repository");
+const avaliacaoPersonalRepository = require("../repositories/avaliacaoPersonal.repository");
 const alunoRepository = require("../repositories/aluno.repository");
 const geminiService = require("./ia/gemini.service");
 const env = require("../config/env");
@@ -75,10 +76,20 @@ function contextoCarregadoAdiante(contextoAnterior, alunoId, anoMes) {
   return { ...contextoAnterior, aluno_id: alunoId, cobre_ate: anoMes, gerado_em: hojeData() };
 }
 
-// Monta o texto enviado à IA. Só contexto anterior + relatos do mês.
-// Avaliação física ainda NÃO entra aqui (fora do escopo atual); quando
-// entrar, será um terceiro bloco e uma dimensão em "estado_atual".
-function montarPromptAvaliacao({ alunoId, anoMes, contextoAnterior, relatos }) {
+// Bloco das avaliações escritas pelo próprio personal (docs/adr/0015).
+// Vazio quando não há nenhuma no recorte.
+function blocoAvaliacoesPersonal(avaliacoesPersonal) {
+  if (!avaliacoesPersonal.length) return "";
+  const linhas = avaliacoesPersonal
+    .map((avaliacao) => `[personal:${avaliacao.id} | escrita em ${new Date(avaliacao.created_at).toISOString().slice(0, 10)}]\n${avaliacao.texto}`)
+    .join("\n\n");
+  return `\n\n=== AVALIAÇÃO DO PERSONAL (escrita pelo profissional, ${avaliacoesPersonal.length}) ===\n${linhas}`;
+}
+
+// Monta o texto enviado à IA: contexto anterior + relatos do mês + avaliações
+// do personal do mês. Avaliação física ainda NÃO entra aqui (fora do escopo
+// atual); quando entrar, será outro bloco e uma dimensão em "estado_atual".
+function montarPromptAvaliacao({ alunoId, anoMes, contextoAnterior, relatos, avaliacoesPersonal = [] }) {
   const blocoContexto = contextoAnterior
     ? JSON.stringify(contextoAnterior, null, 2)
     : "Nenhum - este é o primeiro ciclo de acompanhamento deste aluno.";
@@ -99,16 +110,18 @@ function montarPromptAvaliacao({ alunoId, anoMes, contextoAnterior, relatos }) {
     })
     .join("\n\n");
 
-  return [
-    `ALUNO: ${alunoId}`,
-    `MÊS DE REFERÊNCIA: ${anoMes}`,
-    "",
-    "=== CONTEXTO CONSOLIDADO (até o mês anterior) ===",
-    blocoContexto,
-    "",
-    `=== RELATOS CONFIRMADOS DE ${anoMes} (${relatos.length}, na ordem de confirmação) ===`,
-    blocoRelatos
-  ].join("\n");
+  return (
+    [
+      `ALUNO: ${alunoId}`,
+      `MÊS DE REFERÊNCIA: ${anoMes}`,
+      "",
+      "=== CONTEXTO CONSOLIDADO (até o mês anterior) ===",
+      blocoContexto,
+      "",
+      `=== RELATOS CONFIRMADOS DE ${anoMes} (${relatos.length}, na ordem de confirmação) ===`,
+      blocoRelatos
+    ].join("\n") + blocoAvaliacoesPersonal(avaliacoesPersonal)
+  );
 }
 
 function avaliacaoDadosInsuficientes({ anoMes, limites, relatos }) {
@@ -150,6 +163,13 @@ async function gerarParaAluno({ equipeId, alunoId, anoMes, origem = "automatica"
     fim: limites.fim
   });
 
+  const avaliacoesPersonal = await avaliacaoPersonalRepository.listarNoPeriodo({
+    equipeId,
+    alunoId,
+    inicio: limites.inicio,
+    fim: limites.fim
+  });
+
   const base = {
     aluno_id: alunoId,
     equipe_id: equipeId,
@@ -159,6 +179,8 @@ async function gerarParaAluno({ equipeId, alunoId, anoMes, origem = "automatica"
     origem,
     relatos_considerados: relatos.length,
     baseada_em_registro_ids: relatos.map((registro) => registro.id),
+    // Só as que realmente foram para a IA (preenchido no caminho "gerada").
+    avaliacoes_personal_consideradas: [],
     contexto_anterior_id: anterior?.id || null,
     provedor: "gemini"
   };
@@ -175,7 +197,7 @@ async function gerarParaAluno({ equipeId, alunoId, anoMes, origem = "automatica"
   }
 
   try {
-    const promptContexto = montarPromptAvaliacao({ alunoId, anoMes, contextoAnterior, relatos });
+    const promptContexto = montarPromptAvaliacao({ alunoId, anoMes, contextoAnterior, relatos, avaliacoesPersonal });
     const { avaliacaoMensal, contextoConsolidado } = await geminiService.gerarAvaliacaoMensal({ promptContexto });
 
     if (!avaliacaoMensal || !contextoConsolidado) {
@@ -187,6 +209,7 @@ async function gerarParaAluno({ equipeId, alunoId, anoMes, origem = "automatica"
       status: "gerada",
       modelo: env.gemini.model,
       erro: null,
+      avaliacoes_personal_consideradas: avaliacoesPersonal.map((avaliacao) => avaliacao.id),
       avaliacao_json: avaliacaoMensal,
       contexto_consolidado_json: {
         ...contextoConsolidado,

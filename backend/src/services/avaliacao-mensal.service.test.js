@@ -10,7 +10,18 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const { randomUUID } = require("node:crypto");
 
-const { Usuario, Equipe, Aluno, Registro, RegistroEntrada, ResultadoIa, Validacao, AvaliacaoMensal } = require("../models");
+const {
+  sequelize,
+  Usuario,
+  Equipe,
+  Aluno,
+  Registro,
+  RegistroEntrada,
+  ResultadoIa,
+  Validacao,
+  AvaliacaoMensal,
+  AvaliacaoPersonal
+} = require("../models");
 const geminiService = require("./ia/gemini.service");
 const avaliacaoMensalService = require("./avaliacao-mensal.service");
 
@@ -56,12 +67,23 @@ after(async () => {
 
 async function limpar() {
   await AvaliacaoMensal.destroy({ where: { aluno_id: aluno.id } });
+  await AvaliacaoPersonal.destroy({ where: { aluno_id: aluno.id } });
   const registros = await Registro.findAll({ where: { aluno_id: aluno.id } });
   const ids = registros.map((r) => r.id);
   await Validacao.destroy({ where: { registro_id: ids } });
   await RegistroEntrada.destroy({ where: { registro_id: ids } });
   await ResultadoIa.destroy({ where: { registro_id: ids } });
   await Registro.destroy({ where: { id: ids } });
+}
+
+async function criarAvaliacaoPersonal(texto, quando = new Date()) {
+  const avaliacao = await AvaliacaoPersonal.create({ aluno_id: aluno.id, equipe_id: equipe.id, autor_id: usuario.id, texto });
+  // Sequelize ignora created_at em .update() - força via SQL para o teste
+  // conseguir posicionar a nota num mês específico.
+  await sequelize.query("UPDATE avaliacao_personal SET created_at = :quando WHERE id = :id", {
+    replacements: { quando, id: avaliacao.id }
+  });
+  return avaliacao;
 }
 
 async function criarRelatoConfirmado(confirmadoEm, itens = [{ label: "Agachamento", valor: "4x10", obs: "" }]) {
@@ -131,11 +153,16 @@ test("a avaliação mensal NUNCA cria uma Validacao (não é dado oficial)", asy
   for (let i = 0; i < 5; i += 1) await criarRelatoConfirmado(new Date(2026, 3, 4 + i));
   t.after(limpar);
 
-  const antes = await Validacao.count();
-  await avaliacaoMensalService.gerarParaAluno({ equipeId: equipe.id, alunoId: aluno.id, anoMes: "2026-04" });
-  await avaliacaoMensalService.gerarParaAluno({ equipeId: equipe.id, alunoId: aluno.id, anoMes: "2026-04" });
-  const depois = await Validacao.count();
+  // Escopado a este aluno - o banco de teste é compartilhado entre arquivos.
+  const contar = () =>
+    Validacao.count({ include: [{ model: Registro, as: "registro", required: true, where: { aluno_id: aluno.id } }] });
 
+  const antes = await contar();
+  await avaliacaoMensalService.gerarParaAluno({ equipeId: equipe.id, alunoId: aluno.id, anoMes: "2026-04" });
+  await avaliacaoMensalService.gerarParaAluno({ equipeId: equipe.id, alunoId: aluno.id, anoMes: "2026-04" });
+  const depois = await contar();
+
+  assert.equal(antes, 5);
   assert.equal(depois, antes);
 });
 
@@ -215,6 +242,39 @@ test("falha da IA: registra status 'falha' com o erro e carrega o contexto anter
   assert.match(avaliacao.erro, /fora do ar/);
   assert.equal(avaliacao.avaliacao_json, null);
   assert.equal(avaliacao.contexto_consolidado_json.cobre_ate, "2026-04");
+});
+
+test("inclui a avaliação do personal do mês no prompt e registra os ids em avaliacoes_personal_consideradas", async (t) => {
+  let promptRecebido = null;
+  t.mock.method(geminiService, "gerarAvaliacaoMensal", async ({ promptContexto }) => {
+    promptRecebido = promptContexto;
+    return RESPOSTA_IA_FAKE;
+  });
+  for (let i = 0; i < 5; i += 1) await criarRelatoConfirmado(new Date(2026, 3, 4 + i));
+  const nota = await criarAvaliacaoPersonal("Aluno relatou dormir melhor; percebi mais disposição.", new Date(2026, 3, 10));
+  // uma nota fora do mês não deve entrar
+  await criarAvaliacaoPersonal("nota de maio", new Date(2026, 4, 2));
+  t.after(limpar);
+
+  const avaliacao = await avaliacaoMensalService.gerarParaAluno({ equipeId: equipe.id, alunoId: aluno.id, anoMes: "2026-04" });
+
+  assert.match(promptRecebido, /AVALIAÇÃO DO PERSONAL/);
+  assert.match(promptRecebido, /dormir melhor/);
+  assert.doesNotMatch(promptRecebido, /nota de maio/);
+  assert.deepEqual(avaliacao.avaliacoes_personal_consideradas, [nota.id]);
+});
+
+test("mês 'dados insuficientes' não envia a avaliação do personal e não a marca como considerada", async (t) => {
+  const spy = t.mock.method(geminiService, "gerarAvaliacaoMensal");
+  await criarRelatoConfirmado(new Date(2026, 3, 5));
+  await criarAvaliacaoPersonal("minha leitura do mês", new Date(2026, 3, 10));
+  t.after(limpar);
+
+  const avaliacao = await avaliacaoMensalService.gerarParaAluno({ equipeId: equipe.id, alunoId: aluno.id, anoMes: "2026-04" });
+
+  assert.equal(avaliacao.status, "dados_insuficientes");
+  assert.equal(spy.mock.callCount(), 0);
+  assert.deepEqual(avaliacao.avaliacoes_personal_consideradas, []);
 });
 
 test("rejeita mês em formato inválido", async () => {

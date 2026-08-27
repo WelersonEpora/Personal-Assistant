@@ -104,7 +104,7 @@ personal-assistant/
       models/                 usuario, equipe, membro, aluno, registro,
                                registroEntrada, arquivoAudio, transcricao,
                                resultadoIa, validacao, avaliacaoMensal,
-                               analiseSobDemanda
+                               analiseSobDemanda, avaliacaoPersonal
       routes/
       jobs/                   processador-fila-ia.js (worker em processo),
                                gerador-avaliacao-mensal.js (lote mensal, docs/adr/0015)
@@ -147,8 +147,9 @@ compartilhado).
 
 Só as entidades necessárias para o fluxo: `usuario`, `equipe`, `membro`,
 `aluno`, `registro`, `registro_entrada`, `arquivo_audio`, `transcricao`,
-`resultado_ia`, `validacao`, `avaliacao_mensal` + `analise_sob_demanda`
-(docs/adr/0015 — camada interpretativa derivada, nunca dado oficial).
+`resultado_ia`, `validacao`, `avaliacao_mensal` + `analise_sob_demanda` +
+`avaliacao_personal` (docs/adr/0015 — camada de acompanhamento: interpretação
+da IA e a avaliação escrita pelo próprio personal; nada disso é dado oficial).
 **Não antecipar o sistema legado do personal
 trainer** — nada de entidades de plano de treino, catálogo de exercícios,
 avaliação física estruturada etc. até que o legado seja analisado. Dados de
@@ -296,9 +297,11 @@ MVP completo e verificado de ponta a ponta:
   dado oficial), Acompanhamento Individual Mensal (docs/adr/0015 — avaliação
   da IA por contexto consolidado, lote mensal + geração manual; + análise sob
   demanda com limite de 1 análise gerada a cada 7 dias — sem relatos/dados
-  insuficientes não vira registro nem consome a janela; IA atua como personal
-  trainer sênior; nunca dado oficial). 136 testes automatizados (`node
-  --test`, unitários + integração contra banco de teste dedicado).
+  insuficientes não vira registro nem consome a janela; + avaliação escrita
+  pelo próprio personal (sem IA) que entra no prompt dos ciclos junto dos
+  relatos; IA atua como personal trainer sênior; nunca dado oficial). 146
+  testes automatizados (`node --test`, unitários + integração contra banco de
+  teste dedicado).
 - **Frontend**: app Vue 3 + Vite + PWA único (`/captura` mobile-first
   offline, `/admin` gestão/validação), IndexedDB + fila de sincronização
   própria, gravador de áudio (MediaRecorder), múltiplos Registros

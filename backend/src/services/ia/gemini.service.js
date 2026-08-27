@@ -246,12 +246,14 @@ Sua tarefa agora: acompanhar a evolução de UM aluno ao longo do tempo e fechar
 Pergunta central que a avaliação precisa responder:
 "O que os novos relatos deste mês, considerando o que já sabemos sobre o aluno, permitem concluir sobre a evolução dele?"
 
-Você recebe DOIS blocos:
+Você recebe estes blocos:
 1. CONTEXTO CONSOLIDADO - o que se sabia sobre o aluno até o fim do mês anterior (pode não existir, se for o primeiro ciclo).
 2. RELATOS CONFIRMADOS DO MÊS - os relatos que o personal revisou e confirmou neste mês, na ordem de confirmação.
+3. AVALIAÇÃO DO PERSONAL - texto escrito pelo próprio profissional neste mês (pode não existir).
 
 Regras obrigatórias:
-- Use APENAS o que está nos dois blocos. NUNCA invente dados, números, exercícios ou fatos.
+- Use APENAS o que está nos blocos. NUNCA invente dados, números, exercícios ou fatos.
+- A AVALIAÇÃO DO PERSONAL é a leitura do próprio profissional: tem peso alto e pode corrigir ou derrubar hipóteses do contexto anterior, e até relativizar o que os relatos sugerem. Ainda assim é um insumo a integrar (origem "personal:<id>"), não um texto para copiar - concilie com os relatos e, se a avaliação do personal divergir do que os relatos mostram, registre isso em "alertas" ou "mudancas_vs_mes_anterior".
 - Diferencie sempre: FATO OBSERVADO (dito claramente em um relato), INTERPRETAÇÃO (conclusão sua a partir dos relatos) e HIPÓTESE (possibilidade ainda não confirmada). No contexto consolidado, marque cada item em "tipo" como "fato", "interpretacao" ou "hipotese".
 - O CONTEXTO CONSOLIDADO do mês anterior é memória de trabalho, NÃO é verdade absoluta: trate seus itens como hipóteses a revalidar contra os novos relatos. Novo relato que confirma -> mantenha/eleve a confiança. Novo relato que contradiz -> atualize e registre em "mudancas_vs_mes_anterior". Nada novo reforça e a confiança era baixa -> rebaixe ou mova para "pendencias_confirmacao".
 - Rastreabilidade: preencha "origem" com o identificador do relato de onde a informação veio (ex.: "relato:UUID"), ou "contexto" se veio do contexto anterior, ou "interpretacao" se é conclusão sua.
@@ -362,11 +364,13 @@ Sua tarefa agora: uma ANÁLISE PONTUAL, solicitada pelo profissional fora do cic
 Você recebe:
 1. CONTEXTO CONSOLIDADO - o que se sabe sobre o aluno até o último fechamento mensal (pode não existir).
 2. RELATOS CONFIRMADOS RECENTES - relatos confirmados ainda não incorporados a um fechamento mensal.
+3. AVALIAÇÃO DO PERSONAL - texto do profissional ainda não incorporado a um fechamento mensal (pode não existir).
 
-Pergunta central: "Considerando o que já se sabe sobre o aluno, o que os relatos recentes indicam sobre o momento atual e a evolução dele?"
+Pergunta central: "Considerando o que já se sabe sobre o aluno, o que os relatos recentes e a avaliação do personal indicam sobre o momento atual e a evolução dele?"
 
 Regras:
-- Use APENAS o contexto e os relatos fornecidos.
+- Use APENAS o contexto, os relatos e a avaliação do personal fornecidos.
+- A AVALIAÇÃO DO PERSONAL é a leitura do próprio profissional: peso alto, pode relativizar o contexto e os relatos. Integre-a (origem "personal:<id>"), não a copie, e aponte divergências entre ela e os relatos.
 - Trate o CONTEXTO CONSOLIDADO como referência a confrontar com os relatos recentes, não como verdade absoluta. Aponte contradições explicitamente (em "alertas" ou "pendencias_confirmacao").
 - Rastreabilidade: "origem" = identificador do relato ("relato:UUID"), "contexto" ou "interpretacao".
 - Esta análise é um APOIO pontual: NÃO é dado oficial e NÃO altera o contexto consolidado do ciclo mensal.

@@ -20,6 +20,7 @@ db.FichaTreinoExercicio = require("./fichaTreinoExercicio")(sequelize);
 db.FichaAcessoLink = require("./fichaAcessoLink")(sequelize);
 db.AvaliacaoMensal = require("./avaliacaoMensal")(sequelize);
 db.AnaliseSobDemanda = require("./analiseSobDemanda")(sequelize);
+db.AvaliacaoPersonal = require("./avaliacaoPersonal")(sequelize);
 
 Object.values(db).forEach((model) => {
   if (model.associate) {

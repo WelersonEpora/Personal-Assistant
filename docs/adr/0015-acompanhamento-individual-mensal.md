@@ -117,6 +117,34 @@ qualquer momento (`analise_sob_demanda`, tabela própria).
 > há um humano na frente para ler o aviso — não faz sentido gravar um
 > registro formal de algo que não produziu análise.
 
+### Avaliação do personal (sem IA)
+
+O profissional pode registrar a **sua própria leitura** do aluno — texto
+livre, sem IA (`avaliacao_personal`, tabela própria: `autor_id`, `texto`,
+timestamps). Fica na mesma tela de Acompanhamento; CRUD completo (o autor
+edita/exclui à vontade — não é dado oficial nem saída de IA).
+
+Ela **entra no prompt dos ciclos de IA**, junto dos relatos:
+- **Ciclo mensal:** avaliações com `created_at` na janela do mês (mesmo
+  bucketing dos relatos). Só vão para a IA quando o ciclo efetivamente roda
+  (≥ 5 relatos confirmados) — **não** alteram o gatilho. Os ids consumidos
+  ficam em `avaliacao_mensal.avaliacoes_personal_consideradas`. Num mês
+  `dados_insuficientes` a avaliação daquele mês não é enviada (aceita-se a
+  perda — v1 simples).
+- **Análise sob demanda:** avaliações escritas após o último fechamento
+  mensal (mesmo `desde` dos relatos). Aqui uma avaliação do personal **sozinha**
+  (0 relatos recentes) já habilita a análise. Ids em
+  `analise_sob_demanda.baseada_em_avaliacao_personal_ids`.
+
+No prompt, a avaliação do personal é apresentada como a leitura do próprio
+profissional: **peso alto**, pode corrigir/derrubar hipóteses do contexto e
+relativizar os relatos — mas ainda é um insumo a integrar (origem
+`personal:<id>`), não texto para copiar, e a IA deve apontar divergências
+entre ela e os relatos.
+
+Editar uma avaliação depois que ela já entrou num ciclo **não** reescreve
+aquele ciclo (os ciclos são snapshots).
+
 ### Persona: Personal Trainer Sênior
 
 O prompt das duas análises (mensal e sob demanda) parte de uma persona comum
@@ -174,21 +202,32 @@ insuficientes, diferenciar fato/interpretação/hipótese e nunca inventar. É
   "não-análises" e a impressão de que a tentativa tinha "contado". Agora só
   registra o que a IA produziu; o resto é uma mensagem em tela (o
   `logger.info` guarda o rastro para observabilidade).
+- **Avaliação do personal como um relato (ou entrada de Registro).**
+  Rejeitada — um relato passa por transcrição → interpretação → confirmação
+  (pesado) e é sobre um atendimento. A avaliação do personal é meta (opinião
+  do profissional sobre o momento do aluno) e merece um caminho leve:
+  escreveu, salvou.
+- **Avaliação do personal disparando o ciclo mensal / rolando entre meses.**
+  Rejeitada na v1 — mantém o gatilho de 5 relatos intacto e o bucketing por
+  mês idêntico ao dos relatos. Carry-forward de avaliações não consumidas
+  fica como evolução possível se a perda em meses esparsos incomodar.
 
 ## Consequências
 
-- Novas tabelas `avaliacao_mensal` (migração `20260827120000`) e
-  `analise_sob_demanda` (migração `20260827130000`), com modelo, repository,
-  service, controller e rotas aninhadas em `/api/v1/alunos/:id` para cada uma;
-  job só para o ciclo mensal.
+- Novas tabelas `avaliacao_mensal` (migração `20260827120000`),
+  `analise_sob_demanda` (`20260827130000`) e `avaliacao_personal`
+  (`20260827140000`), + colunas de rastreio de avaliação do personal nas duas
+  primeiras (`20260827150000`). Cada uma com modelo, repository, service,
+  controller e rotas aninhadas em `/api/v1/alunos/:id`; job só para o ciclo
+  mensal.
 - Novas funções `gerarAvaliacaoMensal` e `gerarAnaliseSobDemanda` em
   `services/ia/gemini.service.js` (2ª e 3ª saídas estruturadas do sistema),
   ambas partindo da persona `PERSONA_PERSONAL_SENIOR`.
 - Frontend: rota `/admin/alunos/:id/acompanhamento` e
-  `AcompanhamentoView.vue` — a análise sob demanda (com o botão e a
-  disponibilidade), e o acompanhamento mensal (seletor de mês para
-  gerar/regenerar, avaliação + contexto consolidado completos). Sem etapa de
-  validação.
+  `AcompanhamentoView.vue` — a análise sob demanda (botão + disponibilidade),
+  a avaliação do personal (editor + lista, editar/excluir) e o acompanhamento
+  mensal (seletor de mês para gerar/regenerar, avaliação + contexto
+  consolidado completos). Sem etapa de validação.
 - O backend continua um único processo Node; escalar para múltiplas
   instâncias exigiria revisar o agendador (mesma limitação já registrada na
   ADR-0009).

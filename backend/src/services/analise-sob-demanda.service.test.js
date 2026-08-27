@@ -18,7 +18,8 @@ const {
   ResultadoIa,
   Validacao,
   AvaliacaoMensal,
-  AnaliseSobDemanda
+  AnaliseSobDemanda,
+  AvaliacaoPersonal
 } = require("../models");
 const geminiService = require("./ia/gemini.service");
 const analiseSobDemandaService = require("./analise-sob-demanda.service");
@@ -59,6 +60,7 @@ after(async () => {
 async function limpar() {
   await AnaliseSobDemanda.destroy({ where: { aluno_id: aluno.id } });
   await AvaliacaoMensal.destroy({ where: { aluno_id: aluno.id } });
+  await AvaliacaoPersonal.destroy({ where: { aluno_id: aluno.id } });
   const registros = await Registro.findAll({ where: { aluno_id: aluno.id } });
   const ids = registros.map((r) => r.id);
   await Validacao.destroy({ where: { registro_id: ids } });
@@ -249,4 +251,44 @@ test("rejeita aluno de outra equipe", async () => {
     () => analiseSobDemandaService.solicitar({ equipeId: outraEquipe.id, alunoId: aluno.id, usuarioId: usuario.id }),
     /não encontrado/
   );
+});
+
+test("inclui a avaliação do personal recente no prompt e nos ids rastreados", async (t) => {
+  let promptRecebido = null;
+  t.mock.method(geminiService, "gerarAnaliseSobDemanda", async ({ promptContexto }) => {
+    promptRecebido = promptContexto;
+    return ANALISE_FAKE;
+  });
+  await criarRelatoConfirmado(new Date());
+  const nota = await AvaliacaoPersonal.create({
+    aluno_id: aluno.id,
+    equipe_id: equipe.id,
+    autor_id: usuario.id,
+    texto: "Acho que o aluno está perto de um platô de força."
+  });
+  t.after(limpar);
+
+  const analise = await analiseSobDemandaService.solicitar({ equipeId: equipe.id, alunoId: aluno.id, usuarioId: usuario.id });
+
+  assert.match(promptRecebido, /AVALIAÇÃO DO PERSONAL/);
+  assert.match(promptRecebido, /platô de força/);
+  assert.deepEqual(analise.baseada_em_avaliacao_personal_ids, [nota.id]);
+});
+
+test("só avaliação do personal (0 relatos) já permite a análise sob demanda", async (t) => {
+  const spy = t.mock.method(geminiService, "gerarAnaliseSobDemanda", async () => ANALISE_FAKE);
+  await AvaliacaoPersonal.create({
+    aluno_id: aluno.id,
+    equipe_id: equipe.id,
+    autor_id: usuario.id,
+    texto: "Minha leitura: aluno desmotivado, preciso revisar o plano."
+  });
+  t.after(limpar);
+
+  const analise = await analiseSobDemandaService.solicitar({ equipeId: equipe.id, alunoId: aluno.id, usuarioId: usuario.id });
+
+  assert.equal(spy.mock.callCount(), 1);
+  assert.equal(analise.status, "gerada");
+  assert.equal(analise.relatos_considerados, 0);
+  assert.equal(analise.baseada_em_avaliacao_personal_ids.length, 1);
 });

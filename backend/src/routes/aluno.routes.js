@@ -7,6 +7,7 @@ const fichaTreinoController = require("../controllers/ficha-treino.controller");
 const fichaAcessoLinkController = require("../controllers/ficha-acesso-link.controller");
 const avaliacaoMensalController = require("../controllers/avaliacao-mensal.controller");
 const analiseSobDemandaController = require("../controllers/analise-sob-demanda.controller");
+const avaliacaoPersonalController = require("../controllers/avaliacao-personal.controller");
 const autenticar = require("../shared/middlewares/auth.middleware");
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -52,5 +53,12 @@ router.post("/:id/avaliacoes-mensais/:anoMes/gerar", avaliacaoMensalController.g
 // disponibilidade (quando a próxima estará liberada).
 router.get("/:id/analises-sob-demanda", analiseSobDemandaController.listar);
 router.post("/:id/analises-sob-demanda", analiseSobDemandaController.solicitar);
+
+// Avaliação escrita pelo próprio personal (docs/adr/0015) - texto livre, sem
+// IA. Entra como contexto nos próximos ciclos de IA (mensal e sob demanda).
+router.get("/:id/avaliacoes-personal", avaliacaoPersonalController.listar);
+router.post("/:id/avaliacoes-personal", avaliacaoPersonalController.criar);
+router.patch("/:id/avaliacoes-personal/:avaliacaoId", avaliacaoPersonalController.atualizar);
+router.delete("/:id/avaliacoes-personal/:avaliacaoId", avaliacaoPersonalController.excluir);
 
 module.exports = router;

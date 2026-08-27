@@ -3,29 +3,36 @@ import { ref, computed, onMounted } from 'vue'
 import alunosService from '../../services/alunos.service.js'
 import avaliacoesMensaisService from '../../services/avaliacoesMensais.service.js'
 import analisesSobDemandaService from '../../services/analisesSobDemanda.service.js'
-import { formatarData, formatarDataHora } from '../../utils/registroStatus.js'
+import avaliacoesPersonalService from '../../services/avaliacoesPersonal.service.js'
+import { formatarDataHora } from '../../utils/registroStatus.js'
 import { useToasts } from '../../composables/useToasts.js'
 import ToastStack from '../../components/ToastStack.vue'
+import AcompanhamentoDetalhe from '../../components/AcompanhamentoDetalhe.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const { toasts, showToast } = useToasts()
 
 const aluno = ref(null)
-const avaliacoes = ref([])
 const carregando = ref(true)
-const gerando = ref(false)
-const expandidoMes = ref(null)
-const detalhe = ref(null)
-const carregandoDetalhe = ref(false)
 
-// Análise sob demanda (docs/adr/0015) - separada do ciclo mensal.
+// Fontes do feed (docs/adr/0015): avaliação mensal (IA), análise sob demanda
+// (IA) e avaliação do personal (sem IA) - tudo numa linha do tempo só.
+const avaliacoes = ref([])
 const analises = ref([])
+const avaliacoesPersonal = ref([])
 const disponibilidade = ref(null)
+
+const expandidoId = ref(null)
+const filtro = ref('tudo')
+
+// Ações
+const gerando = ref(false)
 const solicitandoAnalise = ref(false)
-const analiseExpandidaId = ref(null)
-// Mensagem quando a IA não chega a produzir análise (sem relatos recentes /
-// dados insuficientes): nada é registrado nem consome a janela de 7 dias.
 const mensagemInsuficiente = ref('')
+const editorAberto = ref(false)
+const textoEditor = ref('')
+const editandoId = ref(null)
+const salvandoAvaliacao = ref(false)
 
 // Mês de referência default: o mês anterior (o que o job mensal fecha).
 function mesAnterior() {
@@ -47,21 +54,76 @@ function statusMeta(status) {
 
 function rotuloMes(anoMes) {
   if (!anoMes) return ''
-  const [ano, mes] = anoMes.split('-')
+  const [ano, mes] = String(anoMes).split('-')
   const nomes = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
   return `${nomes[Number(mes) - 1]}/${ano}`
 }
 
-function classeConfianca(nivel) {
-  return nivel === 'alta' ? 'alta' : nivel === 'baixa' ? 'baixa' : 'media'
+function dataCurta(iso) {
+  return iso ? new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''
 }
 
 const jaExisteMesSelecionado = computed(() => avaliacoes.value.some((a) => a.ano_mes === mesSelecionado.value))
 
+// ---- Feed unificado ---------------------------------------------------------
+const CHIPS = [
+  { id: 'tudo', label: 'Tudo' },
+  { id: 'mensal', label: 'Mensal' },
+  { id: 'sob_demanda', label: 'Sob demanda' },
+  { id: 'personal', label: 'Minhas' }
+]
+
+const feed = computed(() => {
+  const itens = []
+  for (const av of avaliacoes.value) {
+    itens.push({ tipo: 'mensal', chave: `m:${av.ano_mes}`, ordem: `${av.periodo_fim}T23:59:59`, dados: av })
+  }
+  for (const an of analises.value) {
+    itens.push({ tipo: 'sob_demanda', chave: `s:${an.id}`, ordem: an.solicitada_em, dados: an })
+  }
+  for (const p of avaliacoesPersonal.value) {
+    itens.push({ tipo: 'personal', chave: `p:${p.id}`, ordem: p.created_at, dados: p })
+  }
+  return itens.sort((a, b) => String(b.ordem).localeCompare(String(a.ordem)))
+})
+
+function contagem(id) {
+  return id === 'tudo' ? feed.value.length : feed.value.filter((it) => it.tipo === id).length
+}
+
+const feedFiltrado = computed(() =>
+  filtro.value === 'tudo' ? feed.value : feed.value.filter((it) => it.tipo === filtro.value)
+)
+
+function subLinha(item) {
+  if (item.tipo === 'mensal') {
+    const av = item.dados
+    const partes = [`${av.relatos_considerados} relato(s)`]
+    const n = (av.avaliacoes_personal_consideradas || []).length
+    if (n) partes.push(`${n} avaliação(ões) sua(s)`)
+    partes.push(`gerada ${dataCurta(av.gerada_em)}`)
+    if (av.origem === 'manual') partes.push('manual')
+    return partes.join(' · ')
+  }
+  const an = item.dados
+  const partes = [`${an.relatos_considerados} relato(s) recente(s)`]
+  if ((an.baseada_em_avaliacao_personal_ids || []).length) partes.push('inclui avaliação sua')
+  return partes.join(' · ')
+}
+
+function alternarExpandido(chave) {
+  expandidoId.value = expandidoId.value === chave ? null : chave
+}
+
+// ---- Carregamento ----------------------------------------------------------
 async function carregarAnalises() {
   const { analises: lista, disponibilidade: disp } = await analisesSobDemandaService.listar(props.id)
   analises.value = lista
   disponibilidade.value = disp
+}
+
+async function carregarAvaliacoesPersonal() {
+  avaliacoesPersonal.value = await avaliacoesPersonalService.listar(props.id)
 }
 
 async function carregar() {
@@ -70,7 +132,8 @@ async function carregar() {
     const [dadosAluno, lista] = await Promise.all([
       alunosService.obter(props.id),
       avaliacoesMensaisService.listarPorAluno(props.id),
-      carregarAnalises()
+      carregarAnalises(),
+      carregarAvaliacoesPersonal()
     ])
     aluno.value = dadosAluno
     avaliacoes.value = lista
@@ -80,82 +143,106 @@ async function carregar() {
 }
 onMounted(carregar)
 
+// ---- Ações: avaliação mensal ---------------------------------------------
+async function gerar() {
+  gerando.value = true
+  try {
+    const avaliacao = await avaliacoesMensaisService.gerar(props.id, mesSelecionado.value)
+    await avaliacoesMensaisService.listarPorAluno(props.id).then((l) => (avaliacoes.value = l))
+    filtro.value = 'tudo'
+    expandidoId.value = `m:${avaliacao.ano_mes}`
+    if (avaliacao.status === 'gerada') {
+      showToast(`Avaliação de ${rotuloMes(avaliacao.ano_mes)} gerada.`, 'success')
+    } else if (avaliacao.status === 'dados_insuficientes') {
+      showToast(`Menos de 5 relatos confirmados em ${rotuloMes(avaliacao.ano_mes)} — registrado como dados insuficientes.`, 'neutral')
+    } else {
+      showToast('A IA não conseguiu gerar a avaliação. Tente novamente em instantes.', 'warning')
+    }
+  } catch (err) {
+    showToast(err?.response?.data?.error?.message || 'Não foi possível gerar a avaliação.', 'warning')
+  } finally {
+    gerando.value = false
+  }
+}
+
+// ---- Ações: análise sob demanda ----------------------------------------
 async function solicitarAnalise() {
   solicitandoAnalise.value = true
   mensagemInsuficiente.value = ''
   try {
     const resultado = await analisesSobDemandaService.solicitar(props.id)
-
-    // Nada foi produzido: não entra no histórico e não consome a janela.
     if (resultado.persistida === false) {
       mensagemInsuficiente.value = resultado.mensagem
       showToast('Dados insuficientes para uma análise — nada foi consumido.', 'neutral')
       return
     }
-
     await carregarAnalises()
-    analiseExpandidaId.value = resultado.id
+    filtro.value = 'tudo'
+    expandidoId.value = `s:${resultado.id}`
     if (resultado.status === 'gerada') {
       showToast('Análise gerada.', 'success')
     } else {
       showToast('A IA não conseguiu gerar a análise. Tente novamente em instantes.', 'warning')
     }
   } catch (err) {
-    const msg = err?.response?.data?.error?.message || 'Não foi possível solicitar a análise.'
-    showToast(msg, 'warning')
+    showToast(err?.response?.data?.error?.message || 'Não foi possível solicitar a análise.', 'warning')
     await carregarAnalises()
   } finally {
     solicitandoAnalise.value = false
   }
 }
 
-function alternarAnalise(id) {
-  analiseExpandidaId.value = analiseExpandidaId.value === id ? null : id
+// ---- Ações: avaliação do personal ------------------------------------------
+function abrirEditorNova() {
+  editandoId.value = null
+  textoEditor.value = ''
+  editorAberto.value = true
 }
 
-async function abrirDetalhe(anoMes) {
-  if (expandidoMes.value === anoMes) {
-    expandidoMes.value = null
-    detalhe.value = null
-    return
-  }
-  expandidoMes.value = anoMes
-  detalhe.value = null
-  carregandoDetalhe.value = true
-  try {
-    detalhe.value = await avaliacoesMensaisService.obter(props.id, anoMes)
-  } catch (_err) {
-    showToast('Não foi possível carregar a avaliação deste mês.', 'warning')
-    expandidoMes.value = null
-  } finally {
-    carregandoDetalhe.value = false
-  }
+function abrirEditorEdicao(avaliacao) {
+  editandoId.value = avaliacao.id
+  textoEditor.value = avaliacao.texto
+  editorAberto.value = true
 }
 
-async function gerar() {
-  gerando.value = true
+function fecharEditor() {
+  editorAberto.value = false
+  textoEditor.value = ''
+  editandoId.value = null
+}
+
+async function salvarAvaliacaoPersonal() {
+  const texto = textoEditor.value.trim()
+  if (!texto) return
+  salvandoAvaliacao.value = true
   try {
-    const avaliacao = await avaliacoesMensaisService.gerar(props.id, mesSelecionado.value)
-    await carregar()
-    expandidoMes.value = null
-    await abrirDetalhe(avaliacao.ano_mes)
-    if (avaliacao.status === 'gerada') {
-      showToast(`Avaliação de ${rotuloMes(avaliacao.ano_mes)} gerada.`, 'success')
-    } else if (avaliacao.status === 'dados_insuficientes') {
-      showToast(`Menos de 5 relatos confirmados em ${rotuloMes(avaliacao.ano_mes)} — ciclo registrado como dados insuficientes.`, 'neutral')
+    if (editandoId.value) {
+      await avaliacoesPersonalService.atualizar(props.id, editandoId.value, texto)
+      showToast('Avaliação atualizada.', 'success')
     } else {
-      showToast('A IA não conseguiu gerar a avaliação. Tente novamente em instantes.', 'warning')
+      await avaliacoesPersonalService.criar(props.id, texto)
+      showToast('Avaliação registrada — entra no próximo acompanhamento mensal.', 'success')
     }
+    fecharEditor()
+    filtro.value = 'tudo'
+    await carregarAvaliacoesPersonal()
   } catch (err) {
-    const msg = err?.response?.data?.error?.message || 'Não foi possível gerar a avaliação.'
-    showToast(msg, 'warning')
+    showToast(err?.response?.data?.error?.message || 'Não foi possível salvar a avaliação.', 'warning')
   } finally {
-    gerando.value = false
+    salvandoAvaliacao.value = false
   }
 }
 
-const avaliacaoJson = computed(() => detalhe.value?.avaliacao_json || null)
-const contexto = computed(() => detalhe.value?.contexto_consolidado_json || null)
+async function excluirAvaliacaoPersonal(avaliacao) {
+  if (!window.confirm('Excluir esta avaliação? Ela não será mais considerada nos próximos ciclos de IA.')) return
+  try {
+    await avaliacoesPersonalService.excluir(props.id, avaliacao.id)
+    showToast('Avaliação excluída.', 'neutral')
+    await carregarAvaliacoesPersonal()
+  } catch (_err) {
+    showToast('Não foi possível excluir a avaliação.', 'warning')
+  }
+}
 </script>
 
 <template>
@@ -169,279 +256,120 @@ const contexto = computed(() => detalhe.value?.contexto_consolidado_json || null
       </div>
     </div>
 
-    <div class="exercise-obs" style="margin-bottom: 22px;">
-      As análises abaixo são <strong>apoio técnico da IA</strong> à sua avaliação — não são dado oficial e não
-      substituem sua decisão profissional. Para corrigir ou complementar algo, registre um novo relato normalmente.
+    <div class="exercise-obs" style="margin-bottom: 18px;">
+      As análises da IA aqui são <strong>apoio técnico</strong> à sua avaliação — não são dado oficial e não
+      substituem sua decisão. Você também pode registrar a <strong>sua própria avaliação</strong> (sem IA): ela
+      entra no contexto dos próximos ciclos de IA, junto dos relatos.
     </div>
 
-    <!-- ================= Análise sob demanda ================= -->
-    <div class="card card-pad" style="margin-bottom: 16px;">
-      <div style="font-size: 15px; font-weight: 700; margin-bottom: 4px;">🔎 Análise sob demanda</div>
-      <p class="list-row-sub" style="margin-bottom: 12px;">
-        Uma leitura pontual da IA sobre o momento atual do aluno, a partir dos relatos confirmados ainda não
-        fechados no ciclo mensal. Não substitui o acompanhamento mensal nem altera o contexto consolidado.
-        Limite de 1 análise a cada 7 dias por aluno.
-      </p>
-      <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+    <!-- ===== Barra de ações ===== -->
+    <div class="card card-pad" style="margin-bottom: 18px;">
+      <div class="acomp-acoes-linha">
         <button
           type="button"
           class="btn btn-primary"
           :disabled="solicitandoAnalise || (disponibilidade && !disponibilidade.disponivel_agora)"
           @click="solicitarAnalise"
         >
-          {{ solicitandoAnalise ? 'Analisando…' : 'Solicitar análise' }}
+          {{ solicitandoAnalise ? 'Analisando…' : '🔎 Solicitar análise' }}
         </button>
+        <button type="button" class="btn btn-secondary" @click="abrirEditorNova">✍️ Escrever avaliação</button>
+        <input v-model="mesSelecionado" type="month" aria-label="Mês de referência" class="acomp-mes" />
+        <button type="button" class="btn btn-secondary" :disabled="gerando" @click="gerar">
+          {{ gerando ? 'Gerando…' : jaExisteMesSelecionado ? '🗓️ Regenerar mês' : '🗓️ Gerar mês' }}
+        </button>
+      </div>
+
+      <div class="acomp-acoes-info">
         <span v-if="disponibilidade && !disponibilidade.disponivel_agora" class="list-row-sub">
-          Próxima análise disponível em <strong>{{ formatarDataHora(disponibilidade.proxima_disponivel_em) }}</strong>.
+          Próxima análise sob demanda em <strong>{{ formatarDataHora(disponibilidade.proxima_disponivel_em) }}</strong>.
         </span>
-        <span v-else-if="disponibilidade" class="list-row-sub">Disponível agora.</span>
+        <span class="list-row-sub">A avaliação mensal também roda automaticamente no início de cada mês (mín. 5 relatos confirmados).</span>
       </div>
 
-      <div v-if="mensagemInsuficiente" class="exercise-obs" style="margin-top: 12px;">
-        {{ mensagemInsuficiente }}
-      </div>
-    </div>
+      <div v-if="mensagemInsuficiente" class="exercise-obs" style="margin-top: 12px;">{{ mensagemInsuficiente }}</div>
 
-    <div v-if="analises.length" class="registros-list" style="margin-bottom: 28px;">
-      <div v-for="analise in analises" :key="analise.id" class="card registro-card">
-        <div class="registro-card-head row-clickable" @click="alternarAnalise(analise.id)">
-          <div class="registro-card-who">
-            <span class="list-row-title">Análise de {{ formatarDataHora(analise.solicitada_em) }}</span>
-            <span class="list-row-sub">{{ analise.relatos_considerados }} relato(s) recente(s) considerado(s)</span>
-          </div>
-          <span class="badge" :class="statusMeta(analise.status).badge">{{ statusMeta(analise.status).label }}</span>
-        </div>
-
-        <div v-if="analiseExpandidaId === analise.id" class="transcript-box open" @click.stop>
-          <div v-if="analise.status === 'falha'" class="exercise-obs" style="color: var(--color-danger); background: var(--color-danger-light);">
-            A IA não conseguiu gerar esta análise.<template v-if="analise.erro"> ({{ analise.erro }})</template>
-          </div>
-          <template v-else-if="analise.analise_json">
-            <div class="exercise-obs" style="margin-bottom: 16px;">{{ analise.analise_json.resumo_geral }}</div>
-            <template v-if="!analise.analise_json.dados_insuficientes">
-              <p class="acomp-section">Leitura por dimensão</p>
-              <div v-if="!(analise.analise_json.dimensoes || []).length" class="empty-state" style="padding: 16px;">Sem dimensões avaliadas.</div>
-              <div v-for="(dim, i) in analise.analise_json.dimensoes || []" :key="i" class="exercise-card">
-                <div class="exercise-card-top">
-                  <div>
-                    <div class="exercise-name">{{ dim.nome }}</div>
-                    <div class="exercise-meta">{{ dim.situacao_atual }}</div>
-                  </div>
-                  <span class="confidence-note" :class="classeConfianca(dim.confianca)">● {{ dim.confianca }}</span>
-                </div>
-                <div style="font-size: 13px; margin-top: 8px;">{{ dim.evolucao_recente }}</div>
-                <ul v-if="(dim.evidencias || []).length" class="acomp-evidencias">
-                  <li v-for="(ev, j) in dim.evidencias" :key="j">
-                    "{{ ev.texto }}"
-                    <span class="list-row-sub">— {{ ev.origem }}<template v-if="ev.data"> · {{ ev.data }}</template></span>
-                  </li>
-                </ul>
-              </div>
-
-              <template v-if="(analise.analise_json.destaques || []).length">
-                <p class="acomp-section">Destaques</p>
-                <ul class="acomp-lista"><li v-for="(d, i) in analise.analise_json.destaques" :key="i">{{ d }}</li></ul>
-              </template>
-              <template v-if="(analise.analise_json.alertas || []).length">
-                <p class="acomp-section">Alertas</p>
-                <ul class="acomp-lista">
-                  <li v-for="(a, i) in analise.analise_json.alertas" :key="i">
-                    <span class="confidence-note" :class="classeConfianca(a.gravidade)" style="display: inline-flex;">●</span>
-                    {{ a.texto }}
-                  </li>
-                </ul>
-              </template>
-              <template v-if="(analise.analise_json.recomendacoes || []).length">
-                <p class="acomp-section">Recomendações</p>
-                <ul class="acomp-lista"><li v-for="(r, i) in analise.analise_json.recomendacoes" :key="i">{{ r }}</li></ul>
-              </template>
-              <template v-if="(analise.analise_json.pendencias_confirmacao || []).length">
-                <p class="acomp-section">Pendências / a confirmar</p>
-                <ul class="acomp-lista">
-                  <li v-for="(p, i) in analise.analise_json.pendencias_confirmacao" :key="i">
-                    {{ p.afirmacao }}
-                    <span class="list-row-sub">— {{ p.motivo }}<template v-if="p.confianca"> · confiança {{ p.confianca }}</template></span>
-                  </li>
-                </ul>
-              </template>
-            </template>
-          </template>
+      <div v-if="editorAberto" style="margin-top: 14px;">
+        <textarea
+          v-model="textoEditor"
+          rows="5"
+          maxlength="5000"
+          aria-label="Avaliação do personal"
+          placeholder="Ex.: Aluno vem mais consistente, dormindo melhor. Ainda evita treino de pernas — vou insistir na próxima ficha."
+          style="width: 100%;"
+        ></textarea>
+        <div style="display: flex; gap: 10px; margin-top: 10px;">
+          <button type="button" class="btn btn-primary" :disabled="salvandoAvaliacao || !textoEditor.trim()" @click="salvarAvaliacaoPersonal">
+            {{ salvandoAvaliacao ? 'Salvando…' : editandoId ? 'Salvar alterações' : 'Salvar avaliação' }}
+          </button>
+          <button type="button" class="btn btn-ghost" @click="fecharEditor">Cancelar</button>
         </div>
       </div>
     </div>
 
-    <!-- ================= Acompanhamento mensal ================= -->
-    <p style="font-size: 12px; font-weight: 700; color: var(--color-text-faint); text-transform: uppercase; letter-spacing: .03em; margin: 0 0 10px;">
-      Acompanhamento mensal
-    </p>
-
-    <div class="card card-pad" style="margin-bottom: 26px;">
-      <div style="font-size: 15px; font-weight: 700; margin-bottom: 4px;">Gerar avaliação de um mês</div>
-      <p class="list-row-sub" style="margin-bottom: 12px;">
-        Usa os relatos confirmados no mês escolhido + o contexto consolidado do mês anterior.
-        Precisa de pelo menos 5 relatos confirmados. Gerar de novo um mês já feito substitui a avaliação.
-      </p>
-      <div style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
-        <div class="form-field">
-          <label>Mês de referência</label>
-          <input v-model="mesSelecionado" type="month" />
-        </div>
-        <button type="button" class="btn btn-primary" :disabled="gerando" @click="gerar">
-          {{ gerando ? 'Gerando…' : jaExisteMesSelecionado ? 'Regenerar este mês' : 'Gerar avaliação' }}
-        </button>
-      </div>
+    <!-- ===== Filtros ===== -->
+    <div class="acomp-filtros">
+      <button
+        v-for="chip in CHIPS"
+        :key="chip.id"
+        type="button"
+        class="acomp-chip"
+        :class="{ ativo: filtro === chip.id }"
+        @click="filtro = chip.id"
+      >
+        {{ chip.label }}<span v-if="contagem(chip.id)" class="acomp-chip-num">{{ contagem(chip.id) }}</span>
+      </button>
     </div>
 
-    <p style="font-size: 12px; font-weight: 700; color: var(--color-text-faint); text-transform: uppercase; letter-spacing: .03em; margin: 0 0 10px;">
-      Avaliações geradas
-    </p>
+    <!-- ===== Feed ===== -->
     <div v-if="carregando" class="card empty-state">Carregando…</div>
-    <div v-else-if="!avaliacoes.length" class="card empty-state">
-      <div class="empty-state-icon">📈</div>Nenhuma avaliação mensal ainda.
+    <div v-else-if="!feedFiltrado.length" class="card empty-state">
+      <div class="empty-state-icon">📈</div>
+      {{ feed.length ? 'Nada neste filtro.' : 'Nada por aqui ainda — a primeira avaliação mensal aparece no fechamento do mês.' }}
     </div>
 
-    <div class="registros-list">
-      <div v-for="avaliacao in avaliacoes" :key="avaliacao.ano_mes" class="card registro-card">
-        <div class="registro-card-head row-clickable" @click="abrirDetalhe(avaliacao.ano_mes)">
-          <div class="registro-card-who">
-            <span class="list-row-title">{{ rotuloMes(avaliacao.ano_mes) }}</span>
-            <span class="list-row-sub">
-              {{ avaliacao.relatos_considerados }} relato(s) confirmado(s) ·
-              gerada em {{ formatarData(avaliacao.gerada_em) }}
-              <template v-if="avaliacao.origem === 'manual'"> · manual</template>
-            </span>
-          </div>
-          <span class="badge" :class="statusMeta(avaliacao.status).badge">{{ statusMeta(avaliacao.status).label }}</span>
-        </div>
-
-        <div v-if="expandidoMes === avaliacao.ano_mes" class="transcript-box open" @click.stop>
-          <div v-if="carregandoDetalhe" class="empty-state" style="padding: 20px;">Carregando…</div>
-
-          <template v-else-if="detalhe">
-            <div v-if="detalhe.status === 'falha'" class="exercise-obs" style="color: var(--color-danger); background: var(--color-danger-light);">
-              A IA não conseguiu gerar esta avaliação.<template v-if="detalhe.erro"> ({{ detalhe.erro }})</template>
-              Você pode tentar regenerar este mês acima.
+    <div v-else class="registros-list">
+      <div v-for="item in feedFiltrado" :key="item.chave" class="card registro-card">
+        <!-- Avaliação mensal / Análise sob demanda -->
+        <template v-if="item.tipo !== 'personal'">
+          <div class="registro-card-head row-clickable" @click="alternarExpandido(item.chave)">
+            <div class="acomp-feed-cab">
+              <span class="list-row-title">
+                <template v-if="item.tipo === 'mensal'">🗓️ Avaliação mensal — {{ rotuloMes(item.dados.ano_mes) }}</template>
+                <template v-else>🔎 Análise sob demanda — {{ dataCurta(item.dados.solicitada_em) }}</template>
+              </span>
+              <span class="list-row-sub">{{ subLinha(item) }}</span>
             </div>
+            <span class="badge" :class="statusMeta(item.dados.status).badge">{{ statusMeta(item.dados.status).label }}</span>
+          </div>
 
-            <!-- ===== Avaliação Mensal ===== -->
-            <template v-if="avaliacaoJson">
-              <div class="exercise-obs" style="margin-bottom: 16px;">{{ avaliacaoJson.resumo_geral }}</div>
+          <div v-if="expandidoId === item.chave" class="transcript-box open" @click.stop>
+            <AcompanhamentoDetalhe
+              :avaliacao="item.tipo === 'mensal' ? item.dados.avaliacao_json : item.dados.analise_json"
+              :contexto="item.tipo === 'mensal' ? item.dados.contexto_consolidado_json : null"
+              :status="item.dados.status"
+              :erro="item.dados.erro"
+            />
+          </div>
+        </template>
 
-              <template v-if="!avaliacaoJson.dados_insuficientes">
-                <p class="acomp-section">Evolução por dimensão</p>
-                <div v-if="!(avaliacaoJson.dimensoes || []).length" class="empty-state" style="padding: 16px;">Sem dimensões avaliadas.</div>
-                <div v-for="(dim, i) in avaliacaoJson.dimensoes || []" :key="i" class="exercise-card">
-                  <div class="exercise-card-top">
-                    <div>
-                      <div class="exercise-name">{{ dim.nome }}</div>
-                      <div class="exercise-meta">{{ dim.situacao_atual }}</div>
-                    </div>
-                    <span class="confidence-note" :class="classeConfianca(dim.confianca)">● {{ dim.confianca }}</span>
-                  </div>
-                  <div style="font-size: 13px; margin-top: 8px;">{{ dim.evolucao_no_mes }}</div>
-                  <ul v-if="(dim.evidencias || []).length" class="acomp-evidencias">
-                    <li v-for="(ev, j) in dim.evidencias" :key="j">
-                      "{{ ev.texto }}"
-                      <span class="list-row-sub">— {{ ev.origem }}<template v-if="ev.data"> · {{ ev.data }}</template></span>
-                    </li>
-                  </ul>
-                </div>
-
-                <template v-if="(avaliacaoJson.destaques || []).length">
-                  <p class="acomp-section">Destaques</p>
-                  <ul class="acomp-lista"><li v-for="(d, i) in avaliacaoJson.destaques" :key="i">{{ d }}</li></ul>
-                </template>
-
-                <template v-if="(avaliacaoJson.alertas || []).length">
-                  <p class="acomp-section">Alertas</p>
-                  <ul class="acomp-lista">
-                    <li v-for="(a, i) in avaliacaoJson.alertas" :key="i">
-                      <span class="confidence-note" :class="classeConfianca(a.gravidade)" style="display: inline-flex;">●</span>
-                      {{ a.texto }}
-                    </li>
-                  </ul>
-                </template>
-
-                <template v-if="(avaliacaoJson.recomendacoes || []).length">
-                  <p class="acomp-section">Recomendações</p>
-                  <ul class="acomp-lista"><li v-for="(r, i) in avaliacaoJson.recomendacoes" :key="i">{{ r }}</li></ul>
-                </template>
-
-                <template v-if="(avaliacaoJson.pendencias_confirmacao || []).length">
-                  <p class="acomp-section">Pendências / a confirmar</p>
-                  <ul class="acomp-lista">
-                    <li v-for="(p, i) in avaliacaoJson.pendencias_confirmacao" :key="i">
-                      {{ p.afirmacao }}
-                      <span class="list-row-sub">— {{ p.motivo }}<template v-if="p.confianca"> · confiança {{ p.confianca }}</template></span>
-                    </li>
-                  </ul>
-                </template>
-
-                <template v-if="(avaliacaoJson.mudancas_vs_mes_anterior || []).length">
-                  <p class="acomp-section">Mudanças em relação ao mês anterior</p>
-                  <ul class="acomp-lista"><li v-for="(m, i) in avaliacaoJson.mudancas_vs_mes_anterior" :key="i">{{ m }}</li></ul>
-                </template>
-              </template>
-            </template>
-
-            <!-- ===== Contexto Consolidado ===== -->
-            <template v-if="contexto">
-              <p class="acomp-section" style="border-top: 1px solid var(--color-border); padding-top: 16px;">
-                Contexto consolidado — entrada da IA no próximo ciclo
-              </p>
-              <p class="list-row-sub" style="margin-bottom: 12px;">Cobre até {{ rotuloMes(contexto.cobre_ate) }} · gerado em {{ contexto.gerado_em }}</p>
-
-              <div v-if="(contexto.linha_de_base || []).length" class="acomp-bloco">
-                <div class="acomp-bloco-titulo">Linha de base</div>
-                <div v-for="(item, i) in contexto.linha_de_base" :key="i" class="acomp-item">
-                  <strong>{{ item.rotulo }}:</strong> {{ item.valor }}
-                  <span class="list-row-sub">[{{ item.tipo }}]<template v-if="item.origem"> · {{ item.origem }}</template><template v-if="item.confianca"> · {{ item.confianca }}</template></span>
-                </div>
-              </div>
-
-              <div v-if="(contexto.estado_atual || []).length" class="acomp-bloco">
-                <div class="acomp-bloco-titulo">Estado atual</div>
-                <div v-for="(item, i) in contexto.estado_atual" :key="i" class="acomp-item">
-                  <strong>{{ item.dimensao }}:</strong> {{ item.situacao }}
-                  <span class="list-row-sub">[{{ item.tipo }}]<template v-if="item.atualizado_em"> · {{ item.atualizado_em }}</template></span>
-                </div>
-              </div>
-
-              <div v-if="(contexto.evolucao_relevante || []).length" class="acomp-bloco">
-                <div class="acomp-bloco-titulo">Evolução relevante</div>
-                <div v-for="(item, i) in contexto.evolucao_relevante" :key="i" class="acomp-item">
-                  <strong>{{ item.dimensao }}:</strong> {{ item.trajetoria }}
-                  <span v-if="item.confianca" class="list-row-sub">· {{ item.confianca }}</span>
-                </div>
-              </div>
-
-              <div v-if="(contexto.marcos || []).length" class="acomp-bloco">
-                <div class="acomp-bloco-titulo">Marcos</div>
-                <div v-for="(item, i) in contexto.marcos" :key="i" class="acomp-item">
-                  <strong>{{ item.data }}</strong> — {{ item.evento }}
-                  <span v-if="item.origem" class="list-row-sub">· {{ item.origem }}</span>
-                </div>
-              </div>
-
-              <div v-if="(contexto.hipoteses_abertas || []).length" class="acomp-bloco">
-                <div class="acomp-bloco-titulo">Hipóteses abertas</div>
-                <div v-for="(item, i) in contexto.hipoteses_abertas" :key="i" class="acomp-item">
-                  {{ item.hipotese }}
-                  <span class="list-row-sub">
-                    <template v-if="item.confianca">· {{ item.confianca }}</template>
-                    <template v-if="item.status"> · {{ item.status }}</template>
-                    <template v-if="item.ciclos_sem_reforco != null"> · {{ item.ciclos_sem_reforco }} ciclo(s) sem reforço</template>
-                  </span>
-                </div>
-              </div>
-
-              <div v-if="(contexto.lacunas || []).length" class="acomp-bloco">
-                <div class="acomp-bloco-titulo">Lacunas</div>
-                <ul class="acomp-lista"><li v-for="(l, i) in contexto.lacunas" :key="i">{{ l }}</li></ul>
-              </div>
-            </template>
-          </template>
-        </div>
+        <!-- Avaliação do personal -->
+        <template v-else>
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+            <div class="acomp-feed-cab">
+              <span class="list-row-title">✍️ Sua avaliação — {{ dataCurta(item.dados.created_at) }}</span>
+              <span class="list-row-sub">
+                {{ item.dados.autor?.nome || 'personal' }}
+                <template v-if="item.dados.updated_at && item.dados.updated_at !== item.dados.created_at"> · editada</template>
+              </span>
+            </div>
+            <div style="display: flex; gap: 8px; flex: none;">
+              <button type="button" class="btn btn-ghost btn-sm" @click="abrirEditorEdicao(item.dados)">Editar</button>
+              <button type="button" class="btn btn-danger-ghost btn-sm" @click="excluirAvaliacaoPersonal(item.dados)">Excluir</button>
+            </div>
+          </div>
+          <p style="font-size: 13.5px; line-height: 1.6; margin-top: 8px; white-space: pre-wrap;">{{ item.dados.texto }}</p>
+        </template>
       </div>
     </div>
 
@@ -451,39 +379,52 @@ const contexto = computed(() => detalhe.value?.contexto_consolidado_json || null
 </template>
 
 <style scoped>
-.acomp-section {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--color-text-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  margin: 18px 0 10px;
+.acomp-acoes-linha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
 }
-.acomp-lista {
-  list-style: disc;
-  padding-left: 20px;
-  font-size: 13px;
-  line-height: 1.7;
+.acomp-mes {
+  max-width: 160px;
 }
-.acomp-evidencias {
-  list-style: none;
-  padding-left: 0;
-  margin-top: 8px;
-  font-size: 12.5px;
-  color: var(--color-text-secondary);
-  line-height: 1.6;
+.acomp-acoes-info {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
-.acomp-bloco {
+.acomp-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-bottom: 14px;
 }
-.acomp-bloco-titulo {
+.acomp-chip {
   font-size: 12.5px;
   font-weight: 700;
-  margin-bottom: 4px;
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
 }
-.acomp-item {
-  font-size: 13px;
-  line-height: 1.6;
-  padding: 3px 0;
+.acomp-chip:hover {
+  border-color: var(--color-border-strong);
+}
+.acomp-chip.ativo {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+.acomp-chip-num {
+  margin-left: 6px;
+  opacity: 0.7;
+}
+.acomp-feed-cab {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 </style>

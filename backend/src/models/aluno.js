@@ -74,6 +74,7 @@ module.exports = (sequelize) => {
     Aluno.hasMany(models.FichaAcessoLink, { foreignKey: "aluno_id", as: "linksFicha" });
     Aluno.hasMany(models.AvaliacaoMensal, { foreignKey: "aluno_id", as: "avaliacoesMensais" });
     Aluno.hasMany(models.AnaliseSobDemanda, { foreignKey: "aluno_id", as: "analisesSobDemanda" });
+    Aluno.hasMany(models.AvaliacaoPersonal, { foreignKey: "aluno_id", as: "avaliacoesPersonal" });
   };
 
   return Aluno;

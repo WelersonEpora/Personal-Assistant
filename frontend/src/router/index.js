@@ -3,6 +3,16 @@ import { useAuthStore } from '../stores/auth.store.js'
 
 const routes = [
   { path: '/login', name: 'login', component: () => import('../views/LoginView.vue'), meta: { publica: true } },
+  // Acesso do aluno à ficha por link temporário (docs/adr/0014) - pública,
+  // somente leitura, fora de /admin e /captura, sem login. O token no path
+  // é o único identificador; nenhum id de aluno/ficha aparece na URL.
+  {
+    path: '/ficha/:token',
+    name: 'ficha-publica',
+    component: () => import('../views/FichaPublicaView.vue'),
+    props: true,
+    meta: { publica: true }
+  },
   { path: '/captura', name: 'captura', component: () => import('../views/captura/CapturaView.vue') },
   {
     path: '/admin',

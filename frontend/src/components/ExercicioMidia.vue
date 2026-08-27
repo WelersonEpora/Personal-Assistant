@@ -9,7 +9,12 @@ const props = defineProps({
   videoUrl: { type: String, default: null },
   instrucoes: { type: String, default: null },
   nome: { type: String, default: '' },
-  size: { type: String, default: 'sm' } // sm | md
+  size: { type: String, default: 'sm' }, // sm | md
+  // Carregador de imagem injetável: recebe a posição ("inicio"|"fim") e
+  // devolve uma Promise<Blob>. Sem ele, usa o endpoint autenticado do
+  // catálogo. A tela pública do aluno (docs/adr/0014) passa um carregador
+  // que busca pelo endpoint escopado por token.
+  carregarImagem: { type: Function, default: null }
 })
 
 // Duas imagens por exercício (posição inicial/final do movimento, mesmo
@@ -35,7 +40,9 @@ async function carregarPosicao(posicao) {
   if (!posicao || urls.value[posicao] || carregando.value[posicao]) return
   carregando.value[posicao] = true
   try {
-    const blob = await exerciciosService.obterImagem(props.exercicioId, posicao)
+    const blob = props.carregarImagem
+      ? await props.carregarImagem(posicao)
+      : await exerciciosService.obterImagem(props.exercicioId, posicao)
     urls.value[posicao] = URL.createObjectURL(blob)
   } catch (_err) {
     erro.value[posicao] = true

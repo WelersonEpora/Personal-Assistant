@@ -4,6 +4,7 @@ const { Router } = require("express");
 const multer = require("multer");
 const alunoController = require("../controllers/aluno.controller");
 const fichaTreinoController = require("../controllers/ficha-treino.controller");
+const fichaAcessoLinkController = require("../controllers/ficha-acesso-link.controller");
 const autenticar = require("../shared/middlewares/auth.middleware");
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -27,5 +28,12 @@ router.delete("/:id/foto", alunoController.removerFoto);
 router.get("/:id/fichas-treino", fichaTreinoController.listarPorAluno);
 router.get("/:id/fichas-treino/ativa", fichaTreinoController.obterAtiva);
 router.post("/:id/fichas-treino", fichaTreinoController.criar);
+
+// Link temporário de acesso do aluno à ficha ativa (docs/adr/0014) - somente
+// leitura, sem login. GET devolve o link atual (com o token, p/ recopiar);
+// POST gera um novo (revogando o anterior); DELETE revoga.
+router.get("/:id/ficha-link", fichaAcessoLinkController.obter);
+router.post("/:id/ficha-link", fichaAcessoLinkController.gerar);
+router.delete("/:id/ficha-link", fichaAcessoLinkController.revogar);
 
 module.exports = router;

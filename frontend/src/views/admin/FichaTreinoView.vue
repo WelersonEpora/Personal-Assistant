@@ -27,22 +27,75 @@ const fichaAtiva = computed(() => fichas.value.find((f) => f.ativo) || null)
 const historico = computed(() => fichas.value.filter((f) => !f.ativo))
 const expandidoId = ref(null)
 
+// Link temporário de acesso do aluno à ficha (docs/adr/0014).
+const link = ref(null)
+const linkOcupado = ref(false)
+const linkUrl = computed(() => (link.value ? `${window.location.origin}/ficha/${link.value.token}` : ''))
+const LINK_STATUS_META = {
+  ativo: { label: 'Ativo', badge: 'badge-success' },
+  expirado: { label: 'Expirado', badge: 'badge-neutral' },
+  revogado: { label: 'Revogado', badge: 'badge-neutral' }
+}
+
+function formatarValidade(iso) {
+  if (!iso) return ''
+  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
 async function carregar() {
   carregando.value = true
   try {
-    const [dadosAluno, dadosCatalogo, dadosFichas] = await Promise.all([
+    const [dadosAluno, dadosCatalogo, dadosFichas, dadosLink] = await Promise.all([
       alunosService.obter(props.id),
       exerciciosService.listar(),
-      fichasTreinoService.listarPorAluno(props.id)
+      fichasTreinoService.listarPorAluno(props.id),
+      fichasTreinoService.obterLink(props.id).catch(() => null)
     ])
     aluno.value = dadosAluno
     catalogo.value = dadosCatalogo.filter((e) => e.ativo)
     fichas.value = dadosFichas
+    link.value = dadosLink
   } finally {
     carregando.value = false
   }
 }
 onMounted(carregar)
+
+async function gerarLink() {
+  if (link.value?.status === 'ativo' && !window.confirm('Gerar um novo link invalida o link atual. Continuar?')) return
+  linkOcupado.value = true
+  try {
+    link.value = await fichasTreinoService.gerarLink(props.id)
+    showToast('Link gerado. Copie e envie para o aluno.', 'success')
+  } catch (_err) {
+    showToast('Não foi possível gerar o link.', 'warning')
+  } finally {
+    linkOcupado.value = false
+  }
+}
+
+async function copiarLink() {
+  try {
+    await navigator.clipboard.writeText(linkUrl.value)
+    showToast('Link copiado.', 'success')
+  } catch (_err) {
+    showToast('Não foi possível copiar automaticamente — selecione e copie o link.', 'warning')
+  }
+}
+
+async function revogarLink() {
+  if (!window.confirm('Revogar o link? O aluno perde o acesso imediatamente.')) return
+  linkOcupado.value = true
+  try {
+    await fichasTreinoService.revogarLink(props.id)
+    link.value = null
+    showToast('Link revogado.', 'neutral')
+  } catch (_err) {
+    showToast('Não foi possível revogar o link.', 'warning')
+  } finally {
+    linkOcupado.value = false
+  }
+}
 
 function iniciarEdicao() {
   formNome.value = fichaAtiva.value?.nome || ''
@@ -147,6 +200,51 @@ function metaItem(item) {
       </div>
       <button v-if="!editando" type="button" class="btn btn-primary" @click="iniciarEdicao">
         {{ fichaAtiva ? 'Nova versão da ficha' : 'Criar ficha' }}
+      </button>
+    </div>
+
+    <div v-if="!editando" class="card card-pad" style="margin-bottom: 26px;">
+      <div style="font-size: 15px; font-weight: 700; margin-bottom: 4px;">🔗 Link para o aluno</div>
+      <p class="list-row-sub" style="margin-bottom: 12px;">
+        Acesso somente leitura à ficha ativa, sem login. Validade de 7 dias; gerar um novo invalida o anterior.
+      </p>
+
+      <template v-if="link">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;">
+          <span class="badge" :class="(LINK_STATUS_META[link.status] || {}).badge || 'badge-neutral'">
+            {{ (LINK_STATUS_META[link.status] || {}).label || link.status }}
+          </span>
+          <span class="list-row-sub">
+            {{ link.status === 'revogado' ? 'Revogado em' : 'Expira em' }}
+            {{ formatarValidade(link.status === 'revogado' ? link.revogado_em : link.expira_em) }}
+          </span>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;">
+          <input
+            type="text"
+            :value="linkUrl"
+            readonly
+            aria-label="Link de acesso do aluno"
+            @focus="$event.target.select()"
+            style="flex: 1; min-width: 0; font-size: 13px;"
+          />
+          <button type="button" class="btn btn-secondary" :disabled="link.status !== 'ativo'" @click="copiarLink">Copiar</button>
+        </div>
+        <div style="display: flex; gap: 10px;">
+          <button type="button" class="btn btn-ghost" :disabled="linkOcupado" @click="gerarLink">Gerar novo link</button>
+          <button
+            v-if="link.status === 'ativo'"
+            type="button"
+            class="btn btn-danger-ghost"
+            :disabled="linkOcupado"
+            @click="revogarLink"
+          >
+            Revogar
+          </button>
+        </div>
+      </template>
+      <button v-else type="button" class="btn btn-primary" :disabled="linkOcupado" @click="gerarLink">
+        Gerar link para o aluno
       </button>
     </div>
 

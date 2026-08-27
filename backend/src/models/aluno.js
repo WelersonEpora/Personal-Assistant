@@ -70,6 +70,7 @@ module.exports = (sequelize) => {
   Aluno.associate = (models) => {
     Aluno.belongsTo(models.Equipe, { foreignKey: "equipe_id", as: "equipe" });
     Aluno.hasMany(models.Registro, { foreignKey: "aluno_id", as: "registros" });
+    Aluno.hasMany(models.FichaTreino, { foreignKey: "aluno_id", as: "fichasTreino" });
   };
 
   return Aluno;

@@ -13,6 +13,17 @@ const SENHA_DEV = "personal123";
 
 module.exports = {
   async up(queryInterface) {
+    // Guarda de produção: com este no-op, "npm run db:seed" (db:seed:all)
+    // pode rodar genericamente a cada deploy - igual db:migrate roda toda
+    // migration pendente - sem risco de criar as credenciais fracas fixas
+    // deste usuário em produção. Sem isso, precisaríamos de um passo de
+    // deploy separado por seeder, o que não escala à medida que novos
+    // seeders (dados reais, esses sim bem-vindos em produção) forem
+    // adicionados.
+    if (process.env.NODE_ENV === "production") {
+      return;
+    }
+
     const now = new Date();
 
     await queryInterface.bulkInsert("equipe", [

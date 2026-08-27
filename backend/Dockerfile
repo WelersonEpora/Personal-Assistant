@@ -11,7 +11,7 @@ COPY --chown=node:node . .
 # e pertencer ao usuário não-root ANTES do volume ser montado em produção -
 # Docker inicializa um volume nomeado novo copiando o conteúdo/dono do
 # diretório da imagem no ponto de montagem, na primeira vez que ele sobe.
-RUN mkdir -p /app/storage/audio /app/storage/fotos && chown -R node:node /app/storage
+RUN mkdir -p /app/storage/audio /app/storage/fotos /app/storage/exercicios && chown -R node:node /app/storage
 
 USER node
 

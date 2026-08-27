@@ -53,7 +53,7 @@ imagens buildadas localmente, ou puxar as imagens já publicadas pelo CI
 
 ```bash
 cp .env.example .env   # ajustar todos os valores para o ambiente real
-bash scripts/deploy.sh   # pull + up -d + migrations + limpeza de imagens antigas
+bash scripts/deploy.sh   # pull + up -d + migrations + seeders pendentes + limpeza de imagens antigas
 ```
 
 - O backend nunca expõe porta no host (`expose`, não `ports`) — só o
@@ -75,8 +75,18 @@ docker compose -p personal-assistant --project-directory . -f docker/compose.pro
   exec backend npm run criar-usuario -- --nome="Fulano" --email="fulano@exemplo.com" --senha="uma-senha-forte"
 ```
 
-O seeder de desenvolvimento (`personal@dev.local` / `personal123`) nunca
-roda em produção — `scripts/deploy.sh` não chama `db:seed` de propósito.
+`scripts/deploy.sh` roda `npm run db:seed` (`db:seed:all`) genericamente a
+cada deploy, mesmo critério de `db:migrate`: cada seeder só executa uma vez
+(controle próprio do `sequelize-cli`, tabela `sequelize_data`), então um
+novo seeder adicionado ao repositório (ex.: catálogo global de exercícios,
+`docs/adr/0013-catalogo-exercicios-ficha-treino.md`) é aplicado sozinho no
+próximo deploy, sem precisar editar `scripts/deploy.sh` (mesmo padrão do
+AgroMind). O seeder de desenvolvimento
+(`database/seeders/20260825110000-seed-usuario-dev.js`, credenciais fracas
+fixas `personal@dev.local` / `personal123`) é o único caso especial: ele
+mesmo verifica `NODE_ENV === "production"` e não faz nada nesse caso, então
+nunca cria esse usuário em produção mesmo rodando dentro do `db:seed`
+genérico.
 
 ## Domínio e TLS
 
@@ -144,6 +154,14 @@ backup manual.
 Mesmo critério do volume `audio_data` acima (troque `audio_data` por
 `foto_data` e `/app/storage/audio` por `/app/storage/fotos` no comando de
 backup) — arquivos pequenos, mesma lógica de `tar` + `cron`.
+
+### Imagens de exercício (volume `exercicio_imagem_data`)
+
+Mesmo critério dos dois volumes acima (troque `audio_data` por
+`exercicio_imagem_data` e `/app/storage/audio` por `/app/storage/exercicios`)
+— inclui tanto as imagens dos exercícios próprios de cada equipe quanto,
+depois do primeiro deploy, as do catálogo global (populadas pelo seeder,
+ver `docs/adr/0013-catalogo-exercicios-ficha-treino.md`).
 
 ## Variáveis de ambiente
 

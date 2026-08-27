@@ -12,6 +12,7 @@ const NAV_ITEMS = [
     grupo: 'Operação',
     itens: [
       { nome: 'admin-alunos', icone: '👥', label: 'Alunos' },
+      { nome: 'admin-exercicios', icone: '🏋️', label: 'Exercícios' },
       { nome: 'admin-registros', icone: '🎙️', label: 'Relatos' },
       { nome: 'admin-revisao', icone: '✅', label: 'Revisão', badge: true }
     ]

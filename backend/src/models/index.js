@@ -14,6 +14,9 @@ db.ArquivoAudio = require("./arquivoAudio")(sequelize);
 db.Transcricao = require("./transcricao")(sequelize);
 db.ResultadoIa = require("./resultadoIa")(sequelize);
 db.Validacao = require("./validacao")(sequelize);
+db.Exercicio = require("./exercicio")(sequelize);
+db.FichaTreino = require("./fichaTreino")(sequelize);
+db.FichaTreinoExercicio = require("./fichaTreinoExercicio")(sequelize);
 
 Object.values(db).forEach((model) => {
   if (model.associate) {

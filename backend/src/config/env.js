@@ -40,5 +40,7 @@ module.exports = {
   // backend/ em dev; em producao e o ponto de montagem do volume Docker.
   audioStorageDir: process.env.AUDIO_STORAGE_DIR || "storage/audio",
   // Mesmo critério do audioStorageDir, para a foto (avatar) do aluno.
-  fotoStorageDir: process.env.FOTO_STORAGE_DIR || "storage/fotos"
+  fotoStorageDir: process.env.FOTO_STORAGE_DIR || "storage/fotos",
+  // Mesmo critério, para a imagem de exercício (docs/adr/0013).
+  exercicioImagemStorageDir: process.env.EXERCICIO_IMAGEM_STORAGE_DIR || "storage/exercicios"
 };

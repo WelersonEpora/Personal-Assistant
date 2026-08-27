@@ -4,4 +4,6 @@ storage/audio/*
 !storage/audio/.gitkeep
 storage/fotos/*
 !storage/fotos/.gitkeep
+storage/exercicios/*
+!storage/exercicios/.gitkeep
 *.log

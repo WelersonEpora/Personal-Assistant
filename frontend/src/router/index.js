@@ -18,6 +18,14 @@ const routes = [
         props: true,
         meta: { titulo: 'Alunos' }
       },
+      {
+        path: 'alunos/:id/ficha-treino',
+        name: 'admin-aluno-ficha-treino',
+        component: () => import('../views/admin/FichaTreinoView.vue'),
+        props: true,
+        meta: { titulo: 'Ficha de Treino' }
+      },
+      { path: 'exercicios', name: 'admin-exercicios', component: () => import('../views/admin/ExerciciosView.vue'), meta: { titulo: 'Exercícios' } },
       { path: 'registros', name: 'admin-registros', component: () => import('../views/admin/RegistrosView.vue'), meta: { titulo: 'Relatos' } },
       {
         path: 'revisao/:id?',

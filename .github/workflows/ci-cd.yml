@@ -45,10 +45,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -59,6 +59,13 @@ jobs:
 
       - name: Run migrations
         run: npm run db:migrate
+
+      # Roda os seeders no mesmo banco efêmero do CI: pega drift entre um
+      # seeder e uma migration posterior (ex.: seeder inserindo coluna que
+      # uma migration depois removeu) antes do deploy, já que scripts/deploy.sh
+      # roda "db:seed" a cada publicação.
+      - name: Run seeders
+        run: npm run db:seed
 
       - name: Run tests
         run: npm test
@@ -72,10 +79,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -105,7 +112,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

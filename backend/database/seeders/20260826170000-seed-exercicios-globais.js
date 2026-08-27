@@ -143,7 +143,6 @@ module.exports = {
       equipamento,
       dificuldade,
       instrucoes,
-      midia_imagem_url: null,
       midia_video_url: null,
       ativo: true,
       deletado_em: null,

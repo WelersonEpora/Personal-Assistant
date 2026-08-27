@@ -184,7 +184,7 @@ test("limite: uma análise gerada há mais de 7 dias libera nova solicitação",
   assert.equal(analise.status, "gerada");
 });
 
-test("uma 'falha' anterior (recente) NÃO bloqueia nova solicitação", async (t) => {
+test("uma 'falha' anterior (recente) NÃO bloqueia nova solicitação e é sobrescrita pelo sucesso", async (t) => {
   t.mock.method(geminiService, "gerarAnaliseSobDemanda", async () => ANALISE_FAKE);
   await AnaliseSobDemanda.create({
     aluno_id: aluno.id,
@@ -202,6 +202,48 @@ test("uma 'falha' anterior (recente) NÃO bloqueia nova solicitação", async (t
 
   const analise = await analiseSobDemandaService.solicitar({ equipeId: equipe.id, alunoId: aluno.id, usuarioId: usuario.id });
   assert.equal(analise.status, "gerada");
+  // a linha de falha virou a de sucesso - não acumulou
+  assert.equal(await AnaliseSobDemanda.count({ where: { aluno_id: aluno.id } }), 1);
+});
+
+test("retry de uma falha da IA sobrescreve a MESMA linha (não acumula 'Falha ao gerar')", async (t) => {
+  t.mock.method(geminiService, "gerarAnaliseSobDemanda", async () => {
+    throw new Error("503 UNAVAILABLE - high demand");
+  });
+  await criarRelatoConfirmado(new Date());
+  t.after(limpar);
+
+  const primeira = await analiseSobDemandaService.solicitar({ equipeId: equipe.id, alunoId: aluno.id, usuarioId: usuario.id });
+  const segunda = await analiseSobDemandaService.solicitar({ equipeId: equipe.id, alunoId: aluno.id, usuarioId: usuario.id });
+
+  assert.equal(primeira.status, "falha");
+  assert.equal(segunda.status, "falha");
+  assert.equal(segunda.id, primeira.id);
+  assert.match(segunda.erro, /UNAVAILABLE/);
+  assert.equal(await AnaliseSobDemanda.count({ where: { aluno_id: aluno.id } }), 1);
+
+  // falha não consome a janela - segue disponível
+  const disp = await analiseSobDemandaService.disponibilidade({ alunoId: aluno.id });
+  assert.equal(disp.disponivel_agora, true);
+});
+
+test("sucesso depois de uma falha da IA converte a mesma linha em 'gerada'", async (t) => {
+  const mock = t.mock.method(geminiService, "gerarAnaliseSobDemanda", async () => {
+    throw new Error("503 UNAVAILABLE");
+  });
+  await criarRelatoConfirmado(new Date());
+  t.after(limpar);
+
+  const falha = await analiseSobDemandaService.solicitar({ equipeId: equipe.id, alunoId: aluno.id, usuarioId: usuario.id });
+  assert.equal(falha.status, "falha");
+
+  mock.mock.mockImplementation(async () => ANALISE_FAKE);
+  const ok = await analiseSobDemandaService.solicitar({ equipeId: equipe.id, alunoId: aluno.id, usuarioId: usuario.id });
+
+  assert.equal(ok.status, "gerada");
+  assert.equal(ok.id, falha.id);
+  assert.equal(ok.erro, null);
+  assert.equal(await AnaliseSobDemanda.count({ where: { aluno_id: aluno.id } }), 1);
 });
 
 test("usa o contexto consolidado mensal apenas como referência (contexto_referencia_id) - não o altera", async (t) => {

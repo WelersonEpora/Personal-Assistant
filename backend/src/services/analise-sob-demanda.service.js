@@ -136,6 +136,16 @@ async function solicitar({ equipeId, alunoId, usuarioId }) {
     provedor: "gemini"
   };
 
+  // Se a última análise deste aluno foi uma "falha", esta tentativa
+  // sobrescreve a mesma linha (nova falha ou sucesso) - o feed não acumula
+  // erros repetidos e a linha "vira" gerada quando a IA voltar (docs/adr/0015).
+  const anterior = await analiseSobDemandaRepository.ultima({ alunoId });
+  const linhaFalhaId = anterior && anterior.status === "falha" ? anterior.id : null;
+  const persistir = (dados) =>
+    linhaFalhaId
+      ? analiseSobDemandaRepository.atualizar(linhaFalhaId, dados)
+      : analiseSobDemandaRepository.criar(dados);
+
   // Nada recente para analisar (nem relato confirmado nem avaliação do
   // personal): não chega a chamar a IA -> não registra nada e não consome a
   // janela de 7 dias. Só informa o personal.
@@ -168,7 +178,7 @@ async function solicitar({ equipeId, alunoId, usuarioId }) {
       });
     }
 
-    return analiseSobDemandaRepository.criar({
+    return persistir({
       ...base,
       status: "gerada",
       modelo: env.gemini.model,
@@ -177,7 +187,7 @@ async function solicitar({ equipeId, alunoId, usuarioId }) {
     });
   } catch (err) {
     logger.error({ err, alunoId }, "[analise-sob-demanda] falha ao gerar análise");
-    return analiseSobDemandaRepository.criar({
+    return persistir({
       ...base,
       status: "falha",
       modelo: env.gemini.model,

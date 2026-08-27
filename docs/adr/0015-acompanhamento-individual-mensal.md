@@ -106,6 +106,12 @@ qualquer momento (`analise_sob_demanda`, tabela própria).
   resposta **não persistida** (`persistida: false`, com `mensagem`) — a UI
   mostra o aviso, nada entra no histórico e **nada é consumido**. Só `gerada`
   (análise produzida) e `falha` (a IA foi chamada e deu erro) viram linha.
+- **Retry de uma `falha` sobrescreve a mesma linha.** Se a última análise do
+  aluno é uma `falha` (ex.: provedor indisponível), a próxima tentativa —
+  nova `falha` ou `gerada` — atualiza essa linha em vez de criar outra. O
+  feed não acumula "Falha ao gerar" repetidos e a linha "vira" `gerada`
+  quando a IA volta. Uma `falha` depois de uma `gerada` (mais de 7 dias) abre
+  uma linha nova.
 - **Limite: 1 análise `gerada` a cada 7 dias por aluno.** `falha` não consome
   a janela (o personal não é penalizado por uma falha do provedor). O `GET`
   devolve a disponibilidade (`proxima_disponivel_em`) para a UI mostrar

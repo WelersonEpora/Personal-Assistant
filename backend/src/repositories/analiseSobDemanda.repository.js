@@ -21,6 +21,22 @@ function ultimaGerada({ alunoId }) {
   });
 }
 
+// Análise mais recente do aluno, qualquer status. Se ela for uma "falha", a
+// próxima tentativa (nova falha OU sucesso) sobrescreve essa mesma linha em
+// vez de criar outra - o feed não acumula "Falha ao gerar" repetidos
+// (docs/adr/0015).
+function ultima({ alunoId }) {
+  return AnaliseSobDemanda.findOne({
+    where: { aluno_id: alunoId },
+    order: [["solicitada_em", "DESC"]]
+  });
+}
+
+async function atualizar(id, dados) {
+  const linha = await AnaliseSobDemanda.findByPk(id);
+  return linha.update(dados);
+}
+
 // Avaliação mensal mais recente (qualquer status) - fornece o contexto
 // consolidado de REFERÊNCIA da análise sob demanda (somente leitura) e a
 // data a partir da qual os relatos ainda não foram consolidados.
@@ -60,6 +76,8 @@ function criar(dados) {
 module.exports = {
   listarPorAluno,
   ultimaGerada,
+  ultima,
+  atualizar,
   avaliacaoMensalMaisRecente,
   listarRelatosConfirmadosDesde,
   criar

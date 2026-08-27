@@ -336,8 +336,8 @@ function rotuloDificuldade(valor) {
             <div style="display: flex; gap: 22px; margin-top: 6px;">
               <div v-for="p in POSICOES" :key="p.valor" style="text-align: center;">
                 <div style="position: relative; display: inline-block;">
-                  <img v-if="previewUrls[p.valor]" :src="previewUrls[p.valor]" class="avatar sz-lg" style="border-radius: var(--radius-sm);" alt="" />
-                  <span v-else class="avatar sz-lg" style="border-radius: var(--radius-sm); background: var(--color-surface-alt);">🏋️</span>
+                  <img v-if="previewUrls[p.valor]" :src="previewUrls[p.valor]" class="avatar sz-lg" style="border-radius: var(--radius-sm); width: 180px; height: 150px;" alt="" />
+                  <span v-else class="avatar sz-lg" style="border-radius: var(--radius-sm); background: var(--color-surface-alt); width: 180px; height: 150px; font-size: 44px;">🏋️</span>
                   <button
                     type="button"
                     class="btn btn-ghost"

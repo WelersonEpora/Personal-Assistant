@@ -252,10 +252,12 @@ function notaGeralConfirmada(registro) {
               {{ aluno.ativo ? 'Ativo' : 'Inativo' }}
             </button>
           </div>
-          <div style="display: flex; gap: 10px; margin-top: 10px;">
+          <div style="display: flex; gap: 10px; margin-top: 10px; justify-content: space-between; align-items: center;">
+            <div style="display: flex; gap: 10px;">
+              <button type="button" class="btn btn-secondary" @click="iniciarEdicao">Editar</button>
+              <button type="button" class="btn btn-danger-ghost" @click="excluirAluno">Excluir aluno</button>
+            </div>
             <router-link class="btn btn-primary" :to="{ name: 'admin-aluno-ficha-treino', params: { id: props.id } }">📋 Ficha de Treino</router-link>
-            <button type="button" class="btn btn-ghost" @click="iniciarEdicao">Editar</button>
-            <button type="button" class="btn btn-ghost" style="color: var(--color-danger, #dc2626);" @click="excluirAluno">Excluir aluno</button>
           </div>
         </template>
         <form v-else @submit.prevent="salvarEdicao" style="max-width: 360px;">

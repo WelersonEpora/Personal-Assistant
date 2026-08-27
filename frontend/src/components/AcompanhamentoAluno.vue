@@ -13,7 +13,7 @@ import RegistroCard from './RegistroCard.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const { toasts, showToast } = useToasts()
-const { confirmar } = useConfirm()
+const { confirmar, avisar } = useConfirm()
 
 const carregando = ref(true)
 
@@ -236,10 +236,20 @@ async function gerar(anoMes) {
     if (resultado.status === 'gerada') {
       showToast(`Avaliação de ${rotuloMes(resultado.ano_mes)} gerada.`, 'success')
     } else {
-      showToast('A IA não conseguiu gerar a avaliação. Tente novamente em instantes.', 'warning')
+      await avisar({
+        titulo: 'A IA não conseguiu gerar a avaliação',
+        mensagem:
+          'O provedor de IA não respondeu agora. Isso costuma ser temporário — tente de novo em alguns minutos.' +
+          (resultado.erro ? `\n\nDetalhe técnico:\n${resultado.erro}` : '')
+      })
     }
   } catch (err) {
-    showToast(err?.response?.data?.error?.message || 'Não foi possível gerar a avaliação.', 'warning')
+    await avisar({
+      titulo: 'Não foi possível gerar a avaliação',
+      mensagem:
+        'Houve um erro ao falar com o servidor. Verifique a conexão e tente de novo em alguns minutos.' +
+        (err?.response?.data?.error?.message ? `\n\nDetalhe técnico:\n${err.response.data.error.message}` : '')
+    })
   } finally {
     gerandoMes.value = null
   }
@@ -262,10 +272,23 @@ async function solicitarAnalise() {
     if (resultado.status === 'gerada') {
       showToast('Análise gerada.', 'success')
     } else {
-      showToast('A IA não conseguiu gerar a análise. Tente novamente em instantes.', 'warning')
+      // Falha da IA: a linha foi criada com o erro. Modal que fica até o
+      // usuário fechar (o toast some rápido demais para uma mensagem dessas).
+      await avisar({
+        titulo: 'A IA não conseguiu gerar a análise',
+        mensagem:
+          'O provedor de IA não respondeu agora. Isso costuma ser temporário — tente de novo em alguns minutos.' +
+          (resultado.erro ? `\n\nDetalhe técnico:\n${resultado.erro}` : '')
+      })
     }
   } catch (err) {
-    showToast(err?.response?.data?.error?.message || 'Não foi possível solicitar a análise.', 'warning')
+    const detalhe = err?.response?.data?.error?.message
+    await avisar({
+      titulo: 'Não foi possível solicitar a análise',
+      mensagem:
+        'Houve um erro ao falar com o servidor. Verifique a conexão e tente de novo em alguns minutos.' +
+        (detalhe ? `\n\nDetalhe técnico:\n${detalhe}` : '')
+    })
     await carregarAnalises()
   } finally {
     solicitandoAnalise.value = false

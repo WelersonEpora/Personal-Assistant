@@ -34,6 +34,9 @@ function ultima({ alunoId }) {
 
 async function atualizar(id, dados) {
   const linha = await AnaliseSobDemanda.findByPk(id);
+  // A linha pode ter sumido entre a leitura e a escrita (ex.: limpeza manual);
+  // nesse caso cria uma nova em vez de estourar.
+  if (!linha) return AnaliseSobDemanda.create(dados);
   return linha.update(dados);
 }
 

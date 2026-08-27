@@ -1,11 +1,13 @@
 import { reactive } from 'vue'
 
-// Diálogo de confirmação in-app (substitui window.confirm - o produto não usa
-// telas nativas do navegador). Singleton reativo: um único host
-// (ConfirmDialog.vue, montado no AdminShell) renderiza o estado; qualquer tela
-// chama `confirmar()` e recebe uma Promise<boolean>.
+// Diálogos in-app (o produto não usa telas nativas do navegador). Singleton
+// reativo: um único host (ConfirmDialog.vue, montado no AdminShell) renderiza
+// o estado.
+//   - confirmar() -> Promise<boolean> (dois botões)
+//   - avisar()    -> Promise<void>    (um botão "OK", fica até o usuário fechar)
 const estado = reactive({
   aberto: false,
+  modo: 'confirmar', // 'confirmar' | 'aviso'
   titulo: 'Confirmar',
   mensagem: '',
   confirmarLabel: 'Confirmar',
@@ -24,10 +26,11 @@ function fechar(valor) {
 }
 
 function confirmar(opcoes = {}) {
-  // Uma confirmação pendente anterior (troca de rota no meio, etc.) resolve
-  // como "não" antes de abrir a nova.
+  // Uma pendência anterior (troca de rota no meio, etc.) resolve como "não"
+  // antes de abrir a nova.
   if (resolver) fechar(false)
 
+  estado.modo = 'confirmar'
   estado.titulo = opcoes.titulo || 'Confirmar'
   estado.mensagem = opcoes.mensagem || ''
   estado.perigo = !!opcoes.perigo
@@ -40,10 +43,27 @@ function confirmar(opcoes = {}) {
   })
 }
 
+function avisar(opcoes = {}) {
+  if (resolver) fechar()
+
+  estado.modo = 'aviso'
+  estado.titulo = opcoes.titulo || 'Aviso'
+  estado.mensagem = opcoes.mensagem || ''
+  estado.perigo = !!opcoes.perigo
+  estado.confirmarLabel = opcoes.confirmarLabel || 'OK'
+  estado.aberto = true
+
+  // Resolve como void - tanto o botão quanto o Esc apenas fecham.
+  return new Promise((resolve) => {
+    resolver = () => resolve()
+  })
+}
+
 export function useConfirm() {
   return {
     estado,
     confirmar,
+    avisar,
     aceitar: () => fechar(true),
     recusar: () => fechar(false)
   }

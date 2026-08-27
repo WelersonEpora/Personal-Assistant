@@ -40,11 +40,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         <h3 id="confirm-titulo" class="confirm-titulo">{{ estado.titulo }}</h3>
         <p v-if="estado.mensagem" class="confirm-msg">{{ estado.mensagem }}</p>
         <div class="confirm-acoes">
-          <button type="button" class="btn btn-ghost" @click="recusar">{{ estado.cancelarLabel }}</button>
+          <button v-if="estado.modo !== 'aviso'" type="button" class="btn btn-ghost" @click="recusar">{{ estado.cancelarLabel }}</button>
           <button
             type="button"
             class="btn"
-            :class="estado.perigo ? 'btn-danger' : 'btn-primary'"
+            :class="estado.perigo && estado.modo !== 'aviso' ? 'btn-danger' : 'btn-primary'"
             @click="aceitar"
           >
             {{ estado.confirmarLabel }}
@@ -80,6 +80,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   line-height: 1.6;
   color: var(--color-text-secondary);
   margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 40vh;
+  overflow-y: auto;
 }
 .confirm-acoes {
   display: flex;

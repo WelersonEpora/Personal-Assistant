@@ -31,13 +31,16 @@ async function obterPorMes(req, res) {
 // Geração/regeneração manual pelo personal (docs/adr/0015). Sem etapa de
 // validação - a avaliação nunca vira dado oficial.
 async function gerar(req, res) {
-  const avaliacao = await avaliacaoMensalService.gerarParaAluno({
+  const resultado = await avaliacaoMensalService.gerarParaAluno({
     equipeId: req.equipeId,
     alunoId: req.params.id,
     anoMes: req.params.anoMes,
     origem: "manual"
   });
-  success(res, avaliacao, { statusCode: 201 });
+  // Dados insuficientes numa geração manual não vira registro (docs/adr/0015):
+  // resposta não persistida, 200 em vez de 201.
+  const statusCode = resultado.persistida === false ? 200 : 201;
+  success(res, resultado, { statusCode });
 }
 
 module.exports = { listarPorAluno, obterPorMes, gerar };

@@ -42,9 +42,19 @@ um novo relato normalmente**, que é considerado no ciclo seguinte.
 ### Gatilho de geração
 
 - Só gera avaliação com a IA quando há **≥ 5 relatos confirmados no mês**.
-- Com 0 a 4 relatos: registra o ciclo como `dados_insuficientes`, **não chama
-  a IA**, e carrega o contexto consolidado do mês anterior adiante sem
-  alteração.
+- Com 0 a 4 relatos **no job automático**: registra o ciclo como
+  `dados_insuficientes`, **não chama a IA**, e carrega o contexto consolidado
+  do mês anterior adiante sem alteração.
+- Com 0 a 4 relatos **numa geração manual pelo personal**: **não registra
+  nada** — o backend devolve uma resposta não persistida
+  (`persistida: false`, com `mensagem` e a contagem de relatos); a UI mostra
+  o aviso, o estado do mês não muda (uma avaliação já existente fica intacta)
+  e o personal pode gerar de novo assim que confirmar mais relatos. Mesma
+  lógica da análise sob demanda: como há um humano na frente para ler o
+  aviso, não faz sentido gravar um registro formal de um ciclo que não
+  produziu avaliação — e evita que um `dados_insuficientes` prematuro
+  "tranque" o mês contra o job automático (que pula qualquer linha que não
+  esteja em `falha`).
 
 ### Mês de referência = mês de confirmação
 
@@ -113,9 +123,12 @@ qualquer momento (`analise_sob_demanda`, tabela própria).
 > Contraste com o **job mensal**: lá, "dados insuficientes" (< 5 relatos)
 > **vira** registro (`avaliacao_mensal` com `status = dados_insuficientes`),
 > porque o job roda sem interação humana, precisa marcar que aquele ciclo
-> aconteceu e carregar o contexto consolidado adiante. Na análise sob demanda
-> há um humano na frente para ler o aviso — não faz sentido gravar um
-> registro formal de algo que não produziu análise.
+> aconteceu e carregar o contexto consolidado adiante. Tanto a análise sob
+> demanda quanto a **geração manual da avaliação mensal pelo personal** não
+> gravam nada nesse caso — há um humano na frente para ler o aviso, não faz
+> sentido gravar um registro formal de algo que não produziu análise, e no
+> caso do mensal isso ainda evita que um `dados_insuficientes` prematuro
+> tranque o mês contra o job.
 
 ### Avaliação do personal (sem IA)
 
@@ -223,11 +236,18 @@ insuficientes, diferenciar fato/interpretação/hipótese e nunca inventar. É
 - Novas funções `gerarAvaliacaoMensal` e `gerarAnaliseSobDemanda` em
   `services/ia/gemini.service.js` (2ª e 3ª saídas estruturadas do sistema),
   ambas partindo da persona `PERSONA_PERSONAL_SENIOR`.
-- Frontend: rota `/admin/alunos/:id/acompanhamento` e
-  `AcompanhamentoView.vue` — a análise sob demanda (botão + disponibilidade),
-  a avaliação do personal (editor + lista, editar/excluir) e o acompanhamento
-  mensal (seletor de mês para gerar/regenerar, avaliação + contexto
-  consolidado completos). Sem etapa de validação.
+- Frontend: o acompanhamento **não é tela própria** — é a seção principal da
+  tela de detalhe do aluno (`AlunoDetalheView.vue` + componente
+  `AcompanhamentoAluno.vue`; a rota antiga `/admin/alunos/:id/acompanhamento`
+  redireciona para o detalhe). Uma **linha do tempo agrupada por mês** (card
+  por mês, mais recente primeiro) reúne, lado a lado: os **relatos**
+  (evidência bruta — em andamento e confirmados, componente `RegistroCard.vue`,
+  ver docs/adr/0002), a **avaliação mensal** da IA (âncora do card), as
+  **análises sob demanda** e as **avaliações escritas pelo personal**. O card
+  do mês corrente é o hub de ações (gerar/regerar o mês, solicitar análise,
+  escrever avaliação — editor inline). Filtros por tipo. Sem etapa de
+  validação. A geração manual com dados insuficientes não persiste (ver
+  "Gatilho de geração").
 - O backend continua um único processo Node; escalar para múltiplas
   instâncias exigiria revisar o agendador (mesma limitação já registrada na
   ADR-0009).

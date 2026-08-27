@@ -1,4 +1,6 @@
 <script setup>
+import { ref } from 'vue'
+
 // Detalhe expandido de uma avaliação de IA - serve tanto o acompanhamento
 // mensal quanto a análise sob demanda (docs/adr/0015). O contexto
 // consolidado só é passado para a mensal.
@@ -8,6 +10,10 @@ defineProps({
   status: { type: String, default: 'gerada' },
   erro: { type: String, default: '' }
 })
+
+// O contexto consolidado (entrada da IA no próximo ciclo) é secundário para a
+// leitura do personal - entra colapsado.
+const contextoAberto = ref(false)
 
 function classeConfianca(nivel) {
   return nivel === 'alta' ? 'alta' : nivel === 'baixa' ? 'baixa' : 'media'
@@ -88,10 +94,18 @@ function rotuloMes(anoMes) {
     </template>
 
     <template v-if="contexto">
-      <p class="acomp-section" style="border-top: 1px solid var(--color-border); padding-top: 16px;">
-        Contexto consolidado — entrada da IA no próximo ciclo
-      </p>
-      <p class="list-row-sub" style="margin-bottom: 12px;">Cobre até {{ rotuloMes(contexto.cobre_ate) }} · gerado em {{ contexto.gerado_em }}</p>
+      <button
+        type="button"
+        class="acomp-contexto-toggle"
+        :aria-expanded="contextoAberto"
+        @click="contextoAberto = !contextoAberto"
+      >
+        <span class="acomp-contexto-chevron">{{ contextoAberto ? '▼' : '▶' }}</span>
+        <span class="acomp-section" style="margin: 0;">Contexto consolidado — entrada da IA no próximo ciclo</span>
+      </button>
+
+      <template v-if="contextoAberto">
+      <p class="list-row-sub" style="margin: 0 0 12px;">Cobre até {{ rotuloMes(contexto.cobre_ate) }} · gerado em {{ contexto.gerado_em }}</p>
 
       <div v-if="(contexto.linha_de_base || []).length" class="acomp-bloco">
         <div class="acomp-bloco-titulo">Linha de base</div>
@@ -141,6 +155,7 @@ function rotuloMes(anoMes) {
         <div class="acomp-bloco-titulo">Lacunas</div>
         <ul class="acomp-lista"><li v-for="(l, i) in contexto.lacunas" :key="i">{{ l }}</li></ul>
       </div>
+      </template>
     </template>
   </div>
 </template>
@@ -149,10 +164,31 @@ function rotuloMes(anoMes) {
 .acomp-section {
   font-size: 12px;
   font-weight: 700;
-  color: var(--color-text-faint);
+  color: var(--color-text);
   text-transform: uppercase;
   letter-spacing: 0.03em;
   margin: 18px 0 10px;
+}
+.acomp-contexto-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--color-border);
+  padding: 16px 0 10px;
+  cursor: pointer;
+  text-align: left;
+}
+.acomp-contexto-chevron {
+  color: var(--color-primary);
+  font-size: 10px;
+  line-height: 1;
+  flex: none;
+}
+.acomp-contexto-toggle:hover .acomp-section {
+  color: var(--color-text-secondary);
 }
 .acomp-section:first-child {
   margin-top: 0;

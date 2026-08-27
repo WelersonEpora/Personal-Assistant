@@ -134,6 +134,77 @@ test("0 relatos no mês: dados_insuficientes com contexto vazio, sem IA", async 
   assert.equal(spy.mock.callCount(), 0);
 });
 
+test("geração MANUAL com menos de 5 relatos: NÃO persiste linha, devolve aviso e não chama a IA", async (t) => {
+  const spy = t.mock.method(geminiService, "gerarAvaliacaoMensal");
+  for (let i = 0; i < 3; i += 1) await criarRelatoConfirmado(new Date(2026, 2, 5 + i));
+  t.after(limpar);
+
+  const resultado = await avaliacaoMensalService.gerarParaAluno({
+    equipeId: equipe.id,
+    alunoId: aluno.id,
+    anoMes: "2026-03",
+    origem: "manual"
+  });
+
+  assert.equal(resultado.persistida, false);
+  assert.equal(resultado.relatos_considerados, 3);
+  assert.match(resultado.mensagem, /mínimo/i);
+  assert.equal(spy.mock.callCount(), 0);
+
+  const linhas = await AvaliacaoMensal.findAll({ where: { aluno_id: aluno.id, ano_mes: "2026-03" } });
+  assert.equal(linhas.length, 0);
+});
+
+test("geração MANUAL insuficiente não altera uma avaliação já existente do mês", async (t) => {
+  const spy = t.mock.method(geminiService, "gerarAvaliacaoMensal");
+  await AvaliacaoMensal.create({
+    aluno_id: aluno.id,
+    equipe_id: equipe.id,
+    ano_mes: "2026-03",
+    periodo_inicio: "2026-03-01",
+    periodo_fim: "2026-03-31",
+    status: "gerada",
+    origem: "manual",
+    relatos_considerados: 6,
+    baseada_em_registro_ids: [],
+    avaliacao_json: { resumo_geral: "avaliação anterior" },
+    contexto_consolidado_json: { aluno_id: aluno.id }
+  });
+  for (let i = 0; i < 2; i += 1) await criarRelatoConfirmado(new Date(2026, 2, 5 + i));
+  t.after(limpar);
+
+  const resultado = await avaliacaoMensalService.gerarParaAluno({
+    equipeId: equipe.id,
+    alunoId: aluno.id,
+    anoMes: "2026-03",
+    origem: "manual"
+  });
+
+  assert.equal(resultado.persistida, false);
+  assert.equal(spy.mock.callCount(), 0);
+
+  const linha = await AvaliacaoMensal.findOne({ where: { aluno_id: aluno.id, ano_mes: "2026-03" } });
+  assert.equal(linha.status, "gerada");
+  assert.equal(linha.avaliacao_json.resumo_geral, "avaliação anterior");
+});
+
+test("job (origem automatica) com menos de 5 relatos continua gravando dados_insuficientes", async (t) => {
+  const spy = t.mock.method(geminiService, "gerarAvaliacaoMensal");
+  for (let i = 0; i < 3; i += 1) await criarRelatoConfirmado(new Date(2026, 2, 5 + i));
+  t.after(limpar);
+
+  const avaliacao = await avaliacaoMensalService.gerarParaAluno({
+    equipeId: equipe.id,
+    alunoId: aluno.id,
+    anoMes: "2026-03",
+    origem: "automatica"
+  });
+
+  assert.equal(avaliacao.status, "dados_insuficientes");
+  assert.equal(avaliacao.relatos_considerados, 3);
+  assert.equal(spy.mock.callCount(), 0);
+});
+
 test("5+ relatos: chama a IA e persiste avaliação + contexto (aluno_id e cobre_ate normalizados)", async (t) => {
   t.mock.method(geminiService, "gerarAvaliacaoMensal", async () => RESPOSTA_IA_FAKE);
   for (let i = 0; i < 5; i += 1) await criarRelatoConfirmado(new Date(2026, 3, 4 + i));

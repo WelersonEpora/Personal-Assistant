@@ -35,12 +35,11 @@ const routes = [
         props: true,
         meta: { titulo: 'Ficha de Treino' }
       },
+      // O acompanhamento deixou de ser tela própria - virou seção da tela do
+      // aluno (docs/adr/0015). Redirect para não quebrar links antigos.
       {
         path: 'alunos/:id/acompanhamento',
-        name: 'admin-aluno-acompanhamento',
-        component: () => import('../views/admin/AcompanhamentoView.vue'),
-        props: true,
-        meta: { titulo: 'Acompanhamento' }
+        redirect: (to) => ({ name: 'admin-aluno-detalhe', params: { id: to.params.id } })
       },
       { path: 'exercicios', name: 'admin-exercicios', component: () => import('../views/admin/ExerciciosView.vue'), meta: { titulo: 'Exercícios' } },
       { path: 'registros', name: 'admin-registros', component: () => import('../views/admin/RegistrosView.vue'), meta: { titulo: 'Relatos' } },

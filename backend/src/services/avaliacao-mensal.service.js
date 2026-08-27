@@ -153,8 +153,6 @@ async function gerarParaAluno({ equipeId, alunoId, anoMes, origem = "automatica"
   }
 
   const limites = limitesMes(anoMes);
-  const anterior = await avaliacaoMensalRepository.obterAnteriorAoMes({ alunoId, anoMes });
-  const contextoAnterior = anterior?.contexto_consolidado_json || null;
 
   const relatos = await avaliacaoMensalRepository.listarRelatosConfirmadosNoMes({
     equipeId,
@@ -162,6 +160,29 @@ async function gerarParaAluno({ equipeId, alunoId, anoMes, origem = "automatica"
     inicio: limites.inicio,
     fim: limites.fim
   });
+
+  // Geração MANUAL pelo personal com dados insuficientes: NÃO vira registro.
+  // Há um humano na frente para ler o aviso (mesma lógica da análise sob
+  // demanda, docs/adr/0015) - nada é gravado, a situação do mês não muda
+  // (uma avaliação já existente fica intacta) e o personal pode gerar de novo
+  // assim que registrar mais relatos. Só o job (origem "automatica") grava
+  // "dados_insuficientes", porque roda sem humano e precisa marcar o ciclo e
+  // carregar o contexto consolidado adiante.
+  if (relatos.length < MINIMO_RELATOS && origem === "manual") {
+    return {
+      persistida: false,
+      ano_mes: anoMes,
+      relatos_considerados: relatos.length,
+      minimo_relatos: MINIMO_RELATOS,
+      mensagem:
+        `Apenas ${relatos.length} relato(s) confirmado(s) em ${anoMes} - o mínimo para gerar a ` +
+        `avaliação mensal é ${MINIMO_RELATOS}. Nada foi alterado; confirme (ou registre) mais ` +
+        "relatos e gere de novo."
+    };
+  }
+
+  const anterior = await avaliacaoMensalRepository.obterAnteriorAoMes({ alunoId, anoMes });
+  const contextoAnterior = anterior?.contexto_consolidado_json || null;
 
   const avaliacoesPersonal = await avaliacaoPersonalRepository.listarNoPeriodo({
     equipeId,

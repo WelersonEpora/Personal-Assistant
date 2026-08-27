@@ -90,16 +90,37 @@ async function criarRelatoConfirmado(confirmadoEm) {
   return registro;
 }
 
-test("sem relatos recentes: dados_insuficientes, sem chamar a IA e sem consumir a janela de 7 dias", async (t) => {
+test("sem relatos recentes: não chama a IA, NÃO registra nada e NÃO consome a janela de 7 dias", async (t) => {
   const spy = t.mock.method(geminiService, "gerarAnaliseSobDemanda");
   t.after(limpar);
 
-  const analise = await analiseSobDemandaService.solicitar({ equipeId: equipe.id, alunoId: aluno.id, usuarioId: usuario.id });
+  const resultado = await analiseSobDemandaService.solicitar({ equipeId: equipe.id, alunoId: aluno.id, usuarioId: usuario.id });
 
-  assert.equal(analise.status, "dados_insuficientes");
+  assert.equal(resultado.status, "dados_insuficientes");
+  assert.equal(resultado.persistida, false);
+  assert.match(resultado.mensagem, /nada foi consumido/i);
   assert.equal(spy.mock.callCount(), 0);
-  assert.equal(analise.solicitada_por, usuario.id);
-  assert.ok(analise.solicitada_em);
+
+  // nada persistido
+  assert.equal(await AnaliseSobDemanda.count({ where: { aluno_id: aluno.id } }), 0);
+
+  // pode tentar de novo na hora
+  const disp = await analiseSobDemandaService.disponibilidade({ alunoId: aluno.id });
+  assert.equal(disp.disponivel_agora, true);
+});
+
+test("IA julga dados insuficientes: NÃO registra e NÃO consome a janela (só a mensagem da IA)", async (t) => {
+  t.mock.method(geminiService, "gerarAnaliseSobDemanda", async () => ({
+    analise: { dados_insuficientes: true, relatos_considerados: 1, resumo_geral: "Um único relato não permite conclusão.", dimensoes: [] }
+  }));
+  await criarRelatoConfirmado(new Date());
+  t.after(limpar);
+
+  const resultado = await analiseSobDemandaService.solicitar({ equipeId: equipe.id, alunoId: aluno.id, usuarioId: usuario.id });
+
+  assert.equal(resultado.persistida, false);
+  assert.match(resultado.mensagem, /não permite conclusão/i);
+  assert.equal(await AnaliseSobDemanda.count({ where: { aluno_id: aluno.id } }), 0);
 
   const disp = await analiseSobDemandaService.disponibilidade({ alunoId: aluno.id });
   assert.equal(disp.disponivel_agora, true);
@@ -161,17 +182,18 @@ test("limite: uma análise gerada há mais de 7 dias libera nova solicitação",
   assert.equal(analise.status, "gerada");
 });
 
-test("dados_insuficientes anterior NÃO bloqueia nova solicitação", async (t) => {
+test("uma 'falha' anterior (recente) NÃO bloqueia nova solicitação", async (t) => {
   t.mock.method(geminiService, "gerarAnaliseSobDemanda", async () => ANALISE_FAKE);
   await AnaliseSobDemanda.create({
     aluno_id: aluno.id,
     equipe_id: equipe.id,
     solicitada_por: usuario.id,
     solicitada_em: new Date(),
-    status: "dados_insuficientes",
-    relatos_considerados: 0,
+    status: "falha",
+    relatos_considerados: 2,
     baseada_em_registro_ids: [],
-    analise_json: {}
+    erro: "Gemini fora do ar",
+    analise_json: null
   });
   await criarRelatoConfirmado(new Date());
   t.after(limpar);

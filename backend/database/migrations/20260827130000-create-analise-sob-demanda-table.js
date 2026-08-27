@@ -34,7 +34,9 @@ module.exports = {
         onDelete: "CASCADE"
       },
       solicitada_em: { type: Sequelize.DATE, allowNull: false, defaultValue: Sequelize.literal("NOW()") },
-      // gerada | dados_insuficientes | falha
+      // gerada | falha - só existe linha quando a IA foi acionada. "Dados
+      // insuficientes" (sem relatos recentes ou a IA julgando assim) não vira
+      // registro: o service devolve uma resposta informativa não persistida.
       status: { type: Sequelize.STRING(20), allowNull: false },
       relatos_considerados: { type: Sequelize.INTEGER, allowNull: false, defaultValue: 0 },
       baseada_em_registro_ids: { type: Sequelize.JSONB, allowNull: false, defaultValue: [] },

@@ -23,6 +23,9 @@ const analises = ref([])
 const disponibilidade = ref(null)
 const solicitandoAnalise = ref(false)
 const analiseExpandidaId = ref(null)
+// Mensagem quando a IA não chega a produzir análise (sem relatos recentes /
+// dados insuficientes): nada é registrado nem consome a janela de 7 dias.
+const mensagemInsuficiente = ref('')
 
 // Mês de referência default: o mês anterior (o que o job mensal fecha).
 function mesAnterior() {
@@ -79,14 +82,21 @@ onMounted(carregar)
 
 async function solicitarAnalise() {
   solicitandoAnalise.value = true
+  mensagemInsuficiente.value = ''
   try {
-    const analise = await analisesSobDemandaService.solicitar(props.id)
+    const resultado = await analisesSobDemandaService.solicitar(props.id)
+
+    // Nada foi produzido: não entra no histórico e não consome a janela.
+    if (resultado.persistida === false) {
+      mensagemInsuficiente.value = resultado.mensagem
+      showToast('Dados insuficientes para uma análise — nada foi consumido.', 'neutral')
+      return
+    }
+
     await carregarAnalises()
-    analiseExpandidaId.value = analise.id
-    if (analise.status === 'gerada') {
+    analiseExpandidaId.value = resultado.id
+    if (resultado.status === 'gerada') {
       showToast('Análise gerada.', 'success')
-    } else if (analise.status === 'dados_insuficientes') {
-      showToast('Sem relatos confirmados recentes o suficiente para uma análise.', 'neutral')
     } else {
       showToast('A IA não conseguiu gerar a análise. Tente novamente em instantes.', 'warning')
     }
@@ -185,6 +195,10 @@ const contexto = computed(() => detalhe.value?.contexto_consolidado_json || null
           Próxima análise disponível em <strong>{{ formatarDataHora(disponibilidade.proxima_disponivel_em) }}</strong>.
         </span>
         <span v-else-if="disponibilidade" class="list-row-sub">Disponível agora.</span>
+      </div>
+
+      <div v-if="mensagemInsuficiente" class="exercise-obs" style="margin-top: 12px;">
+        {{ mensagemInsuficiente }}
       </div>
     </div>
 

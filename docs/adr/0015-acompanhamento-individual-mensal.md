@@ -91,22 +91,31 @@ indefinidamente.
 Além do ciclo mensal, o personal pode pedir uma **análise pontual** a
 qualquer momento (`analise_sob_demanda`, tabela própria).
 
-- **Limite: 1 análise *gerada* a cada 7 dias por aluno.** `dados_insuficientes`
-  e `falha` não consomem a janela (o personal não é penalizado por pedir cedo
-  demais ou por uma falha do provedor). O `GET` devolve a disponibilidade
-  (`proxima_disponivel_em`) para a UI mostrar quando libera.
+- **Só vira registro quando a IA foi efetivamente acionada.** Sem relatos
+  recentes, ou se a IA julgar os dados insuficientes, o backend devolve uma
+  resposta **não persistida** (`persistida: false`, com `mensagem`) — a UI
+  mostra o aviso, nada entra no histórico e **nada é consumido**. Só `gerada`
+  (análise produzida) e `falha` (a IA foi chamada e deu erro) viram linha.
+- **Limite: 1 análise `gerada` a cada 7 dias por aluno.** `falha` não consome
+  a janela (o personal não é penalizado por uma falha do provedor). O `GET`
+  devolve a disponibilidade (`proxima_disponivel_em`) para a UI mostrar
+  quando libera.
 - **Não substitui** o acompanhamento mensal e **não altera** o contexto
   consolidado: usa a versão mais recente do contexto mensal apenas como
   referência, somente leitura (`contexto_referencia_id`).
 - Considera os relatos confirmados **ainda não consolidados** — `confirmado_em`
   posterior ao fim do último mês fechado (ou dos últimos 60 dias, se não
   houver nenhum fechamento).
-- Sem relato recente → `dados_insuficientes`, sem chamar a IA.
-- Toda solicitação registra `solicitada_em`, `aluno_id` e `solicitada_por`,
-  independentemente do resultado.
 - Continua sendo interpretação da IA, nunca dado oficial. Schema próprio
   (`SCHEMA_ANALISE_SOB_DEMANDA`) — igual à parte `avaliacao_mensal` do mensal,
   sem a parte `contexto_consolidado`.
+
+> Contraste com o **job mensal**: lá, "dados insuficientes" (< 5 relatos)
+> **vira** registro (`avaliacao_mensal` com `status = dados_insuficientes`),
+> porque o job roda sem interação humana, precisa marcar que aquele ciclo
+> aconteceu e carregar o contexto consolidado adiante. Na análise sob demanda
+> há um humano na frente para ler o aviso — não faz sentido gravar um
+> registro formal de algo que não produziu análise.
 
 ### Persona: Personal Trainer Sênior
 
@@ -160,6 +169,11 @@ insuficientes, diferenciar fato/interpretação/hipótese e nunca inventar. É
 - **Limite de 7 dias contando qualquer solicitação.** Rejeitada — punir o
   personal por pedir quando ainda não há dados (ou quando a IA falhou) é
   hostil. Só análise efetivamente `gerada` consome a janela.
+- **Registrar toda solicitação sob demanda (inclusive as sem análise).**
+  Rejeitada — a v1 fazia isso e o resultado era um histórico poluído de
+  "não-análises" e a impressão de que a tentativa tinha "contado". Agora só
+  registra o que a IA produziu; o resto é uma mensagem em tela (o
+  `logger.info` guarda o rastro para observabilidade).
 
 ## Consequências
 

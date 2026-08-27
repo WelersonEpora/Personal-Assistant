@@ -8,7 +8,13 @@ module.exports = (sequelize) => {
   // pedido do personal (limite de 1 a cada 7 dias por aluno). NÃO substitui
   // o acompanhamento mensal e NÃO altera o contexto consolidado - por isso
   // não guarda `contexto_consolidado_json`. Nunca é dado oficial.
-  const STATUS_VALIDOS = ["gerada", "dados_insuficientes", "falha"];
+  //
+  // Só vira registro quando a IA realmente foi acionada: "gerada" (análise
+  // produzida, é a única que conta para a janela de 7 dias) ou "falha"
+  // (a IA foi chamada e deu erro - fica para rastreio, não conta). Quando
+  // não há relatos recentes, ou a IA julga os dados insuficientes, o
+  // service devolve uma resposta informativa NÃO persistida.
+  const STATUS_VALIDOS = ["gerada", "falha"];
 
   const AnaliseSobDemanda = sequelize.define(
     "AnaliseSobDemanda",

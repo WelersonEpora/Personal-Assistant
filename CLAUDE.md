@@ -295,9 +295,10 @@ MVP completo e verificado de ponta a ponta:
   (Gemini, fila em processo), revisão/confirmação (`validacao` como único
   dado oficial), Acompanhamento Individual Mensal (docs/adr/0015 — avaliação
   da IA por contexto consolidado, lote mensal + geração manual; + análise sob
-  demanda com limite de 1 a cada 7 dias; IA atua como personal trainer
-  sênior; nunca dado oficial). 135 testes automatizados (`node --test`,
-  unitários + integração contra banco de teste dedicado).
+  demanda com limite de 1 análise gerada a cada 7 dias — sem relatos/dados
+  insuficientes não vira registro nem consome a janela; IA atua como personal
+  trainer sênior; nunca dado oficial). 136 testes automatizados (`node
+  --test`, unitários + integração contra banco de teste dedicado).
 - **Frontend**: app Vue 3 + Vite + PWA único (`/captura` mobile-first
   offline, `/admin` gestão/validação), IndexedDB + fila de sincronização
   própria, gravador de áudio (MediaRecorder), múltiplos Registros

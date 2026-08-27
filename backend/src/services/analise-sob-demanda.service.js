@@ -79,19 +79,11 @@ function montarPromptAnalise({ alunoId, contextoReferencia, relatos }) {
   ].join("\n");
 }
 
-function analiseDadosInsuficientes(relatos) {
-  return {
-    dados_insuficientes: true,
-    relatos_considerados: relatos.length,
-    resumo_geral:
-      "Não há relatos confirmados recentes o suficiente para uma análise. " +
-      "Registre e confirme novos relatos e solicite a análise novamente.",
-    dimensoes: [],
-    destaques: [],
-    alertas: [],
-    recomendacoes: [],
-    pendencias_confirmacao: []
-  };
+// Resultado NÃO persistido: nada chegou a ser produzido, então não vira
+// registro formal e não consome a janela de 7 dias (docs/adr/0015). O
+// frontend mostra `mensagem` ao personal.
+function resultadoInsuficiente({ relatosConsiderados, mensagem }) {
+  return { status: "dados_insuficientes", persistida: false, relatos_considerados: relatosConsiderados, mensagem };
 }
 
 async function solicitar({ equipeId, alunoId, usuarioId }) {
@@ -131,13 +123,15 @@ async function solicitar({ equipeId, alunoId, usuarioId }) {
     provedor: "gemini"
   };
 
+  // Sem relato recente: não chega a chamar a IA -> não registra nada e não
+  // consome a janela de 7 dias. Só informa o personal.
   if (relatos.length === 0) {
-    return analiseSobDemandaRepository.criar({
-      ...base,
-      status: "dados_insuficientes",
-      modelo: null,
-      erro: null,
-      analise_json: analiseDadosInsuficientes(relatos)
+    logger.info({ alunoId, usuarioId }, "[analise-sob-demanda] solicitação sem relatos recentes - não registrada");
+    return resultadoInsuficiente({
+      relatosConsiderados: 0,
+      mensagem:
+        "Não há relatos confirmados recentes o suficiente para uma análise. " +
+        "Registre e confirme novos relatos e solicite novamente - nada foi consumido."
     });
   }
 
@@ -147,6 +141,19 @@ async function solicitar({ equipeId, alunoId, usuarioId }) {
     if (!analise) {
       throw new Error("Resposta da IA incompleta (sem 'analise').");
     }
+
+    // A IA pode julgar que os dados não sustentam uma conclusão. Também não
+    // vira registro formal nem consome a janela - só a mensagem ao personal.
+    if (analise.dados_insuficientes) {
+      logger.info({ alunoId, usuarioId }, "[analise-sob-demanda] IA julgou dados insuficientes - não registrada");
+      return resultadoInsuficiente({
+        relatosConsiderados: relatos.length,
+        mensagem:
+          analise.resumo_geral ||
+          "Os relatos recentes não sustentam uma análise conclusiva. Nada foi consumido - tente novamente após novos relatos."
+      });
+    }
+
     return analiseSobDemandaRepository.criar({
       ...base,
       status: "gerada",

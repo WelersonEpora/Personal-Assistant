@@ -1,6 +1,17 @@
 "use strict";
 
-const { sequelize, Registro, RegistroEntrada, ArquivoAudio, Transcricao, ResultadoIa, Validacao, Aluno } = require("../models");
+const {
+  sequelize,
+  Registro,
+  RegistroEntrada,
+  ArquivoAudio,
+  Transcricao,
+  ResultadoIa,
+  Validacao,
+  PropostaAvaliacaoFisica,
+  AvaliacaoFisica,
+  Aluno
+} = require("../models");
 
 const INCLUDE_ENTRADAS_COMPLETO = {
   model: RegistroEntrada,
@@ -81,7 +92,10 @@ function obterDetalhado(id) {
       { model: Aluno, as: "aluno", attributes: ["id", "nome"] },
       INCLUDE_ENTRADAS_COMPLETO,
       { model: ResultadoIa, as: "resultadoIa" },
-      { model: Validacao, as: "validacao" }
+      { model: Validacao, as: "validacao" },
+      // docs/adr/0018 - só preenchidos para tipo = avaliacao_fisica.
+      { model: PropostaAvaliacaoFisica, as: "propostaAvaliacaoFisica" },
+      { model: AvaliacaoFisica, as: "avaliacaoFisica" }
     ]
   });
 }

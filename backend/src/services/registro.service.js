@@ -43,18 +43,28 @@ async function excluir(equipeId, registroId) {
   await registroRepository.marcarComoExcluido({ id: registroId, equipeId });
 }
 
-// Reprocessamento manual (botão "Tentar novamente" na revisão): só
-// Registros que pararam em erro_transcricao/erro_interpretacao podem
-// voltar para a fila - processarRegistro (jobs/processador-fila-ia.js) já
-// pula transcrições com status "concluida", então retomar não repete
-// trabalho que já deu certo antes da falha.
+// Reprocessamento manual (botão "Tentar novamente" na revisão): Registros
+// que pararam em erro_transcricao/erro_interpretacao voltam para a fila -
+// processarRegistro (jobs/processador-fila-ia.js) já pula transcrições com
+// status "concluida", então retomar não repete trabalho que já deu certo.
+//
+// docs/adr/0018 - para tipo = avaliacao_fisica, "Refazer interpretação" também
+// vale a partir de aguardando_revisao (proposta ruim, mas sem erro): nada
+// oficial foi criado ainda (a avaliacao_fisica só nasce da confirmação), então
+// regenerar a proposta é seguro. Para tipo = atendimento isso fica fora de
+// escopo - um relato aguardando revisão não volta para a fila por aqui.
+function podeReprocessar(registro) {
+  if (STATUS_REPROCESSAVEIS.has(registro.status)) return true;
+  return registro.tipo === Registro.TIPOS.AVALIACAO_FISICA && registro.status === Registro.STATUS.AGUARDANDO_REVISAO;
+}
+
 async function reprocessar(equipeId, registroId) {
   const registro = await registroRepository.obterPorIdEquipe({ id: registroId, equipeId });
   if (!registro) {
     throw new NotFoundError("Registro não encontrado.");
   }
-  if (!STATUS_REPROCESSAVEIS.has(registro.status)) {
-    throw new ConflictError('Só é possível reprocessar um Registro com falha de transcrição ou interpretação.');
+  if (!podeReprocessar(registro)) {
+    throw new ConflictError("Só é possível reprocessar um Registro com falha de transcrição ou interpretação.");
   }
   await registroRepository.atualizarStatus(registroId, Registro.STATUS.RECEBIDO);
   enfileirarRegistro(registroId);

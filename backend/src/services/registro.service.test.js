@@ -29,14 +29,15 @@ after(async () => {
   await Equipe.destroy({ where: { id: [equipe.id, outraEquipe.id] } });
 });
 
-async function criarRegistro(status) {
+async function criarRegistro(status, tipo = Registro.TIPOS.ATENDIMENTO) {
   const registro = await Registro.create({
     id: randomUUID(),
     usuario_id: usuario.id,
     equipe_id: equipe.id,
     aluno_id: aluno.id,
     iniciado_em: new Date(),
-    status
+    status,
+    tipo
   });
   await RegistroEntrada.create({ registro_id: registro.id, ordem: 0, tipo: "texto", conteudo_texto: "Conteúdo de teste." });
   return registro;
@@ -109,6 +110,14 @@ test("reprocessar: rejeita quando o Registro não está em estado de erro", asyn
   t.after(() => Registro.destroy({ where: { id: registro.id } }));
 
   await assert.rejects(() => registroService.reprocessar(equipe.id, registro.id), /falha de transcrição ou interpretação/);
+});
+
+test("reprocessar: avaliação física em aguardando_revisao pode refazer a interpretação (docs/adr/0018)", async (t) => {
+  const registro = await criarRegistro(Registro.STATUS.AGUARDANDO_REVISAO, Registro.TIPOS.AVALIACAO_FISICA);
+  t.after(() => Registro.destroy({ where: { id: registro.id } }));
+
+  const resultado = await registroService.reprocessar(equipe.id, registro.id);
+  assert.equal(resultado.status, Registro.STATUS.RECEBIDO);
 });
 
 test("reprocessar: rejeita quando o Registro pertence a outra equipe", async (t) => {

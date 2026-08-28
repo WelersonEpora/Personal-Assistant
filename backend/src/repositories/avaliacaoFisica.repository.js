@@ -40,9 +40,11 @@ function obterPorId({ id, equipeId }) {
 }
 
 // Cria a avaliação + suas medidas numa transação. `medidas` já validadas/
-// normalizadas pelo service.
-async function criar({ header, medidas }) {
-  return sequelize.transaction(async (transaction) => {
+// normalizadas pelo service. `transacaoExterna` (docs/adr/0018): quando a
+// confirmação de um Registro compõe a criação com o avanço de `registro.status`
+// na MESMA transação, ela é passada aqui; senão o repo abre a própria.
+async function criar({ header, medidas }, transacaoExterna = null) {
+  const executar = async (transaction) => {
     const avaliacao = await AvaliacaoFisica.create(header, { transaction });
     if (medidas.length > 0) {
       await AvaliacaoFisicaMedida.bulkCreate(
@@ -51,7 +53,8 @@ async function criar({ header, medidas }) {
       );
     }
     return avaliacao.id;
-  });
+  };
+  return transacaoExterna ? executar(transacaoExterna) : sequelize.transaction(executar);
 }
 
 // Atualiza o header e, se `medidas` != null, substitui todo o conjunto de

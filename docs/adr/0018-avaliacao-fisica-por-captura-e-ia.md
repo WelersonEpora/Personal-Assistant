@@ -1,12 +1,12 @@
 # ADR-0018: Avaliação Física por captura (áudio/texto) + interpretação da IA
 
-**Status:** Aceita (2026-08-28)
+**Status:** Aceita e implementada (2026-08-28)
 
-> Decisão de **desenho**; ainda não implementada. Antes de qualquer tela, um
-> experimento barato mede o acerto da extração numérica contra um áudio real
-> (ver Consequências). Esta ADR não revoga a ADR-0007 (IA nunca grava dado
-> oficial) nem a fronteira da ADR-0016 (avaliação física é CRUD direto, fora do
-> pipeline de IA e de `validacao`) — desenha um caminho que preserva as duas.
+> Esta ADR não revoga a ADR-0007 (IA nunca grava dado oficial) nem a fronteira
+> da ADR-0016 (avaliação física é CRUD direto, fora do pipeline de IA e de
+> `validacao`) — desenha um caminho que preserva as duas. A qualidade da
+> extração numérica com Gemini real ainda não foi medida (falta
+> `GEMINI_API_KEY` de verdade — mesma pendência do resto do pipeline de IA).
 
 ## Contexto
 

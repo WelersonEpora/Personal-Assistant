@@ -30,6 +30,8 @@ async function sincronizar(registro) {
     alunoId: registro.alunoId,
     titulo: registro.titulo || '',
     iniciadoEm: registro.iniciadoEm,
+    // docs/adr/0018 - ausente no backend cai em 'atendimento' (compat).
+    tipo: registro.tipo || 'atendimento',
     entradas: registro.entradas.map((entrada) => ({
       ordem: entrada.ordem,
       tipo: entrada.tipo,

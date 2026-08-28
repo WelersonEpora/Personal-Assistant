@@ -64,6 +64,18 @@ test('processarFila: sucesso remove o Registro do dispositivo', async () => {
   mock.restoreAll()
 })
 
+// docs/adr/0018 - o tipo do Registro acompanha a sincronização.
+test('processarFila: o tipo do Registro chega ao serviço de sincronização', async () => {
+  const store = novaStoreOnline()
+  const chamadaSincronizar = mock.method(registrosService, 'sincronizar', async () => ({ id: 'reg-tipo', status: 'recebido' }))
+
+  await store.salvarLocal(registroLocal('reg-tipo', { tipo: 'avaliacao_fisica' }))
+  await store.processarFila()
+
+  assert.equal(chamadaSincronizar.mock.calls[0].arguments[0].tipo, 'avaliacao_fisica')
+  mock.restoreAll()
+})
+
 test('processarFila: falha mantém o Registro local como erro_sincronizacao (não perde o dado)', async () => {
   const store = novaStoreOnline()
   mock.method(registrosService, 'sincronizar', async () => {

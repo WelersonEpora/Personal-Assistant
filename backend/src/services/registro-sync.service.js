@@ -10,6 +10,52 @@ const { Registro, sequelize } = registroRepository;
 
 const TIPOS_REGISTRO = Object.values(Registro.TIPOS);
 
+// Máximo de dias no passado que a CAPTURA pode retroagir (docs/adr/0019). Para
+// datas mais antigas, o personal ajusta pelo desktop (endpoint próprio, sem
+// essa janela).
+const DIAS_RETROATIVOS_CAPTURA = 7;
+
+const FORMATO_DATA = /^\d{4}-\d{2}-\d{2}$/;
+
+function apenasData(iso) {
+  return new Date(iso).toISOString().slice(0, 10);
+}
+
+function somarDias(dataYmd, dias) {
+  const d = new Date(`${dataYmd}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+
+// docs/adr/0019: resolve a data do atendimento vinda do cliente.
+// - ausente (cliente anterior a esta mudança) -> deriva de iniciadoEm::date,
+//   mesma compatibilidade do `tipo` na ADR-0018;
+// - presente -> precisa ser AAAA-MM-DD válida e cair na janela
+//   [iniciadoEm::date - 7, iniciadoEm::date] (ancorada no INÍCIO da captura,
+//   não no relógio do servidor - um Registro iniciado offline e sincronizado
+//   dias depois continua válido).
+function resolverDataAtendimento(iniciadoEm, dataAtendimento) {
+  const iniciadoData = apenasData(iniciadoEm);
+  if (!dataAtendimento) {
+    return iniciadoData;
+  }
+  if (typeof dataAtendimento !== "string" || !FORMATO_DATA.test(dataAtendimento)) {
+    throw new ValidationError('"dataAtendimento" deve estar no formato AAAA-MM-DD.');
+  }
+  const d = new Date(`${dataAtendimento}T00:00:00Z`);
+  if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== dataAtendimento) {
+    throw new ValidationError('"dataAtendimento" é uma data inválida.');
+  }
+  const minima = somarDias(iniciadoData, -DIAS_RETROATIVOS_CAPTURA);
+  if (dataAtendimento > iniciadoData || dataAtendimento < minima) {
+    throw new ValidationError(
+      `"dataAtendimento" deve estar entre ${minima} e ${iniciadoData} (até ${DIAS_RETROATIVOS_CAPTURA} dias ` +
+        "antes do início da captura). Para datas mais antigas, ajuste pelo desktop."
+    );
+  }
+  return dataAtendimento;
+}
+
 function validarMetadata(registroId, metadata) {
   if (!metadata || metadata.id !== registroId) {
     throw new ValidationError('O "id" do metadata precisa ser igual ao id do Registro na URL.');
@@ -20,6 +66,9 @@ function validarMetadata(registroId, metadata) {
   if (!metadata.iniciadoEm) {
     throw new ValidationError('"iniciadoEm" é obrigatório.');
   }
+  // Valida formato/janela da data do atendimento (docs/adr/0019); o valor
+  // resolvido é recalculado em `sincronizar`.
+  resolverDataAtendimento(metadata.iniciadoEm, metadata.dataAtendimento);
   // docs/adr/0018 - o tipo nasce no cliente; ausente = `atendimento` (mantém
   // compatível com clientes/Registros anteriores a esta mudança).
   if (metadata.tipo !== undefined && !TIPOS_REGISTRO.includes(metadata.tipo)) {
@@ -63,6 +112,7 @@ async function sincronizar({ usuarioId, equipeId, registroId, metadata, arquivos
         alunoId: metadata.alunoId,
         titulo: metadata.titulo,
         iniciadoEm: metadata.iniciadoEm,
+        dataAtendimento: resolverDataAtendimento(metadata.iniciadoEm, metadata.dataAtendimento),
         tipo: metadata.tipo || Registro.TIPOS.ATENDIMENTO
       },
       transaction
@@ -110,4 +160,4 @@ async function sincronizar({ usuarioId, equipeId, registroId, metadata, arquivos
   return registro;
 }
 
-module.exports = { sincronizar, validarMetadata };
+module.exports = { sincronizar, validarMetadata, resolverDataAtendimento, DIAS_RETROATIVOS_CAPTURA };

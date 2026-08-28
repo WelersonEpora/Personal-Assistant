@@ -53,6 +53,7 @@ function relatoResumo(registro) {
     titulo: registro.titulo || null,
     status: registro.status,
     iniciado_em: registro.iniciado_em,
+    data_atendimento: registro.data_atendimento,
     entradas_count: Array.isArray(registro.entradas) ? registro.entradas.length : 0
   };
 }
@@ -142,8 +143,10 @@ function montarFeed({ relatos, avaliacoesFisicas, fichas, avaliacoesMensais }) {
     relatos.map((r) => ({
       tipo: "relato",
       aluno: r.aluno ? { id: r.aluno.id, nome: r.aluno.nome } : null,
+      // `quando` = created_at: o feed é "o que entrou no sistema" (docs/adr/0017).
+      // data_atendimento vai junto só para a linha poder exibir "atendimento de".
       quando: r.created_at,
-      dados: { id: r.id, titulo: r.titulo || null, status: r.status }
+      dados: { id: r.id, titulo: r.titulo || null, status: r.status, data_atendimento: r.data_atendimento }
     })),
     avaliacoesFisicas.map((a) => ({
       tipo: "avaliacao_fisica",

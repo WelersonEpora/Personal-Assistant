@@ -54,6 +54,16 @@ function montarContextoConsolidado(entradas) {
     .join("\n");
 }
 
+// docs/adr/0019: o interpretador de relato recebe a data do atendimento como
+// cabeçalho não-normativo - ajuda a IA a resolver "ontem", "na segunda" ditos
+// no relato quando a captura foi feita depois. Não se aplica à avaliação
+// física (o interpretador de lá extrai `data_ouvida` só do que foi dito -
+// ADR-0018).
+function comCabecalhoDeData(contexto, dataAtendimento) {
+  if (!dataAtendimento) return contexto;
+  return `Data do atendimento: ${dataAtendimento}\n\n${contexto}`;
+}
+
 async function transcreverEntradasDeAudio(registroId, entradas) {
   for (const entrada of entradas) {
     if (entrada.tipo !== "audio" || !entrada.arquivoAudio) continue;
@@ -104,7 +114,10 @@ async function interpretarAvaliacaoFisica(registroId) {
 
 async function interpretarConteudoConsolidado(registroId) {
   const registroAtualizado = await registroRepository.obterParaProcessamento(registroId);
-  const contexto = montarContextoConsolidado(registroAtualizado.entradas);
+  const contexto = comCabecalhoDeData(
+    montarContextoConsolidado(registroAtualizado.entradas),
+    registroAtualizado.data_atendimento
+  );
 
   await registroRepository.atualizarStatus(registroId, Registro.STATUS.INTERPRETANDO);
   try {

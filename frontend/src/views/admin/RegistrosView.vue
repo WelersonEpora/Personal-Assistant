@@ -2,7 +2,16 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import registrosService from '../../services/registros.service.js'
-import { statusMeta, resumoEntradas, entradaIcon, corParaId, iniciais, formatarData, formatarHora } from '../../utils/registroStatus.js'
+import {
+  statusMeta,
+  resumoEntradas,
+  entradaIcon,
+  corParaId,
+  iniciais,
+  formatarData,
+  formatarHora,
+  formatarDataAtendimento
+} from '../../utils/registroStatus.js'
 import { useToasts } from '../../composables/useToasts.js'
 import { useConfirm } from '../../composables/useConfirm.js'
 import ToastStack from '../../components/ToastStack.vue'
@@ -185,8 +194,8 @@ async function reprocessarRegistro(registro) {
           <div class="registro-card-who">
             <span class="avatar sz-sm" :style="{ background: corParaId(registro.aluno?.id) }">{{ iniciais(registro.aluno?.nome) }}</span>
             <div>
-              <div class="list-row-title">{{ registro.aluno?.nome }} — Registro de {{ formatarData(registro.created_at) }}</div>
-              <div class="list-row-sub">{{ registro.titulo || 'Sem título' }} · iniciado às {{ formatarHora(registro.iniciado_em) }}</div>
+              <div class="list-row-title">{{ registro.aluno?.nome }} — Atendimento em {{ formatarDataAtendimento(registro.data_atendimento) }}</div>
+              <div class="list-row-sub">{{ registro.titulo || 'Sem título' }} · registrado {{ formatarData(registro.created_at) }} às {{ formatarHora(registro.iniciado_em) }}</div>
             </div>
           </div>
           <div class="registro-card-head-actions">

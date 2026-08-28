@@ -44,3 +44,20 @@ test("montarPromptAvaliacao: inclui os itens confirmados de cada relato e a rast
   assert.match(prompt, /Supino: 4x8 40kg \(obs: boa execução\)/);
   assert.match(prompt, /nota geral: aluno motivado/);
 });
+
+test("montarPromptAvaliacao: usa data_atendimento como 'sessão em' (docs/adr/0019)", () => {
+  const relatos = [
+    {
+      id: "rel-1",
+      // captura no dia 12, mas o atendimento foi no dia 8
+      iniciado_em: new Date(2026, 2, 12),
+      data_atendimento: "2026-03-08",
+      validacao: {
+        confirmado_em: new Date(2026, 2, 12),
+        payload_confirmado_json: { itens: [], notaGeral: "" }
+      }
+    }
+  ];
+  const prompt = montarPromptAvaliacao({ alunoId: "aluno-1", anoMes: "2026-03", contextoAnterior: null, relatos });
+  assert.match(prompt, /sessão em 2026-03-08/);
+});

@@ -88,7 +88,10 @@ const FEED_ICONE = {
   avaliacao_mensal: '📊'
 }
 function descricaoEvento(ev) {
-  if (ev.tipo === 'relato') return ev.dados.titulo || 'Relato'
+  if (ev.tipo === 'relato') {
+    const quando = ev.dados.data_atendimento ? ` (atendimento ${formatarDataAvaliacao(ev.dados.data_atendimento)})` : ''
+    return `${ev.dados.titulo || 'Relato'}${quando}`
+  }
   if (ev.tipo === 'avaliacao_fisica') return `Avaliação física de ${formatarDataAvaliacao(ev.dados.data)}`
   if (ev.tipo === 'ficha_treino') return ev.dados.ativo ? 'Nova ficha de treino' : 'Ficha de treino substituída'
   if (ev.tipo === 'avaliacao_mensal') return `Acompanhamento de ${rotuloMesAno(`${ev.dados.ano_mes}-01`)}`

@@ -79,6 +79,31 @@ test("obterOuCriarRegistro: tipo ausente cai em 'atendimento'", async (t) => {
   assert.equal(registro.tipo, "atendimento");
 });
 
+test("obterOuCriarRegistro: grava data_atendimento; ausente deriva de iniciadoEm::date (docs/adr/0019)", async (t) => {
+  const comData = randomUUID();
+  const semData = randomUUID();
+  t.after(async () => Registro.destroy({ where: { id: [comData, semData] } }));
+
+  const a = await registroRepository.obterOuCriarRegistro(
+    {
+      id: comData,
+      usuarioId: usuario.id,
+      equipeId: equipe.id,
+      alunoId: aluno.id,
+      iniciadoEm: new Date("2026-08-20T10:00:00Z"),
+      dataAtendimento: "2026-08-18"
+    },
+    null
+  );
+  assert.equal(a.registro.data_atendimento, "2026-08-18");
+
+  const b = await registroRepository.obterOuCriarRegistro(
+    { id: semData, usuarioId: usuario.id, equipeId: equipe.id, alunoId: aluno.id, iniciadoEm: new Date("2026-08-20T10:00:00Z") },
+    null
+  );
+  assert.equal(b.registro.data_atendimento, "2026-08-20");
+});
+
 test("obterOuCriarEntrada: reenviar a mesma (registro_id, ordem) não duplica a entrada", async (t) => {
   const registroId = randomUUID();
   t.after(async () => Registro.destroy({ where: { id: registroId } }));

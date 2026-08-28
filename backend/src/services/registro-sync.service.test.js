@@ -7,7 +7,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 
-const { validarMetadata } = require("./registro-sync.service");
+const { validarMetadata, resolverDataAtendimento } = require("./registro-sync.service");
 
 function metadataValida(overrides = {}) {
   return {
@@ -72,4 +72,37 @@ test("validarMetadata: aceita tipo ausente (compat) e tipo válido", () => {
 
 test("validarMetadata: rejeita tipo de Registro desconhecido", () => {
   assert.throws(() => validarMetadata("registro-1", metadataValida({ tipo: "ficha" })), /tipo/);
+});
+
+// docs/adr/0019 - data do atendimento (separada da data de captura)
+const INICIO = "2026-08-20T14:00:00.000Z";
+
+test("resolverDataAtendimento: ausente -> deriva de iniciadoEm::date (compat)", () => {
+  assert.equal(resolverDataAtendimento(INICIO, undefined), "2026-08-20");
+  assert.equal(resolverDataAtendimento(INICIO, ""), "2026-08-20");
+});
+
+test("resolverDataAtendimento: aceita o próprio dia e até 7 dias antes", () => {
+  assert.equal(resolverDataAtendimento(INICIO, "2026-08-20"), "2026-08-20");
+  assert.equal(resolverDataAtendimento(INICIO, "2026-08-13"), "2026-08-13");
+});
+
+test("resolverDataAtendimento: rejeita data futura (depois do início da captura)", () => {
+  assert.throws(() => resolverDataAtendimento(INICIO, "2026-08-21"), /entre .* e 2026-08-20/);
+});
+
+test("resolverDataAtendimento: rejeita mais de 7 dias antes (é caso de desktop)", () => {
+  assert.throws(() => resolverDataAtendimento(INICIO, "2026-08-12"), /desktop/);
+});
+
+test("resolverDataAtendimento: rejeita formato inválido", () => {
+  assert.throws(() => resolverDataAtendimento(INICIO, "20/08/2026"), /AAAA-MM-DD/);
+  assert.throws(() => resolverDataAtendimento(INICIO, "2026-13-01"), /inválida/);
+});
+
+test("validarMetadata: propaga erro de dataAtendimento fora da janela", () => {
+  assert.throws(
+    () => validarMetadata("registro-1", metadataValida({ iniciadoEm: INICIO, dataAtendimento: "2026-07-01" })),
+    /desktop/
+  );
 });

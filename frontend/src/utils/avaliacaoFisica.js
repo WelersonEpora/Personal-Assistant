@@ -169,10 +169,12 @@ export const DERIVADAS = ['imc', 'rcq', 'massa_gorda', 'massa_magra']
 // formato que o AvaliacaoFisicaForm hidrata (sem anamnese/postural - a
 // proposta não os produz). Métricas derivadas são descartadas (o service
 // recalcula). Só medidas com valor numérico positivo entram.
-export function propostaParaRascunho(payload = {}) {
+// `dataFallback` (docs/adr/0019): a data do atendimento do Registro, usada
+// quando a IA não ouviu uma data explícita no áudio (data_ouvida vazia).
+export function propostaParaRascunho(payload = {}, dataFallback = '') {
   const medidas = Array.isArray(payload.medidas) ? payload.medidas : []
   return {
-    data: payload.data_ouvida || '',
+    data: payload.data_ouvida || dataFallback || '',
     observacoes: payload.observacoes || '',
     medidas: medidas
       .filter((m) => m && !DERIVADAS.includes(m.metrica_codigo) && Number(m.valor) > 0)

@@ -57,6 +57,18 @@ module.exports = (sequelize) => {
         type: DataTypes.DATE,
         allowNull: false
       },
+      // docs/adr/0019 - o DIA em que o atendimento/evento aconteceu, separado
+      // das datas do sistema (iniciado_em/created_at/confirmado_em). Nasce no
+      // cliente (default: hoje; até 7 dias atrás na captura), editável no
+      // desktop para qualquer data passada. DATEONLY: evento de um dia, sem
+      // hora nem fuso (mesmo critério de avaliacao_fisica.data). O defaultValue
+      // cobre inserts diretos (testes/scripts) - o caminho de sync sempre passa
+      // o valor resolvido (ver registro-sync.service.js).
+      data_atendimento: {
+        type: DataTypes.DATEONLY,
+        allowNull: false,
+        defaultValue: () => new Date().toISOString().slice(0, 10)
+      },
       finalizado_em: {
         type: DataTypes.DATE,
         allowNull: true

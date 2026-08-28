@@ -56,7 +56,10 @@ function formatarRelato(registro) {
     ? itens.map((item) => `  - ${item.label}: ${item.valor}${item.obs ? ` (obs: ${item.obs})` : ""}`).join("\n")
     : "  - (nenhum item estruturado)";
   const nota = payload.notaGeral ? `\n  nota geral: ${payload.notaGeral}` : "";
-  const sessao = registro.iniciado_em ? new Date(registro.iniciado_em).toISOString().slice(0, 10) : "?";
+  // docs/adr/0019: data do atendimento (fallback iniciado_em p/ relatos antigos).
+  const sessao =
+    registro.data_atendimento ||
+    (registro.iniciado_em ? new Date(registro.iniciado_em).toISOString().slice(0, 10) : "?");
   const confirmado = registro.validacao?.confirmado_em
     ? new Date(registro.validacao.confirmado_em).toISOString().slice(0, 10)
     : "?";

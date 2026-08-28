@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import registrosService from '../../services/registros.service.js'
-import { corParaId, iniciais, formatarData } from '../../utils/registroStatus.js'
+import { corParaId, iniciais, formatarData, formatarDataAtendimento } from '../../utils/registroStatus.js'
 
 const route = useRoute()
 
@@ -106,7 +106,8 @@ function notaGeralConfirmada(registro) {
             <div>
               <div class="list-row-title">{{ registro.aluno?.nome }} — {{ registro.titulo || 'Registro' }}</div>
               <div class="list-row-sub">
-                Confirmado em {{ formatarData(registro.validacao?.confirmado_em || registro.created_at) }} ·
+                Atendimento em {{ formatarDataAtendimento(registro.data_atendimento) }} ·
+                confirmado em {{ formatarData(registro.validacao?.confirmado_em || registro.created_at) }} ·
                 {{ registro.validacao?.payload_confirmado_json?.itens?.length || 0 }} item(ns)
               </div>
             </div>

@@ -52,3 +52,9 @@ test('propostaParaRascunho: metodo ausente vira "direto"', () => {
   const r = propostaParaRascunho({ medidas: [{ metrica_codigo: 'perimetro_cintura', valor: 84 }] })
   assert.equal(r.medidas[0].metodo, 'direto')
 })
+
+test('propostaParaRascunho: sem data_ouvida usa a data do atendimento (docs/adr/0019)', () => {
+  assert.equal(propostaParaRascunho({}, '2026-08-20').data, '2026-08-20')
+  // data_ouvida explícita ganha do fallback
+  assert.equal(propostaParaRascunho({ data_ouvida: '2026-08-18' }, '2026-08-20').data, '2026-08-18')
+})

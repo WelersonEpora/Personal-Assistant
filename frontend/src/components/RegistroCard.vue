@@ -7,7 +7,7 @@
 import { ref, watch, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import registrosService from '../services/registros.service.js'
-import { statusMeta, formatarDataHora } from '../utils/registroStatus.js'
+import { statusMeta, formatarDataHora, formatarDataAtendimento } from '../utils/registroStatus.js'
 
 const props = defineProps({
   registro: { type: Object, required: true },
@@ -77,13 +77,14 @@ onBeforeUnmount(() => {
     <div class="registro-card-head row-clickable" @click="emit('toggle')">
       <div class="acomp-feed-cab">
         <span class="list-row-title">
-          📋 {{ confirmado() ? 'Relato confirmado' : 'Relato' }}<span class="acomp-linha-data"> · {{ formatarDataHora(registro.validacao?.confirmado_em || registro.created_at) }}</span>
+          📋 {{ confirmado() ? 'Relato confirmado' : 'Relato' }}<span class="acomp-linha-data"> · atendimento em {{ formatarDataAtendimento(registro.data_atendimento) }}</span>
         </span>
         <span class="list-row-sub">
           <template v-if="confirmado()">
             {{ registro.validacao?.payload_confirmado_json?.itens?.length || 0 }} item(ns) confirmado(s)
+            · confirmado {{ formatarDataHora(registro.validacao?.confirmado_em || registro.created_at) }}
           </template>
-          <template v-else>{{ registro.titulo || 'Registro' }}</template>
+          <template v-else>{{ registro.titulo || 'Registro' }} · registrado {{ formatarDataHora(registro.created_at) }}</template>
         </span>
       </div>
       <span class="badge" :class="'badge-' + statusMeta(registro.status).badge">

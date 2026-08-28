@@ -83,4 +83,13 @@ async function reprocessar(req, res) {
   success(res, registro);
 }
 
-module.exports = { list, getById, sincronizar, streamAudio, confirmar, confirmarAvaliacaoFisica, excluir, reprocessar };
+module.exports = {
+  list,
+  getById,
+  sincronizar,
+  streamAudio,
+  confirmar,
+  confirmarAvaliacaoFisica,
+  excluir,
+  reprocessar
+};

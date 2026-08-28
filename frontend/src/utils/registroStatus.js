@@ -72,6 +72,59 @@ export function formatarData(dataIso) {
   return new Date(dataIso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
 }
 
+// docs/adr/0019 - data do atendimento (DATEONLY "AAAA-MM-DD", sem fuso).
+const DIAS_SEMANA_CURTO = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
+
+// "AAAA-MM-DD" do dia local de hoje (a data que o personal enxerga no relógio).
+export function hojeYmd(base = new Date()) {
+  return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`
+}
+
+// Chips de dia relativo para o seletor "quando foi o atendimento?" (captura):
+// Hoje, Ontem e os demais como "qua 26", limitado aos últimos `qtd` dias
+// (docs/adr/0019 - captura só retroage 7 dias; datas mais antigas, no desktop).
+export function chipsDataAtendimento(qtd = 8) {
+  const hoje = new Date()
+  hoje.setHours(0, 0, 0, 0)
+  const lista = []
+  for (let i = 0; i < qtd; i += 1) {
+    const d = new Date(hoje)
+    d.setDate(d.getDate() - i)
+    let rotulo
+    if (i === 0) rotulo = 'Hoje'
+    else if (i === 1) rotulo = 'Ontem'
+    else rotulo = `${DIAS_SEMANA_CURTO[d.getDay()]} ${d.getDate()}`
+    lista.push({ ymd: hojeYmd(d), rotulo })
+  }
+  return lista
+}
+
+// Rótulo curto de uma data de atendimento para banners/listas: "Hoje",
+// "Ontem" ou "DD/MM/AAAA". `curto` usa "DD/MM".
+export function rotuloDataAtendimento(ymd, { curto = false } = {}) {
+  if (!ymd) return ''
+  const iso = String(ymd).slice(0, 10)
+  const hoje = hojeYmd()
+  if (iso === hoje) return 'Hoje'
+  const ontem = new Date()
+  ontem.setDate(ontem.getDate() - 1)
+  if (iso === hojeYmd(ontem)) return 'Ontem'
+  const [ano, mes, dia] = iso.split('-')
+  return curto ? `${dia}/${mes}` : `${dia}/${mes}/${ano}`
+}
+
+export function ehRetroativo(ymd) {
+  return Boolean(ymd) && String(ymd).slice(0, 10) !== hojeYmd()
+}
+
+// "AAAA-MM-DD" -> "DD/MM/AAAA" sem depender de fuso (a data do atendimento é
+// um dia, não um instante). Usado no /admin, onde "Hoje/Ontem" não cabe.
+export function formatarDataAtendimento(ymd) {
+  if (!ymd) return ''
+  const [ano, mes, dia] = String(ymd).slice(0, 10).split('-')
+  return `${dia}/${mes}/${ano}`
+}
+
 export function formatarDataHora(dataIso) {
   if (!dataIso) return ''
   const data = new Date(dataIso)

@@ -8,10 +8,20 @@ import usuariosService from '../../services/usuarios.service.js'
 import { salvarAlunosCache, listarAlunosCache, salvarAudioLocal, removerAudioLocal, obterAudioLocal } from '../../offline/db.js'
 import { criarGravador } from '../../offline/recorder.js'
 import { useToasts } from '../../composables/useToasts.js'
-import { statusMeta, tipoMeta, resumoEntradas, corParaId, iniciais, formatarDataHora } from '../../utils/registroStatus.js'
+import {
+  statusMeta,
+  tipoMeta,
+  resumoEntradas,
+  corParaId,
+  iniciais,
+  formatarDataHora,
+  hojeYmd,
+  rotuloDataAtendimento
+} from '../../utils/registroStatus.js'
 import { gerarUuid } from '../../utils/uuid.js'
 import AlunoSheet from '../../components/AlunoSheet.vue'
 import RoteiroDitado from '../../components/RoteiroDitado.vue'
+import SeletorDataAtendimento from '../../components/SeletorDataAtendimento.vue'
 import ToastStack from '../../components/ToastStack.vue'
 
 const ULTIMO_ALUNO_KEY = 'personal_assistant_ultimo_aluno'
@@ -90,6 +100,7 @@ const recentes = computed(() => {
     aluno: alunos.value.find((a) => a.id === r.alunoId),
     titulo: r.titulo,
     iniciadoLabel: formatarDataHora(r.iniciadoEm),
+    dataAtendimento: r.dataAtendimento,
     entradas: r.entradas,
     status: r.status,
     tipo: r.tipo
@@ -104,6 +115,7 @@ const recentes = computed(() => {
       aluno: alunos.value.find((a) => a.id === r.aluno_id) || r.aluno,
       titulo: r.titulo,
       iniciadoLabel: formatarDataHora(r.iniciado_em),
+      dataAtendimento: r.data_atendimento,
       entradas: r.entradas || [],
       status: r.status,
       tipo: r.tipo
@@ -320,6 +332,8 @@ async function iniciarRegistro() {
     titulo: registroTituloInput.value.trim(),
     tipo: tipoSelecionado.value,
     iniciadoEm: new Date().toISOString(),
+    // docs/adr/0019 - default hoje; ajustável no composer (só atendimento).
+    dataAtendimento: hojeYmd(),
     status: 'em_andamento',
     entradas: []
   }
@@ -328,6 +342,20 @@ async function iniciarRegistro() {
     await syncQueue.salvarLocal(registro)
   } catch (_err) {
     showToast('Não foi possível iniciar o registro. Tente novamente.', 'warning')
+  }
+}
+
+// docs/adr/0019 - data do atendimento, ajustável no composer enquanto o
+// Registro está em andamento (mesma janela de 7 dias da captura). Depois de
+// finalizado, só o desktop altera.
+async function definirDataAtendimento(ymd) {
+  const registro = registroEmAndamento.value
+  if (!registro || registro.dataAtendimento === ymd) return
+  registro.dataAtendimento = ymd
+  try {
+    await syncQueue.salvarLocal(registro)
+  } catch (_err) {
+    showToast('Não foi possível alterar a data. Tente novamente.', 'warning')
   }
 }
 
@@ -572,7 +600,9 @@ async function descartar() {
                     <span v-if="item.tipo === 'avaliacao_fisica'" class="recent-item-tipo">{{ tipoMeta(item.tipo).icon }} {{ tipoMeta(item.tipo).chip }}</span>
                   </span>
                   <span v-if="item.titulo" class="recent-item-titulo">{{ item.titulo }}</span>
-                  <span class="recent-item-iniciado">Iniciado {{ item.iniciadoLabel }}</span>
+                  <span class="recent-item-iniciado">
+                    <template v-if="item.tipo !== 'avaliacao_fisica' && item.dataAtendimento">Atendimento {{ rotuloDataAtendimento(item.dataAtendimento, { curto: true }) }} · </template>registrado {{ item.iniciadoLabel }}
+                  </span>
                 </span>
                 <span class="recent-item-meta">
                   <span class="recent-item-resumo">{{ resumoEntradas(item.entradas) }}</span>
@@ -620,6 +650,11 @@ async function descartar() {
           </div>
 
           <RoteiroDitado v-if="registroEmAndamento.tipo === 'avaliacao_fisica'" />
+          <SeletorDataAtendimento
+            v-else
+            :model-value="registroEmAndamento.dataAtendimento"
+            @update:model-value="definirDataAtendimento"
+          />
 
           <div class="entries-scroll">
             <div v-if="!registroEmAndamento.entradas.length" class="entries-empty">

@@ -36,7 +36,7 @@ const medidasAtencao = computed(() => medidas.value.filter((m) => m.confianca ==
 const semMedidas = computed(() => medidas.value.length === 0)
 
 // Rascunho para o formulário (sem anamnese/postural - a proposta não os produz).
-const rascunho = computed(() => propostaParaRascunho(payload.value))
+const rascunho = computed(() => propostaParaRascunho(payload.value, props.registro.data_atendimento))
 
 onMounted(async () => {
   try {

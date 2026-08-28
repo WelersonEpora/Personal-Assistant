@@ -106,8 +106,10 @@ function listarAlunosAtivosComIndicadores(equipeId) {
       "dispensa_ficha_treino",
       "dispensa_avaliacao_fisica",
       [
+        // docs/adr/0019: "último relato" / "aluno parado" olham QUANDO o
+        // atendimento aconteceu (data_atendimento), não quando o relato entrou.
         literal(
-          '(SELECT MAX(r.iniciado_em) FROM registro r WHERE r.aluno_id = "Aluno".id AND r.deletado_em IS NULL)'
+          '(SELECT MAX(r.data_atendimento) FROM registro r WHERE r.aluno_id = "Aluno".id AND r.deletado_em IS NULL)'
         ),
         "ultimo_relato_em"
       ],
@@ -160,7 +162,7 @@ function listarAvaliacoesMensaisComFalha(equipeId, anoMes) {
 function relatosRecentes(equipeId, limite, desde) {
   return Registro.findAll({
     where: { equipe_id: equipeId, deletado_em: null, created_at: { [Op.gte]: desde } },
-    attributes: ["id", "titulo", "status", "iniciado_em", "created_at"],
+    attributes: ["id", "titulo", "status", "iniciado_em", "data_atendimento", "created_at"],
     include: [{ model: Aluno, as: "aluno", attributes: ["id", "nome"] }],
     order: [["created_at", "DESC"]],
     limit: limite

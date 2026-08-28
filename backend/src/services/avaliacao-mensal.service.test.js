@@ -94,6 +94,7 @@ async function criarRelatoConfirmado(confirmadoEm, itens = [{ label: "Agachament
     aluno_id: aluno.id,
     iniciado_em: confirmadoEm,
     finalizado_em: confirmadoEm,
+    data_atendimento: new Date(confirmadoEm).toISOString().slice(0, 10),
     status: Registro.STATUS.CONFIRMADO
   });
   await RegistroEntrada.create({ registro_id: registro.id, ordem: 0, tipo: "texto", conteudo_texto: "relato" });

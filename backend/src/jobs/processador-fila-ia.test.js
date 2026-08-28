@@ -78,13 +78,14 @@ after(async () => {
   await Equipe.destroy({ where: { id: equipe.id } });
 });
 
-async function criarRegistroTexto(tipo, texto) {
+async function criarRegistroTexto(tipo, texto, dataAtendimento) {
   const registro = await Registro.create({
     id: randomUUID(),
     usuario_id: usuario.id,
     equipe_id: equipe.id,
     aluno_id: aluno.id,
     iniciado_em: new Date(),
+    data_atendimento: dataAtendimento || new Date().toISOString().slice(0, 10),
     status: Registro.STATUS.RECEBIDO,
     tipo
   });
@@ -152,4 +153,20 @@ test("processarRegistro: tipo atendimento continua indo para resultado_ia (fluxo
 
   const atualizado = await Registro.findByPk(registro.id);
   assert.equal(atualizado.status, Registro.STATUS.AGUARDANDO_REVISAO);
+});
+
+test("processarRegistro: contexto do relato leva a data do atendimento no cabeçalho (docs/adr/0019)", async (t) => {
+  let contextoRecebido = null;
+  t.mock.method(geminiService, "interpretarRegistro", async ({ contextoConsolidado }) => {
+    contextoRecebido = contextoConsolidado;
+    return { itens: [], notaGeral: "" };
+  });
+
+  const registro = await criarRegistroTexto(Registro.TIPOS.ATENDIMENTO, "treino de pernas", "2026-08-24");
+  t.after(() => Registro.destroy({ where: { id: registro.id } }));
+
+  await processarRegistro(registro.id);
+
+  assert.match(contextoRecebido, /Data do atendimento: 2026-08-24/);
+  assert.match(contextoRecebido, /treino de pernas/);
 });

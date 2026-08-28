@@ -30,6 +30,9 @@ async function sincronizar(registro) {
     alunoId: registro.alunoId,
     titulo: registro.titulo || '',
     iniciadoEm: registro.iniciadoEm,
+    // docs/adr/0019 - dia do atendimento; ausente no backend deriva de
+    // iniciadoEm::date (compat com registros locais anteriores a esta mudança).
+    dataAtendimento: registro.dataAtendimento || undefined,
     // docs/adr/0018 - ausente no backend cai em 'atendimento' (compat).
     tipo: registro.tipo || 'atendimento',
     entradas: registro.entradas.map((entrada) => ({
@@ -52,8 +55,10 @@ async function sincronizar(registro) {
   return data.data
 }
 
-async function confirmar(id, { itens, notaGeral }) {
-  const { data } = await http.post(`/api/v1/registros/${id}/confirmar`, { itens, notaGeral })
+// docs/adr/0019 - `dataAtendimento` (opcional) ajusta o dia do atendimento na
+// mesma confirmação (só faz parte do fluxo "Editar" da revisão).
+async function confirmar(id, { itens, notaGeral, dataAtendimento }) {
+  const { data } = await http.post(`/api/v1/registros/${id}/confirmar`, { itens, notaGeral, dataAtendimento })
   return data.data
 }
 
@@ -79,4 +84,13 @@ async function reprocessar(id) {
   return data.data
 }
 
-export default { listar, obter, obterAudio, sincronizar, confirmar, confirmarAvaliacaoFisica, excluir, reprocessar }
+export default {
+  listar,
+  obter,
+  obterAudio,
+  sincronizar,
+  confirmar,
+  confirmarAvaliacaoFisica,
+  excluir,
+  reprocessar
+}

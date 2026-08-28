@@ -57,13 +57,16 @@ async function criarAluno(equipeId, props = {}) {
   return aluno;
 }
 
-async function criarRelato({ aluno, status, iniciadoEm = new Date(), confirmadoEm = null }) {
+async function criarRelato({ aluno, status, iniciadoEm = new Date(), dataAtendimento = null, confirmadoEm = null }) {
   const registro = await Registro.create({
     id: randomUUID(),
     usuario_id: usuario.id,
     equipe_id: aluno.equipe_id,
     aluno_id: aluno.id,
     iniciado_em: iniciadoEm,
+    // docs/adr/0019: "aluno parado" olha data_atendimento - por padrão ela
+    // acompanha iniciado_em nos fixtures (captura no dia do atendimento).
+    data_atendimento: dataAtendimento || new Date(iniciadoEm).toISOString().slice(0, 10),
     status
   });
   criados.registros.push(registro.id);

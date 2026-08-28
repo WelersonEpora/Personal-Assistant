@@ -2,10 +2,19 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import registrosService from '../../services/registros.service.js'
-import { corParaId, iniciais, formatarData, formatarHora, resumoEntradas, tipoMeta } from '../../utils/registroStatus.js'
+import {
+  corParaId,
+  iniciais,
+  formatarData,
+  formatarHora,
+  formatarDataAtendimento,
+  resumoEntradas,
+  tipoMeta
+} from '../../utils/registroStatus.js'
 import { useToasts } from '../../composables/useToasts.js'
 import { useConfirm } from '../../composables/useConfirm.js'
 import ToastStack from '../../components/ToastStack.vue'
+import CampoData from '../../components/CampoData.vue'
 import RevisaoAvaliacaoFisica from '../../components/revisao/RevisaoAvaliacaoFisica.vue'
 
 const props = defineProps({ id: { type: String, default: null } })
@@ -22,6 +31,17 @@ const itensEdicao = ref([])
 const notaGeralEdicao = ref('')
 const transcricaoAberta = ref(false)
 const confirmando = ref(false)
+
+// docs/adr/0019 - a data do atendimento é ajustada no "Editar", como se fosse
+// o item 0 do relato; vai junto no payload da confirmação. Janela: dos últimos
+// 60 dias (ancorada em iniciado_em) até hoje - nunca futura, nunca antiga demais.
+const dataAtendimentoEdicao = ref('')
+const hojeYmd = new Date().toISOString().slice(0, 10)
+const minDataAtendimento = computed(() => {
+  const base = selecionado.value?.iniciado_em ? new Date(selecionado.value.iniciado_em) : new Date()
+  base.setDate(base.getDate() - 60)
+  return base.toISOString().slice(0, 10)
+})
 
 async function carregarFila() {
   fila.value = await registrosService.listar({ status: 'aguardando_revisao' })
@@ -88,6 +108,8 @@ const notaGeralIa = computed(() => selecionado.value?.resultadoIa?.payload_json?
 function entrarEdicao() {
   itensEdicao.value = itensIa.value.map((item) => ({ ...item }))
   notaGeralEdicao.value = notaGeralIa.value
+  // docs/adr/0019 - a data do atendimento entra como "item 0" do formulário.
+  dataAtendimentoEdicao.value = String(selecionado.value?.data_atendimento || '').slice(0, 10)
   editando.value = true
 }
 
@@ -95,22 +117,25 @@ function removerItemEdicao(indice) {
   itensEdicao.value.splice(indice, 1)
 }
 
-async function confirmarRegistro(itens, notaGeral) {
+async function confirmarRegistro(itens, notaGeral, dataAtendimento) {
   confirmando.value = true
   try {
-    await registrosService.confirmar(selecionado.value.id, { itens, notaGeral })
+    await registrosService.confirmar(selecionado.value.id, { itens, notaGeral, dataAtendimento })
     showToast(`Registro de ${selecionado.value.aluno?.nome} confirmado e salvo no histórico.`, 'success')
     emit('registro-processado')
     await carregarFila()
-  } catch (_err) {
-    showToast('Não foi possível confirmar o registro.', 'warning')
+  } catch (err) {
+    showToast(err.response?.data?.error?.message || 'Não foi possível confirmar o registro.', 'warning')
   } finally {
     confirmando.value = false
   }
 }
 
 function salvarEdicaoEConfirmar() {
-  confirmarRegistro(itensEdicao.value, notaGeralEdicao.value)
+  // Só manda a data quando o personal mexeu nela (senão fica como foi capturada).
+  const dataAlterada =
+    dataAtendimentoEdicao.value && dataAtendimentoEdicao.value !== String(selecionado.value.data_atendimento).slice(0, 10)
+  confirmarRegistro(itensEdicao.value, notaGeralEdicao.value, dataAlterada ? dataAtendimentoEdicao.value : undefined)
 }
 function confirmarSemEditar() {
   confirmarRegistro(itensIa.value, notaGeralIa.value)
@@ -170,7 +195,9 @@ async function excluirRegistro() {
           <div>
             <div class="detail-header-name" style="font-size: 16px;">{{ selecionado.aluno?.nome }} — {{ selecionado.titulo || 'Registro' }}</div>
             <div class="detail-header-sub">
-              Registro de {{ formatarData(selecionado.created_at) }} · {{ editando ? 'editando itens identificados' : 'iniciado às ' + formatarHora(selecionado.iniciado_em) }}
+              <strong>Atendimento em {{ formatarDataAtendimento(selecionado.data_atendimento) }}</strong>
+              <span class="detail-header-faint"> · registrado {{ formatarData(selecionado.created_at) }} às {{ formatarHora(selecionado.iniciado_em) }}</span>
+              <span v-if="editando" class="detail-header-faint"> · ajuste a data abaixo</span>
             </div>
           </div>
         </div>
@@ -226,6 +253,22 @@ async function excluirRegistro() {
         </template>
 
         <template v-else>
+          <!-- docs/adr/0019 - a data do atendimento é o "item 0" do relato -->
+          <div class="exercise-card">
+            <div class="field-row">
+              <div class="field-group" style="grid-column: 1 / -1;">
+                <label>Data do atendimento</label>
+                <CampoData
+                  v-model="dataAtendimentoEdicao"
+                  :min="minDataAtendimento"
+                  :max="hojeYmd"
+                  aria-label="Data do atendimento"
+                />
+                <span class="field-hint">O dia em que o atendimento aconteceu — não a data de hoje nem a do registro. Últimos 60 dias.</span>
+              </div>
+            </div>
+          </div>
+
           <div v-if="!itensEdicao.length" class="empty-state" style="padding: 20px;">Nenhum item para editar.</div>
           <div v-for="(item, indice) in itensEdicao" :key="indice" class="exercise-card">
             <div class="field-row">
@@ -273,7 +316,7 @@ async function excluirRegistro() {
               {{ registro.aluno?.nome }} — {{ registro.titulo || 'Registro' }}
               <span v-if="registro.tipo === 'avaliacao_fisica'" class="badge badge-avaliacao" style="font-size: 10px;">{{ tipoMeta(registro.tipo).icon }} {{ tipoMeta(registro.tipo).chip }}</span>
             </span>
-            <span class="queue-item-sub">{{ formatarData(registro.created_at) }} — {{ formatarHora(registro.iniciado_em) }}</span>
+            <span class="queue-item-sub">Atendimento {{ formatarDataAtendimento(registro.data_atendimento) }}</span>
           </span>
         </button>
       </div>
@@ -288,3 +331,9 @@ async function excluirRegistro() {
     <ToastStack :toasts="toasts" />
   </div>
 </template>
+
+<style scoped>
+/* docs/adr/0019 - "Atendimento em" (fato do mundo) vs "registrado em" (fato do sistema) */
+.detail-header-faint { color: var(--color-text-faint); font-weight: 400; }
+.field-hint { display: block; margin-top: 4px; font-size: 11.5px; color: var(--color-text-faint); }
+</style>

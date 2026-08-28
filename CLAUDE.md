@@ -273,6 +273,16 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
   `POST /api/v1/registros/:id/confirmar-avaliacao-fisica`).
 - **`registro.id` sempre nasce no cliente.** Qualquer endpoint que receba um
   Registro precisa ser idempotente por esse id.
+- **`registro.data_atendimento` (ADR-0019) é o DIA do atendimento, separado de
+  `iniciado_em`/`created_at`/`confirmado_em`** (que nunca ficam editáveis).
+  Nasce no cliente (default hoje; até 7 dias atrás na captura, ancorado em
+  `iniciado_em`). No desktop, o ajuste faz parte do "Editar" da revisão: a data
+  é o "item 0" do formulário e vai no payload de `POST /registros/:id/confirmar`
+  (gravada na mesma transação da `validacao` — que continua o único dado
+  oficial), com janela `[iniciado_em::date − 60, hoje]`. Histórico, painel e prompts
+  da IA usam `data_atendimento` quando o objetivo é "quando o atendimento
+  aconteceu"; **o bucketing mensal continua por `confirmado_em` (ADR-0015)** e o
+  feed de atividade por `created_at` (ADR-0017).
 - Toda decisão arquitetural relevante e difícil de reverter vira ADR em
   `docs/adr/`, numerada sequencialmente, com Contexto/Decisão/Alternativas
   consideradas/Consequências. Decisões operacionais ou de baixa relevância
@@ -313,6 +323,7 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
 | 0016 | Avaliação Física (modelo v3) e importação do legado BodyMove |
 | 0017 | Endpoint de painel agregado para o dashboard |
 | 0018 | Avaliação Física por captura (áudio/texto) + interpretação da IA |
+| 0019 | Data do atendimento separada das datas do sistema |
 
 ## Estado atual
 
@@ -355,7 +366,16 @@ MVP completo e verificado de ponta a ponta:
   `avaliacao_fisica` pelo CRUD (`origem = captura_ia`, `registro_id`) + avança
   o status numa transação. `reprocessar` também refaz a interpretação a partir
   de `aguardando_revisao` para esse tipo.
-  250 testes automatizados (`node --test`, unitários +
+  Data do atendimento (docs/adr/0019): `registro.data_atendimento` (`DATE`,
+  obrigatória; backfill de `iniciado_em::date`) separa o dia do atendimento das
+  datas de captura/sincronização/confirmação. Captura: default hoje, chips dos
+  7 dias anteriores, editável enquanto `em_andamento`. Desktop: o ajuste é o
+  "item 0" do "Editar" da revisão e vai no payload de
+  `POST /registros/:id/confirmar` (grava junto com a `validacao`), janela
+  `[iniciado_em::date − 60, hoje]`. Prompts (mensal, sob demanda, interpretação de relato) e painel
+  ("último relato"/"aluno parado") usam `data_atendimento`; bucketing mensal
+  segue em `confirmado_em`, feed em `created_at`.
+  262 testes automatizados (`node --test`, unitários +
   integração contra banco de teste dedicado).
 - **Frontend**: app Vue 3 + Vite + PWA único (`/captura` mobile-first
   offline, `/admin` gestão/validação), IndexedDB + fila de sincronização
@@ -383,8 +403,17 @@ MVP completo e verificado de ponta a ponta:
   (confiança por medida, trechos, "não reconhecido", ouvir áudio) +
   `AvaliacaoFisicaForm` em `modo="revisao"` (pré-preenchido, "Confirmar
   avaliação física", "Refazer interpretação", "Descartar").
-  30 testes automatizados (`node --test` + `fake-indexeddb`; +
-  `echarts-option-builder.test.js` e `avaliacaoFisica.test.js` puros).
+  Data do atendimento (docs/adr/0019): `SeletorDataAtendimento.vue` — painel
+  contextual no composer, **só para `tipo = atendimento`** (a avaliação física
+  não tem seletor de data na captura; usa `data_ouvida` / o formulário de
+  revisão), estilo roteiro de ditado: barra "Atendimento de: Hoje" que expande
+  nos chips dos 7 dias, selo "retroativo". No `/admin` a revisão mostra
+  "Atendimento em" vs "registrado em" no cabeçalho (só leitura) e a data vira o
+  "item 0" do formulário de "Editar", num `CampoData.vue` (calendário próprio,
+  sem `<input type=date>` nativo).
+  37 testes automatizados (`node --test` + `fake-indexeddb`; +
+  `echarts-option-builder.test.js`, `avaliacaoFisica.test.js` e
+  `registroStatus.test.js` puros).
 - **Docker**: `compose.dev.yml` (Postgres + pgAdmin) e `compose.prod.yml`
   (Postgres + backend + frontend) validados; Dockerfiles com healthcheck
   em ambos os serviços da aplicação.

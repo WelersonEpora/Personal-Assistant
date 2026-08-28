@@ -6,6 +6,7 @@
 const registroRepository = require("../repositories/registro.repository");
 const { Validacao } = require("../models");
 const { NotFoundError, ConflictError, ValidationError } = require("../shared/errors");
+const { validarDataAtendimentoPassada } = require("../shared/utils/data-atendimento");
 
 const { Registro, sequelize } = registroRepository;
 
@@ -25,6 +26,15 @@ async function confirmar({ usuarioId, equipeId, registroId, payload }) {
     throw new ConflictError("Registro ainda não tem um resultado de IA concluído para confirmar.");
   }
 
+  // docs/adr/0019: a data do atendimento é ajustada no "Editar" da revisão e
+  // vem junto no payload da confirmação (mesma transação da `validacao`). Não
+  // é dado oficial (é campo do `registro`), então não fere a ADR-0007 - o
+  // `/confirmar` continua o único que ESCREVE `validacao`. Janela de 60 dias
+  // ancorada em iniciado_em (nunca futura, nunca antiga demais).
+  const dataAtendimento = payload.dataAtendimento
+    ? validarDataAtendimentoPassada(payload.dataAtendimento, registro.iniciado_em)
+    : null;
+
   return sequelize.transaction(async (transaction) => {
     const validacao = await Validacao.create(
       {
@@ -39,7 +49,11 @@ async function confirmar({ usuarioId, equipeId, registroId, payload }) {
       { transaction }
     );
 
-    await registro.update({ status: Registro.STATUS.CONFIRMADO }, { transaction });
+    const patch = { status: Registro.STATUS.CONFIRMADO };
+    if (dataAtendimento && dataAtendimento !== registro.data_atendimento) {
+      patch.data_atendimento = dataAtendimento;
+    }
+    await registro.update(patch, { transaction });
 
     return validacao;
   });

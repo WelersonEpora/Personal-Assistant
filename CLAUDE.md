@@ -282,7 +282,11 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
   oficial), com janela `[iniciado_em::date − 60, hoje]`. Histórico, painel e prompts
   da IA usam `data_atendimento` quando o objetivo é "quando o atendimento
   aconteceu"; **o bucketing mensal continua por `confirmado_em` (ADR-0015)** e o
-  feed de atividade por `created_at` (ADR-0017).
+  feed de atividade por `created_at` (ADR-0017). A tela **Atendimentos** (ADR-0020,
+  `GET /api/v1/atividades`, `/admin/atendimentos`) agrega a `registro` por
+  `data_atendimento` — somente leitura, sem tabela nova, sem tocar
+  `resultado_ia`/`validacao`; atendimento e avaliação física em trilhas
+  separadas.
 - Toda decisão arquitetural relevante e difícil de reverter vira ADR em
   `docs/adr/`, numerada sequencialmente, com Contexto/Decisão/Alternativas
   consideradas/Consequências. Decisões operacionais ou de baixa relevância
@@ -292,7 +296,9 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
   comportamento existente.
 - Fora de escopo neste MVP (não implementar sem decisão explícita nova):
   WhatsApp/Telegram, app nativo, pagamentos, prescrição avançada,
-  dashboards/relatórios complexos, dashboard/gráficos/comparação entre
+  dashboards/relatórios complexos (a tela de Atendimentos — ADR-0020 — já é
+  decisão tomada e implementada; não abre precedente para relatório financeiro,
+  de treino etc.), dashboard/gráficos/comparação entre
   avaliações físicas (modelo, importação e CRUD feitos — ADR-0016; falta a
   camada de visualização evolutiva), cálculo de
   protocolos (Pollock/VO₂) para avaliações novas, sistema
@@ -324,6 +330,7 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
 | 0017 | Endpoint de painel agregado para o dashboard |
 | 0018 | Avaliação Física por captura (áudio/texto) + interpretação da IA |
 | 0019 | Data do atendimento separada das datas do sistema |
+| 0020 | Tela de Atendimentos (relatório de atividade por período) |
 
 ## Estado atual
 
@@ -375,7 +382,17 @@ MVP completo e verificado de ponta a ponta:
   `[iniciado_em::date − 60, hoje]`. Prompts (mensal, sob demanda, interpretação de relato) e painel
   ("último relato"/"aluno parado") usam `data_atendimento`; bucketing mensal
   segue em `confirmado_em`, feed em `created_at`.
-  262 testes automatizados (`node --test`, unitários +
+  Tela de Atendimentos (docs/adr/0020): `GET /api/v1/atividades`
+  (`atividades.{controller,service,repository}`) — agregação somente leitura
+  sobre `registro` por `data_atendimento`, escopo por `equipe_id` +
+  `deletado_em IS NULL`, sem tabela nova. Filtros de período (presets +
+  personalizado), aluno, tipo e "somente confirmados"; granularidade do gráfico
+  (dia/semana/mês) escolhida no servidor pelo tamanho do período; resposta com
+  `resumo` (KPIs), `serie_temporal` (buckets preenchidos), `por_aluno`
+  (Registros × dias distintos), `por_dia_semana` e `por_mes`. Atendimento e
+  avaliação física contados em trilhas separadas. Cadência média ficou de fora
+  desta 1ª versão (o payload já traz `primeiro`/`ultimo`/`dias_distintos`).
+  277 testes automatizados (`node --test`, unitários +
   integração contra banco de teste dedicado).
 - **Frontend**: app Vue 3 + Vite + PWA único (`/captura` mobile-first
   offline, `/admin` gestão/validação), IndexedDB + fila de sincronização
@@ -411,9 +428,16 @@ MVP completo e verificado de ponta a ponta:
   "Atendimento em" vs "registrado em" no cabeçalho (só leitura) e a data vira o
   "item 0" do formulário de "Editar", num `CampoData.vue` (calendário próprio,
   sem `<input type=date>` nativo).
-  37 testes automatizados (`node --test` + `fake-indexeddb`; +
-  `echarts-option-builder.test.js`, `avaliacaoFisica.test.js` e
-  `registroStatus.test.js` puros).
+  Tela de Atendimentos (docs/adr/0020): `views/admin/AtividadesView.vue`
+  (`/admin/atendimentos`, menu REGISTROS abaixo de Histórico), consome
+  `services/atividades.service.js`. Filtros (período/aluno/tipo/só confirmados),
+  KPIs, gráfico temporal empilhado, ranking por aluno, distribuição por dia da
+  semana e tabelas por aluno/mês. Gráficos de barra em
+  `components/charts/BarChart.vue` + `utils/echarts-bar-option-builder.js`
+  (mesmo padrão testável do `LineChart`), no chunk `vendor-echarts` lazy.
+  45 testes automatizados (`node --test` + `fake-indexeddb`; +
+  `echarts-option-builder.test.js`, `echarts-bar-option-builder.test.js`,
+  `avaliacaoFisica.test.js` e `registroStatus.test.js` puros).
 - **Docker**: `compose.dev.yml` (Postgres + pgAdmin) e `compose.prod.yml`
   (Postgres + backend + frontend) validados; Dockerfiles com healthcheck
   em ambos os serviços da aplicação.

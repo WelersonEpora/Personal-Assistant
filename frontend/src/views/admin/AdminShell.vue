@@ -18,7 +18,13 @@ const NAV_ITEMS = [
       { nome: 'admin-revisao', icone: '✅', label: 'Revisão', badge: true }
     ]
   },
-  { grupo: 'Registros', itens: [{ nome: 'admin-historico', icone: '🕒', label: 'Histórico' }] },
+  {
+    grupo: 'Registros',
+    itens: [
+      { nome: 'admin-historico', icone: '🕒', label: 'Histórico' },
+      { nome: 'admin-atendimentos', icone: '📈', label: 'Atendimentos' }
+    ]
+  },
   {
     grupo: 'Sistema',
     itens: [

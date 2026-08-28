@@ -53,6 +53,7 @@ const routes = [
         meta: { titulo: 'Revisão da IA' }
       },
       { path: 'historico', name: 'admin-historico', component: () => import('../views/admin/HistoricoView.vue'), meta: { titulo: 'Histórico' } },
+      { path: 'atendimentos', name: 'admin-atendimentos', component: () => import('../views/admin/AtividadesView.vue'), meta: { titulo: 'Atendimentos' } },
       {
         path: 'equipe',
         name: 'admin-equipe',

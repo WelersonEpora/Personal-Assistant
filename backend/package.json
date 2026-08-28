@@ -12,6 +12,8 @@
     "db:seed": "sequelize-cli db:seed:all --config sequelize.config.js",
     "db:seed:undo": "sequelize-cli db:seed:undo:all --config sequelize.config.js",
     "criar-usuario": "node scripts/criar-usuario.js",
+    "importar-bodymove": "node scripts/importar-avaliacoes-bodymove.js",
+    "recalcular-derivadas-af": "node scripts/recalcular-derivadas-avaliacao-fisica.js",
     "test": "cross-env NODE_ENV=test node --test"
   },
   "dependencies": {
@@ -30,6 +32,7 @@
   },
   "devDependencies": {
     "cross-env": "^7.0.3",
+    "mdb-reader": "^3.2.0",
     "nodemon": "^3.1.10",
     "pino-pretty": "^13.0.0"
   }

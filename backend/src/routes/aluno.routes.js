@@ -8,6 +8,7 @@ const fichaAcessoLinkController = require("../controllers/ficha-acesso-link.cont
 const avaliacaoMensalController = require("../controllers/avaliacao-mensal.controller");
 const analiseSobDemandaController = require("../controllers/analise-sob-demanda.controller");
 const avaliacaoPersonalController = require("../controllers/avaliacao-personal.controller");
+const avaliacaoFisicaController = require("../controllers/avaliacao-fisica.controller");
 const autenticar = require("../shared/middlewares/auth.middleware");
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -60,5 +61,15 @@ router.get("/:id/avaliacoes-personal", avaliacaoPersonalController.listar);
 router.post("/:id/avaliacoes-personal", avaliacaoPersonalController.criar);
 router.patch("/:id/avaliacoes-personal/:avaliacaoId", avaliacaoPersonalController.atualizar);
 router.delete("/:id/avaliacoes-personal/:avaliacaoId", avaliacaoPersonalController.excluir);
+
+// Avaliação física estruturada (docs/adr/0016) - CRUD direto do personal, fora
+// do pipeline de IA e de `validacao`. Avaliações importadas do BodyMove
+// (origem=legado_bodymove) são visíveis e editáveis; `origem` e os protocolos
+// das medidas são preservados. IMC/RCQ são recalculados no service.
+router.get("/:id/avaliacoes-fisicas", avaliacaoFisicaController.listar);
+router.post("/:id/avaliacoes-fisicas", avaliacaoFisicaController.criar);
+router.get("/:id/avaliacoes-fisicas/:avaliacaoId", avaliacaoFisicaController.obter);
+router.put("/:id/avaliacoes-fisicas/:avaliacaoId", avaliacaoFisicaController.atualizar);
+router.delete("/:id/avaliacoes-fisicas/:avaliacaoId", avaliacaoFisicaController.excluir);
 
 module.exports = router;

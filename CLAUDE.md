@@ -104,7 +104,9 @@ personal-assistant/
       models/                 usuario, equipe, membro, aluno, registro,
                                registroEntrada, arquivoAudio, transcricao,
                                resultadoIa, validacao, avaliacaoMensal,
-                               analiseSobDemanda, avaliacaoPersonal
+                               analiseSobDemanda, avaliacaoPersonal,
+                               metricaAvaliacaoFisica, avaliacaoFisica,
+                               avaliacaoFisicaMedida
       routes/
       jobs/                   processador-fila-ia.js (worker em processo),
                                gerador-avaliacao-mensal.js (lote mensal, docs/adr/0015)
@@ -112,6 +114,7 @@ personal-assistant/
       app.js  server.js
     database/{migrations,seeders}/
     scripts/criar-usuario.js  único jeito de provisionar login (sem cadastro público)
+    scripts/importar-avaliacoes-bodymove.js  importador one-shot do legado BodyMove (docs/adr/0016)
     storage/audio/           arquivos de áudio (dev; produção usa volume Docker)
     storage/fotos/           foto (avatar) de aluno (mesmo critério do storage/audio)
     Dockerfile  .dockerignore
@@ -141,7 +144,10 @@ Frontend: **um único app** Vue 3 + Vite + PWA, responsivo, com dois modos de
 rota (`/captura` mobile-first offline, `/admin` gestão/validação) — não dois
 apps separados. Sem PrimeVue (UX portada diretamente do protótipo). Pinia
 desde o início (sessão + fila de sincronização são estado real e
-compartilhado).
+compartilhado). Única dependência de UI de terceiros: **Apache ECharts**
+(`echarts` + `vue-echarts`) para os gráficos de avaliação física — mesmo
+padrão de uso do AgroMind (`src/components/charts/` + option-builder puro
+testável), isolado no chunk `vendor-echarts` (lazy, fora do precache do PWA).
 
 ## Modelo de dados (provisório — ver ADR-0008)
 
@@ -149,12 +155,17 @@ Só as entidades necessárias para o fluxo: `usuario`, `equipe`, `membro`,
 `aluno`, `registro`, `registro_entrada`, `arquivo_audio`, `transcricao`,
 `resultado_ia`, `validacao`, `avaliacao_mensal` + `analise_sob_demanda` +
 `avaliacao_personal` (docs/adr/0015 — camada de acompanhamento: interpretação
-da IA e a avaliação escrita pelo próprio personal; nada disso é dado oficial).
-**Não antecipar o sistema legado do personal
-trainer** — nada de entidades de plano de treino, catálogo de exercícios,
-avaliação física estruturada etc. até que o legado seja analisado. Dados de
-domínio ficam como JSON semiestruturado (`label`/`valor`/`obs`/`confidence`)
-dentro de `resultado_ia`/`validacao`, não como schema relacional rígido.
+da IA e a avaliação escrita pelo próprio personal; nada disso é dado oficial)
++ `metrica_avaliacao_fisica` + `avaliacao_fisica` + `avaliacao_fisica_medida`
+(docs/adr/0016 — avaliação física estruturada, modelo v3, com o histórico do
+BodyMove importado; CRUD direto do personal, fora do pipeline de IA e de
+`validacao`, como `avaliacao_personal`).
+Dados de domínio dos Registros ficam como JSON semiestruturado
+(`label`/`valor`/`obs`/`confidence`) dentro de `resultado_ia`/`validacao`, não
+como schema relacional rígido. **Fora avaliação física (docs/adr/0016) e
+catálogo de exercícios/ficha (docs/adr/0013), não antecipar o resto do sistema
+legado** — nada de sessão de treino, prescrição avançada, financeiro etc. sem
+decisão nova.
 
 `equipe` e `membro` implementam a multi-tenancy do produto (ver
 docs/adr/0011): `aluno` e `registro` são escopados por `equipe_id`, não
@@ -247,7 +258,14 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
   bibliotecas de STT local ao frontend.
 - **Não antecipar o sistema legado.** Nenhuma entidade nova de "gestão de
   Personal Trainer" sem decisão explícita — o modelo atual é provisório
-  (ADR-0008).
+  (ADR-0008). Já decididos e implementados: catálogo de exercícios/ficha
+  (ADR-0013) e avaliação física + importação do BodyMove (ADR-0016).
+- **Avaliação física nunca passa pelo pipeline de IA nem vira `validacao`**
+  (ADR-0016) — é dado objetivo do personal, CRUD direto como
+  `avaliacao_personal`. Nenhum job/worker escreve em `avaliacao_fisica*`.
+  Métricas derivadas (`imc`, `rcq`) são do service, nunca escritas por humano.
+  Importação do legado é idempotente por `(aluno_id, data, origem)` e mantém
+  `origem = legado_bodymove`.
 - **`registro.id` sempre nasce no cliente.** Qualquer endpoint que receba um
   Registro precisa ser idempotente por esse id.
 - Toda decisão arquitetural relevante e difícil de reverter vira ADR em
@@ -259,7 +277,10 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
   comportamento existente.
 - Fora de escopo neste MVP (não implementar sem decisão explícita nova):
   WhatsApp/Telegram, app nativo, pagamentos, prescrição avançada,
-  dashboards/relatórios complexos, avaliação física completa, sistema
+  dashboards/relatórios complexos, dashboard/gráficos/comparação entre
+  avaliações físicas (modelo, importação e CRUD feitos — ADR-0016; falta a
+  camada de visualização evolutiva), cálculo de
+  protocolos (Pollock/VO₂) para avaliações novas, sistema
   completo de treinos, réplica do legado, multi-tenant com múltiplas
   equipes por usuário e controle de acesso por papel (ver docs/adr/0011 —
   a multi-tenancy básica de Equipe/Membro já está implementada),
@@ -284,6 +305,7 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
 | 0013 | Catálogo de exercícios e Ficha de Treino |
 | 0014 | Acesso do aluno à ficha por link temporário |
 | 0015 | Acompanhamento Individual Mensal (avaliação da IA por contexto consolidado) |
+| 0016 | Avaliação Física (modelo v3) e importação do legado BodyMove |
 
 ## Estado atual
 
@@ -299,15 +321,34 @@ MVP completo e verificado de ponta a ponta:
   demanda com limite de 1 análise gerada a cada 7 dias — sem relatos/dados
   insuficientes não vira registro nem consome a janela; + avaliação escrita
   pelo próprio personal (sem IA) que entra no prompt dos ciclos junto dos
-  relatos; IA atua como personal trainer sênior; nunca dado oficial). 146
-  testes automatizados (`node --test`, unitários + integração contra banco de
-  teste dedicado).
+  relatos; IA atua como personal trainer sênior; nunca dado oficial),
+  Avaliação Física (docs/adr/0016 — modelo v3: catálogo de métricas +
+  `avaliacao_fisica` + `avaliacao_fisica_medida` com `principal` e métricas
+  derivadas IMC/RCQ; importador one-shot do BodyMove, idempotente, com os
+  405 históricos; **CRUD completo** — `GET/POST/PUT/DELETE
+  /api/v1/alunos/:id/avaliacoes-fisicas` + catálogo em
+  `/api/v1/metricas-avaliacao-fisica` — com validação da v3, esquema fechado
+  de anamnese/postural (§5) e recálculo no service das derivadas `imc`, `rcq`,
+  `massa_gorda` e `massa_magra` (2 compartimentos, a partir da % de gordura
+  acompanhada; `scripts/recalcular-derivadas-avaliacao-fisica.js` fez o backfill
+  das importadas); `data_nascimento` e `sexo` no cadastro do aluno.
+  Tabela comparativa (métricas × avaliações no tempo) já existe; gráficos e uso
+  pela IA ainda não. 216 testes automatizados (`node --test`, unitários +
+  integração contra banco de teste dedicado).
 - **Frontend**: app Vue 3 + Vite + PWA único (`/captura` mobile-first
   offline, `/admin` gestão/validação), IndexedDB + fila de sincronização
   própria, gravador de áudio (MediaRecorder), múltiplos Registros
   `em_andamento` simultâneos com persistência incremental (docs/adr/0012).
-  11 testes automatizados (`node --test` + `fake-indexeddb`,
-  `registros.service` mockado).
+  Tela de Avaliações Físicas por aluno (docs/adr/0016 — listagem com
+  data/peso/IMC/% gordura/massa magra/gorda e expansão inline do card,
+  formulário de criação/edição com medidas + anamnese + checklist postural,
+  exclusão com confirmação, aba "Comparar" com seletor de período + tabela
+  (métricas × datas) + gráficos de evolução (composição, indicadores,
+  perímetros com seleção) em Apache ECharts — mesmo padrão do AgroMind
+  (`components/charts/` + `utils/echarts-option-builder.js`, este com teste);
+  avaliações importadas do BodyMove editáveis com `origem` preservada).
+  21 testes automatizados (`node --test` + `fake-indexeddb`; +
+  `echarts-option-builder.test.js` puro).
 - **Docker**: `compose.dev.yml` (Postgres + pgAdmin) e `compose.prod.yml`
   (Postgres + backend + frontend) validados; Dockerfiles com healthcheck
   em ambos os serviços da aplicação.
@@ -325,3 +366,8 @@ MVP completo e verificado de ponta a ponta:
   de `GEMINI_API_KEY` de verdade); deploy automático num servidor real ainda
   não existe (falta o servidor em si — host/SSH nos secrets do repositório);
   domínio/TLS de produção não configurados — ver `docs/deploy.md`.
+  A importação do BodyMove (ADR-0016) foi validada por `--dry-run` e testes
+  (transform contra o `.bak` real + persistência no banco de teste), mas a
+  carga de verdade num banco alvo ainda não foi executada
+  (`npm run importar-bodymove -- --equipe-id=<uuid>`); dashboard/telas de
+  avaliação física são a próxima rodada.

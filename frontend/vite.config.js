@@ -14,7 +14,12 @@ export default defineConfig({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico}']
+        globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+        // ECharts (~200KB gzip) só é usado na tela de Avaliações Físicas →
+        // Comparar (admin, online). Fica fora do precache do shell - carrega
+        // sob demanda na 1ª visita e o próprio navegador cacheia depois.
+        globIgnores: ['**/vendor-echarts-*.js'],
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024
       },
       manifest: {
         name: 'Personal Assistant',
@@ -32,6 +37,21 @@ export default defineConfig({
       }
     })
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        // ECharts (+ zrender + vue-echarts) num chunk próprio: só é baixado
+        // quando o usuário abre a tela de Avaliações Físicas → Comparar, e aí
+        // fica em cache, em vez de inflar o chunk daquela view. Não entra em
+        // nenhum outro caminho do app (nem no PWA de captura offline).
+        manualChunks(id) {
+          if (/node_modules\/(echarts|zrender|vue-echarts)\//.test(id)) {
+            return 'vendor-echarts'
+          }
+        }
+      }
+    }
+  },
   server: {
     proxy: {
       '/api': 'http://localhost:3000',

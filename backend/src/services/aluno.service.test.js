@@ -7,7 +7,7 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const { randomUUID } = require("node:crypto");
 
-const { Usuario, Equipe, Aluno, Registro } = require("../models");
+const { Usuario, Equipe, Aluno, Registro, AvaliacaoFisica } = require("../models");
 const alunoService = require("./aluno.service");
 
 let usuario;
@@ -50,6 +50,43 @@ test("listAlunos: lista só traz alunos da equipe autenticada", async (t) => {
   assert.equal(listaDeB[0].id, alunoDeB.id);
 });
 
+test("listAlunos: card traz registros_count (relatos nao deletados) e avaliacoes_fisicas_count", async (t) => {
+  const aluno = await alunoService.createAluno(equipeA.id, { nome: "Aluno com contadores" });
+  const registroVivo = await Registro.create({
+    id: randomUUID(),
+    usuario_id: usuario.id,
+    equipe_id: equipeA.id,
+    aluno_id: aluno.id,
+    iniciado_em: new Date(),
+    status: Registro.STATUS.RECEBIDO
+  });
+  const registroDeletado = await Registro.create({
+    id: randomUUID(),
+    usuario_id: usuario.id,
+    equipe_id: equipeA.id,
+    aluno_id: aluno.id,
+    iniciado_em: new Date(),
+    status: Registro.STATUS.RECEBIDO,
+    deletado_em: new Date()
+  });
+  const avaliacao = await AvaliacaoFisica.create({
+    aluno_id: aluno.id,
+    equipe_id: equipeA.id,
+    data: "2026-08-01",
+    origem: AvaliacaoFisica.ORIGENS.MANUAL
+  });
+  t.after(async () => {
+    await AvaliacaoFisica.destroy({ where: { id: avaliacao.id } });
+    await Registro.destroy({ where: { id: [registroVivo.id, registroDeletado.id] } });
+    await Aluno.destroy({ where: { id: aluno.id } });
+  });
+
+  const lista = await alunoService.listAlunos(equipeA.id);
+  const encontrado = lista.find((a) => a.id === aluno.id);
+  assert.equal(encontrado.get("registros_count"), 1);
+  assert.equal(encontrado.get("avaliacoes_fisicas_count"), 1);
+});
+
 test("createAluno: rejeita nome vazio", async () => {
   await assert.rejects(() => alunoService.createAluno(equipeA.id, { nome: "   " }), /nome/);
 });
@@ -62,6 +99,28 @@ test("createAluno: aceita telefone e updateAluno permite alterá-lo", async (t) 
 
   const atualizado = await alunoService.updateAluno(equipeA.id, aluno.id, { telefone: "11888880000" });
   assert.equal(atualizado.telefone, "11888880000");
+});
+
+test("data_nascimento e sexo: criar e editar aceitam; formato inválido é rejeitado (docs/adr/0016)", async (t) => {
+  const aluno = await alunoService.createAluno(equipeA.id, {
+    nome: "Aluno com nascimento",
+    data_nascimento: "1990-05-10",
+    sexo: "F"
+  });
+  t.after(() => Aluno.destroy({ where: { id: aluno.id } }));
+
+  assert.equal(aluno.data_nascimento, "1990-05-10");
+  assert.equal(aluno.sexo, "F");
+
+  const atualizado = await alunoService.updateAluno(equipeA.id, aluno.id, { data_nascimento: "1991-01-01", sexo: null });
+  assert.equal(atualizado.data_nascimento, "1991-01-01");
+  assert.equal(atualizado.sexo, null);
+
+  await assert.rejects(
+    () => alunoService.updateAluno(equipeA.id, aluno.id, { data_nascimento: "10/05/1990" }),
+    /AAAA-MM-DD/
+  );
+  await assert.rejects(() => alunoService.updateAluno(equipeA.id, aluno.id, { sexo: "X" }), /"F" ou "M"/);
 });
 
 test("atualizarFoto: rejeita formato de imagem não suportado", async (t) => {

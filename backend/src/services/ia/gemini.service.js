@@ -1,17 +1,53 @@
 "use strict";
 
 // Único ponto do sistema que fala com a API do Gemini (docs/adr/0006-
-// provedor-ia-gemini.md) - transcrição e interpretação, os dois passos do
-// pipeline de docs/adr/0009-processamento-assincrono-em-processo.md.
+// provedor-ia-gemini.md) - transcrição, interpretação e as análises de
+// acompanhamento (docs/adr/0015).
 //
-// Deliberadamente mais simples que a camada equivalente do AgroMind (sem
-// fallback de 2 chaves, sem retry de erro transitório): MVP, um único
-// provedor, sem histórico de instabilidade observada ainda para justificar
-// essa complexidade agora.
+// Mais simples que a camada equivalente do AgroMind (sem fallback de 2
+// chaves), mas COM retry de erro transitório: em produção o provedor devolve
+// 503 "high demand / UNAVAILABLE" em rajada em horário de pico, mesmo no
+// tier pago (docs/adr/0006).
 const { GoogleGenAI } = require("@google/genai");
 const env = require("../../config/env");
+const logger = require("../../shared/logger");
 
 class GeminiConfigError extends Error {}
+
+const TENTATIVAS_MAX = 3;
+const ESPERA_BASE_MS = 1000;
+
+const dormir = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Erro que vale retentar: sobrecarga/indisponibilidade momentânea do
+// provedor. Erro de config, schema, prompt ou auth NÃO entra aqui - falha na
+// hora.
+function ehTransitorio(err) {
+  const status = err && (err.status ?? err.code ?? err.response?.status);
+  if ([429, 500, 502, 503, 504].includes(Number(status))) return true;
+  const texto = `${(err && err.status) || ""} ${(err && err.message) || ""}`.toLowerCase();
+  return /unavailable|overloaded|high demand|try again later|deadline exceeded|resource[ _]exhausted|internal error/.test(texto);
+}
+
+// Executa `fn` com até `tentativas` tentativas, backoff exponencial + jitter,
+// só retentando erro transitório (ver ehTransitorio).
+async function comRetry(fn, { tentativas = TENTATIVAS_MAX, esperaBaseMs = ESPERA_BASE_MS } = {}) {
+  for (let tentativa = 1; ; tentativa += 1) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (tentativa >= tentativas || !ehTransitorio(err)) throw err;
+      const espera = esperaBaseMs * 2 ** (tentativa - 1) + Math.floor(Math.random() * 400);
+      logger.warn({ tentativa, proxima_em_ms: espera, err: err && err.message }, "[gemini] erro transitório - retry");
+      await dormir(espera);
+    }
+  }
+}
+
+// Chamada ao Gemini com retry. Todas as funções abaixo passam por aqui.
+function gerarConteudo(params) {
+  return comRetry(() => obterCliente().models.generateContent(params));
+}
 
 let cliente = null;
 function obterCliente() {
@@ -276,8 +312,7 @@ Se "dados_insuficientes" for true: mantenha a avaliação curta, NÃO infira ten
 // { avaliacaoMensal, contextoConsolidado }. Saída estruturada força o
 // contrato das duas partes.
 async function gerarAvaliacaoMensal({ promptContexto }) {
-  const ai = obterCliente();
-  const resposta = await ai.models.generateContent({
+  const resposta = await gerarConteudo({
     model: env.gemini.model,
     contents: [{ role: "user", parts: [{ text: `${INSTRUCAO_AVALIACAO_MENSAL}\n\n---\n${promptContexto}` }] }],
     config: { responseMimeType: "application/json", responseSchema: SCHEMA_AVALIACAO_MENSAL }
@@ -380,8 +415,7 @@ Regras:
 // como texto) -> { analise }. Não devolve contexto consolidado: a análise
 // sob demanda nunca alimenta o ciclo mensal.
 async function gerarAnaliseSobDemanda({ promptContexto }) {
-  const ai = obterCliente();
-  const resposta = await ai.models.generateContent({
+  const resposta = await gerarConteudo({
     model: env.gemini.model,
     contents: [{ role: "user", parts: [{ text: `${INSTRUCAO_ANALISE_SOB_DEMANDA}\n\n---\n${promptContexto}` }] }],
     config: { responseMimeType: "application/json", responseSchema: SCHEMA_ANALISE_SOB_DEMANDA }
@@ -394,8 +428,7 @@ async function gerarAnaliseSobDemanda({ promptContexto }) {
 // Áudio bruto -> texto (Gemini aceita áudio nativamente, ver docs/adr/0006).
 // Nunca roda no dispositivo - só aqui, depois da sincronização.
 async function transcreverAudio({ buffer, mimeType }) {
-  const ai = obterCliente();
-  const resposta = await ai.models.generateContent({
+  const resposta = await gerarConteudo({
     model: env.gemini.model,
     contents: [
       {
@@ -417,8 +450,7 @@ async function transcreverAudio({ buffer, mimeType }) {
 // estruturado. Saída estruturada (responseSchema) força o contrato
 // itens[]/notaGeral em vez de depender só do prompt.
 async function interpretarRegistro({ contextoConsolidado }) {
-  const ai = obterCliente();
-  const resposta = await ai.models.generateContent({
+  const resposta = await gerarConteudo({
     model: env.gemini.model,
     contents: [
       {
@@ -441,5 +473,8 @@ module.exports = {
   interpretarRegistro,
   gerarAvaliacaoMensal,
   gerarAnaliseSobDemanda,
-  GeminiConfigError
+  GeminiConfigError,
+  // exportados para teste do retry
+  comRetry,
+  ehTransitorio
 };

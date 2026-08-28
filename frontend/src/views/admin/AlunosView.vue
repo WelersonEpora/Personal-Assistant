@@ -2,16 +2,16 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import alunosService from '../../services/alunos.service.js'
-import registrosService from '../../services/registros.service.js'
 import { corParaId, iniciais } from '../../utils/registroStatus.js'
 import { useToasts } from '../../composables/useToasts.js'
+import { useConfirm } from '../../composables/useConfirm.js'
 import ToastStack from '../../components/ToastStack.vue'
 
 const router = useRouter()
 const { toasts, showToast } = useToasts()
+const { confirmar } = useConfirm()
 
 const alunos = ref([])
-const registrosPorAluno = ref({})
 const carregando = ref(true)
 const modalAberto = ref(false)
 const novoNome = ref('')
@@ -37,12 +37,9 @@ async function carregarFotos() {
 async function carregar() {
   carregando.value = true
   try {
-    const [listaAlunos, listaRegistros] = await Promise.all([alunosService.listar(), registrosService.listar({})])
-    alunos.value = listaAlunos
-    registrosPorAluno.value = listaRegistros.reduce((mapa, registro) => {
-      mapa[registro.aluno_id] = (mapa[registro.aluno_id] || 0) + 1
-      return mapa
-    }, {})
+    // O list de alunos já traz registros_count e avaliacoes_fisicas_count
+    // calculados no backend (aluno.repository.js::findAllByEquipe).
+    alunos.value = await alunosService.listar()
     await carregarFotos()
   } finally {
     carregando.value = false
@@ -82,6 +79,31 @@ async function alternarFavorito(aluno) {
     alunos.value.sort(compararAlunos)
   } catch (_err) {
     showToast('Não foi possível atualizar o favorito.', 'warning')
+  }
+}
+
+// Inativo != excluído: o aluno só sai da seção "Ativos"; cadastro e
+// histórico continuam intactos (mesma regra de AlunoDetalheView).
+// Confirma só ao desativar - o badge fica logo abaixo do card clicável e
+// um toque errado tirando o aluno da lista é chato de perceber; reativar
+// não perde nada, então vai direto.
+async function alternarAtivo(aluno) {
+  const ativo = !aluno.ativo
+  if (!ativo) {
+    const ok = await confirmar({
+      titulo: `Marcar ${aluno.nome} como inativo?`,
+      mensagem: 'O aluno sai da lista de ativos e do lote de avaliação mensal. O cadastro e o histórico continuam intactos — dá pra reativar quando quiser.',
+      confirmarLabel: 'Marcar como inativo'
+    })
+    if (!ok) return
+  }
+  try {
+    await alunosService.atualizar(aluno.id, { ativo })
+    aluno.ativo = ativo
+    alunos.value.sort(compararAlunos)
+    showToast(ativo ? 'Aluno marcado como ativo.' : 'Aluno marcado como inativo.', 'neutral')
+  } catch (_err) {
+    showToast('Não foi possível atualizar o status.', 'warning')
   }
 }
 
@@ -127,15 +149,26 @@ async function salvarNovoAluno() {
     </p>
     <div v-if="alunos.length" class="students-grid" style="margin-bottom: 26px;">
       <div v-for="aluno in ativos" :key="aluno.id" class="card student-card" style="position: relative;" @click="abrirDetalhe(aluno.id)">
-        <button
-          type="button"
-          class="student-card-favorite"
-          style="position: absolute; top: 10px; right: 10px;"
-          :title="aluno.favorito ? 'Remover dos favoritos' : 'Marcar como favorito'"
-          @click.stop="alternarFavorito(aluno)"
-        >
-          {{ aluno.favorito ? '⭐' : '☆' }}
-        </button>
+        <div class="student-card-actions">
+          <button
+            type="button"
+            class="badge"
+            style="border: none; cursor: pointer;"
+            :class="aluno.ativo ? 'badge-success' : 'badge-neutral'"
+            :title="aluno.ativo ? 'Marcar como inativo' : 'Marcar como ativo'"
+            @click.stop="alternarAtivo(aluno)"
+          >
+            {{ aluno.ativo ? 'Ativo' : 'Inativo' }}
+          </button>
+          <button
+            type="button"
+            class="student-card-favorite"
+            :title="aluno.favorito ? 'Remover dos favoritos' : 'Marcar como favorito'"
+            @click.stop="alternarFavorito(aluno)"
+          >
+            {{ aluno.favorito ? '⭐' : '☆' }}
+          </button>
+        </div>
         <div class="student-card-top">
           <img v-if="aluno.fotoUrl" :src="aluno.fotoUrl" class="avatar sz-lg" alt="" />
           <span v-else class="avatar sz-lg" :style="{ background: corParaId(aluno.id) }">{{ iniciais(aluno.nome) }}</span>
@@ -144,7 +177,9 @@ async function salvarNovoAluno() {
           </div>
         </div>
         <div v-if="aluno.observacoes" class="student-card-workout">{{ aluno.observacoes }}</div>
-        <div style="font-size: 12px; color: var(--color-text-faint);">{{ registrosPorAluno[aluno.id] || 0 }} registro(s)</div>
+        <div style="font-size: 12px; color: var(--color-text-faint);">
+          {{ aluno.registros_count || 0 }} relato(s) · {{ aluno.avaliacoes_fisicas_count || 0 }} aval. física(s)
+        </div>
       </div>
       <div v-if="!ativos.length" class="card empty-state">Nenhum aluno ativo.</div>
     </div>
@@ -155,25 +190,37 @@ async function salvarNovoAluno() {
       </p>
       <div class="students-grid">
         <div v-for="aluno in inativos" :key="aluno.id" class="card student-card" style="position: relative; opacity: .7;" @click="abrirDetalhe(aluno.id)">
-          <button
-            type="button"
-            class="student-card-favorite"
-            style="position: absolute; top: 10px; right: 10px;"
-            :title="aluno.favorito ? 'Remover dos favoritos' : 'Marcar como favorito'"
-            @click.stop="alternarFavorito(aluno)"
-          >
-            {{ aluno.favorito ? '⭐' : '☆' }}
-          </button>
+          <div class="student-card-actions">
+            <button
+              type="button"
+              class="badge"
+              style="border: none; cursor: pointer;"
+              :class="aluno.ativo ? 'badge-success' : 'badge-neutral'"
+              :title="aluno.ativo ? 'Marcar como inativo' : 'Marcar como ativo'"
+              @click.stop="alternarAtivo(aluno)"
+            >
+              {{ aluno.ativo ? 'Ativo' : 'Inativo' }}
+            </button>
+            <button
+              type="button"
+              class="student-card-favorite"
+              :title="aluno.favorito ? 'Remover dos favoritos' : 'Marcar como favorito'"
+              @click.stop="alternarFavorito(aluno)"
+            >
+              {{ aluno.favorito ? '⭐' : '☆' }}
+            </button>
+          </div>
           <div class="student-card-top">
             <img v-if="aluno.fotoUrl" :src="aluno.fotoUrl" class="avatar sz-lg" alt="" />
             <span v-else class="avatar sz-lg" :style="{ background: corParaId(aluno.id) }">{{ iniciais(aluno.nome) }}</span>
             <div>
               <div class="student-card-name">{{ aluno.nome }}</div>
-              <div class="student-card-plan">Inativo</div>
             </div>
           </div>
           <div v-if="aluno.observacoes" class="student-card-workout">{{ aluno.observacoes }}</div>
-          <div style="font-size: 12px; color: var(--color-text-faint);">{{ registrosPorAluno[aluno.id] || 0 }} registro(s)</div>
+          <div style="font-size: 12px; color: var(--color-text-faint);">
+            {{ aluno.registros_count || 0 }} relato(s) · {{ aluno.avaliacoes_fisicas_count || 0 }} aval. física(s)
+          </div>
         </div>
       </div>
     </template>

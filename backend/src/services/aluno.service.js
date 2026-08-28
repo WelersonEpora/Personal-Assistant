@@ -16,11 +16,42 @@ async function getAluno(equipeId, id) {
   return aluno;
 }
 
-async function createAluno(equipeId, { nome, observacoes, telefone }) {
+// docs/adr/0016: data de nascimento e sexo são atributos estáveis da pessoa
+// (entram na avaliação física). Opcionais - o cadastro mínimo não os exige.
+function validarDataNascimento(valor) {
+  if (valor === undefined) return undefined;
+  if (valor === null || valor === "") return null;
+  if (typeof valor !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) {
+    throw new ValidationError('"data_nascimento" deve estar no formato AAAA-MM-DD.');
+  }
+  const d = new Date(`${valor}T00:00:00Z`);
+  if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== valor) {
+    throw new ValidationError('"data_nascimento" é uma data inválida.');
+  }
+  return valor;
+}
+
+function validarSexo(valor) {
+  if (valor === undefined) return undefined;
+  if (valor === null || valor === "") return null;
+  if (valor !== "F" && valor !== "M") {
+    throw new ValidationError('"sexo" precisa ser "F" ou "M".');
+  }
+  return valor;
+}
+
+async function createAluno(equipeId, { nome, observacoes, telefone, data_nascimento, sexo }) {
   if (!nome || !nome.trim()) {
     throw new ValidationError('"nome" é obrigatório.');
   }
-  return alunoRepository.create({ equipeId, nome: nome.trim(), observacoes, telefone });
+  return alunoRepository.create({
+    equipeId,
+    nome: nome.trim(),
+    observacoes,
+    telefone,
+    data_nascimento: validarDataNascimento(data_nascimento) ?? null,
+    sexo: validarSexo(sexo) ?? null
+  });
 }
 
 async function updateAluno(equipeId, id, dados) {
@@ -37,6 +68,8 @@ async function updateAluno(equipeId, id, dados) {
   if (dados.telefone !== undefined) atualizacao.telefone = dados.telefone ? dados.telefone.trim() : null;
   if (dados.ativo !== undefined) atualizacao.ativo = Boolean(dados.ativo);
   if (dados.favorito !== undefined) atualizacao.favorito = Boolean(dados.favorito);
+  if (dados.data_nascimento !== undefined) atualizacao.data_nascimento = validarDataNascimento(dados.data_nascimento);
+  if (dados.sexo !== undefined) atualizacao.sexo = validarSexo(dados.sexo);
 
   return alunoRepository.update(aluno, atualizacao);
 }

@@ -67,3 +67,13 @@ da seção 4 do pedido ("Não inventar informações que não estejam presentes"
 - Chamadas ao Gemini têm custo e latência; o pipeline roda de forma
   assíncrona depois da sincronização (ver ADR-0009), nunca bloqueando a
   resposta HTTP do endpoint de sincronização.
+- **Retry de erro transitório** (`services/ia/gemini.service.js::comRetry`):
+  em produção o provedor devolve `503 "high demand" / UNAVAILABLE` em rajada
+  em horário de pico — mesmo no tier pago, e igualmente para as chamadas
+  interativas (análise sob demanda, geração mensal manual) e as de fila
+  (transcrição, interpretação). Todas as chamadas passam por um wrapper de
+  até 3 tentativas com backoff exponencial + jitter (~1s → 2s), retentando
+  **só** erro transitório (`429/500/502/503/504`, "overloaded", "high
+  demand", etc.). Erro de config, schema, prompt ou auth falha na hora. A
+  decisão original de não ter retry ("sem histórico de instabilidade
+  observada") não vale mais depois dos 503 vistos em produção.

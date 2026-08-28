@@ -35,6 +35,13 @@ const routes = [
         props: true,
         meta: { titulo: 'Ficha de Treino' }
       },
+      {
+        path: 'alunos/:id/avaliacoes-fisicas',
+        name: 'admin-aluno-avaliacoes-fisicas',
+        component: () => import('../views/admin/AvaliacoesFisicasView.vue'),
+        props: true,
+        meta: { titulo: 'Avaliações Físicas' }
+      },
       // O acompanhamento deixou de ser tela própria - virou seção da tela do
       // aluno (docs/adr/0015). Redirect para não quebrar links antigos.
       {

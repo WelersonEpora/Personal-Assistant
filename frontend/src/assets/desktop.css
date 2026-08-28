@@ -150,6 +150,15 @@ html, body { height: 100%; }
   font-size: 13px;
 }
 .registro-card-delete:hover { background: var(--color-danger-light); }
+/* Ações no topo do card (badge Ativo/Inativo + estrela de favorito),
+   alinhadas à direita. Ficam no fluxo, mas puxadas para dentro do padding
+   do card com margens negativas - ocupam só o cantinho superior direito,
+   sem virar uma faixa própria nem disputar espaço com o nome. */
+.student-card-actions {
+  display: flex; align-items: center; justify-content: flex-end; gap: 6px;
+  margin: -8px -2px -8px 0;
+}
+.student-card-actions .badge { padding: 2px 8px; font-size: 11px; line-height: 1.5; }
 .student-card-favorite {
   width: 26px; height: 26px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
@@ -204,7 +213,7 @@ table.data-table tbody tr:last-child td { border-bottom: none; }
 
 /* --------------------------------------------------------- alunos grid */
 .students-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; }
-.student-card { padding: 18px; display: flex; flex-direction: column; gap: 10px; cursor: pointer; transition: box-shadow .15s ease, transform .1s ease; }
+.student-card { padding: 14px; display: flex; flex-direction: column; gap: 10px; cursor: pointer; transition: box-shadow .15s ease, transform .1s ease; }
 .student-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
 .student-card-top { display: flex; align-items: center; gap: 12px; }
 .student-card-name { font-size: 14.5px; font-weight: 700; }

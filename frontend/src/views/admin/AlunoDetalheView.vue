@@ -3,6 +3,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import alunosService from '../../services/alunos.service.js'
 import { corParaId, iniciais } from '../../utils/registroStatus.js'
+import { calcularIdade, formatarDataAvaliacao } from '../../utils/avaliacaoFisica.js'
 import { useToasts } from '../../composables/useToasts.js'
 import { useConfirm } from '../../composables/useConfirm.js'
 import ToastStack from '../../components/ToastStack.vue'
@@ -21,6 +22,8 @@ const editando = ref(false)
 const nomeEdit = ref('')
 const telefoneEdit = ref('')
 const observacoesEdit = ref('')
+const dataNascimentoEdit = ref('')
+const sexoEdit = ref('')
 const salvando = ref(false)
 const enviandoFoto = ref(false)
 const removendoFoto = ref(false)
@@ -58,6 +61,8 @@ function iniciarEdicao() {
   nomeEdit.value = aluno.value.nome
   telefoneEdit.value = aluno.value.telefone || ''
   observacoesEdit.value = aluno.value.observacoes || ''
+  dataNascimentoEdit.value = aluno.value.data_nascimento ? String(aluno.value.data_nascimento).slice(0, 10) : ''
+  sexoEdit.value = aluno.value.sexo || ''
   editando.value = true
 }
 
@@ -68,7 +73,9 @@ async function salvarEdicao() {
     aluno.value = await alunosService.atualizar(props.id, {
       nome: nomeEdit.value.trim(),
       telefone: telefoneEdit.value.trim() || null,
-      observacoes: observacoesEdit.value.trim() || null
+      observacoes: observacoesEdit.value.trim() || null,
+      data_nascimento: dataNascimentoEdit.value || null,
+      sexo: sexoEdit.value || null
     })
     editando.value = false
     showToast('Dados do aluno atualizados.', 'success')
@@ -126,6 +133,14 @@ async function alternarFavorito() {
 // para quando ele voltar.
 async function alternarAtivo() {
   const ativo = !aluno.value.ativo
+  if (!ativo) {
+    const ok = await confirmar({
+      titulo: `Marcar ${aluno.value.nome} como inativo?`,
+      mensagem: 'O aluno sai da lista de ativos e do lote de avaliação mensal. O cadastro e o histórico continuam intactos — dá pra reativar quando quiser.',
+      confirmarLabel: 'Marcar como inativo'
+    })
+    if (!ok) return
+  }
   try {
     aluno.value = await alunosService.atualizar(props.id, { ativo })
     showToast(ativo ? 'Aluno marcado como ativo.' : 'Aluno marcado como inativo.', 'neutral')
@@ -194,6 +209,13 @@ async function excluirAluno() {
             </button>
           </div>
           <div v-if="aluno.telefone" class="detail-header-sub">📞 {{ aluno.telefone }}</div>
+          <div v-if="aluno.data_nascimento || aluno.sexo" class="detail-header-sub">
+            <template v-if="aluno.data_nascimento">
+              🎂 {{ formatarDataAvaliacao(aluno.data_nascimento) }}
+              <template v-if="calcularIdade(aluno.data_nascimento) !== null"> ({{ calcularIdade(aluno.data_nascimento) }} anos)</template>
+            </template>
+            <template v-if="aluno.sexo"> · {{ aluno.sexo === 'F' ? 'Feminino' : 'Masculino' }}</template>
+          </div>
           <div v-if="aluno.observacoes" class="detail-header-sub">{{ aluno.observacoes }}</div>
           <div class="detail-tags">
             <button
@@ -212,8 +234,9 @@ async function excluirAluno() {
               <button type="button" class="btn btn-primary" @click="iniciarEdicao">Editar</button>
               <button type="button" class="btn btn-danger-ghost" @click="excluirAluno">Excluir aluno</button>
             </div>
-            <div style="display: flex; gap: 10px;">
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
               <router-link class="btn btn-primary" :to="{ name: 'admin-aluno-ficha-treino', params: { id: props.id } }">📋 Ficha de Treino</router-link>
+              <router-link class="btn btn-primary" :to="{ name: 'admin-aluno-avaliacoes-fisicas', params: { id: props.id } }">🩺 Avaliações Físicas</router-link>
             </div>
           </div>
         </template>
@@ -225,6 +248,20 @@ async function excluirAluno() {
           <div class="form-field" style="margin-bottom: 10px;">
             <label>Telefone</label>
             <input v-model="telefoneEdit" type="tel" placeholder="(11) 99999-0000" />
+          </div>
+          <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+            <div class="form-field" style="flex: 1;">
+              <label>Data de nascimento</label>
+              <input v-model="dataNascimentoEdit" type="date" />
+            </div>
+            <div class="form-field" style="width: 110px;">
+              <label>Sexo</label>
+              <select v-model="sexoEdit">
+                <option value="">—</option>
+                <option value="F">Feminino</option>
+                <option value="M">Masculino</option>
+              </select>
+            </div>
           </div>
           <div class="form-field" style="margin-bottom: 12px;">
             <label>Observações</label>

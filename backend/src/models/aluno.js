@@ -24,10 +24,22 @@ module.exports = (sequelize) => {
         allowNull: false
       },
       // Cadastro deliberadamente minimo (docs/adr/0008) - sem plano de
-      // treino, avaliacao fisica etc. ate o sistema legado ser analisado.
+      // treino etc. ate o sistema legado ser analisado.
       observacoes: {
         type: DataTypes.TEXT,
         allowNull: true
+      },
+      // docs/adr/0016: atributos estaveis da pessoa (nao da avaliacao) que a
+      // avaliacao fisica consome. Nulos - o cadastro minimo nao os exige; o
+      // importador do legado preenche quando o BodyMove tinha o dado.
+      data_nascimento: {
+        type: DataTypes.DATEONLY,
+        allowNull: true
+      },
+      sexo: {
+        type: DataTypes.STRING(1),
+        allowNull: true,
+        validate: { isIn: [["F", "M"]] }
       },
       telefone: {
         type: DataTypes.STRING(20),
@@ -75,6 +87,7 @@ module.exports = (sequelize) => {
     Aluno.hasMany(models.AvaliacaoMensal, { foreignKey: "aluno_id", as: "avaliacoesMensais" });
     Aluno.hasMany(models.AnaliseSobDemanda, { foreignKey: "aluno_id", as: "analisesSobDemanda" });
     Aluno.hasMany(models.AvaliacaoPersonal, { foreignKey: "aluno_id", as: "avaliacoesPersonal" });
+    Aluno.hasMany(models.AvaliacaoFisica, { foreignKey: "aluno_id", as: "avaliacoesFisicas" });
   };
 
   return Aluno;

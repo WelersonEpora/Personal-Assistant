@@ -260,12 +260,17 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
   Personal Trainer" sem decisão explícita — o modelo atual é provisório
   (ADR-0008). Já decididos e implementados: catálogo de exercícios/ficha
   (ADR-0013) e avaliação física + importação do BodyMove (ADR-0016).
-- **Avaliação física nunca passa pelo pipeline de IA nem vira `validacao`**
-  (ADR-0016) — é dado objetivo do personal, CRUD direto como
-  `avaliacao_personal`. Nenhum job/worker escreve em `avaliacao_fisica*`.
-  Métricas derivadas (`imc`, `rcq`) são do service, nunca escritas por humano.
+- **Avaliação física nunca vira `validacao` e nenhum job/worker escreve em
+  `avaliacao_fisica*`** (ADR-0016) — é dado objetivo do personal, CRUD direto
+  como `avaliacao_personal`. Métricas derivadas (`imc`, `rcq`, `massa_gorda`,
+  `massa_magra`) são do service, nunca escritas por humano nem por IA.
   Importação do legado é idempotente por `(aluno_id, data, origem)` e mantém
-  `origem = legado_bodymove`.
+  `origem = legado_bodymove`. A ADR-0018 permite que a IA gere um **rascunho**
+  de avaliação (tabela `proposta_avaliacao_fisica`, descartável, nunca oficial,
+  escrita só pelo worker) a partir de um Registro `tipo = avaliacao_fisica`; a
+  `avaliacao_fisica` em si continua nascendo só do `avaliacao-fisica.service`,
+  acionada pelo personal na revisão (`origem = captura_ia`, endpoint
+  `POST /api/v1/registros/:id/confirmar-avaliacao-fisica`).
 - **`registro.id` sempre nasce no cliente.** Qualquer endpoint que receba um
   Registro precisa ser idempotente por esse id.
 - Toda decisão arquitetural relevante e difícil de reverter vira ADR em
@@ -307,6 +312,7 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
 | 0015 | Acompanhamento Individual Mensal (avaliação da IA por contexto consolidado) |
 | 0016 | Avaliação Física (modelo v3) e importação do legado BodyMove |
 | 0017 | Endpoint de painel agregado para o dashboard |
+| 0018 | Avaliação Física por captura (áudio/texto) + interpretação da IA |
 
 ## Estado atual
 
@@ -340,7 +346,16 @@ MVP completo e verificado de ponta a ponta:
   `aluno.dispensa_ficha_treino` e `aluno.dispensa_avaliacao_fisica` (opt-out,
   default false) tiram o aluno dos alertas "sem ficha ativa"/"ficha antiga" e
   "avaliação física vencida" do painel.
-  233 testes automatizados (`node --test`, unitários +
+  Avaliação Física por captura de voz (docs/adr/0018): `registro.tipo`
+  (`atendimento` | `avaliacao_fisica`), interpretador próprio no `gemini.service`
+  (catálogo no prompt → `metrica_codigo`; não calcula IMC/protocolo), tabela
+  `proposta_avaliacao_fisica` (staging da IA, nunca oficial — escrita só pelo
+  worker), `POST /api/v1/registros/:id/confirmar-avaliacao-fisica` (endpoint
+  próprio; `/confirmar` continua o único que escreve `validacao`) que cria a
+  `avaliacao_fisica` pelo CRUD (`origem = captura_ia`, `registro_id`) + avança
+  o status numa transação. `reprocessar` também refaz a interpretação a partir
+  de `aguardando_revisao` para esse tipo.
+  250 testes automatizados (`node --test`, unitários +
   integração contra banco de teste dedicado).
 - **Frontend**: app Vue 3 + Vite + PWA único (`/captura` mobile-first
   offline, `/admin` gestão/validação), IndexedDB + fila de sincronização
@@ -360,8 +375,16 @@ MVP completo e verificado de ponta a ponta:
   feed de atividade recente unificado — consome `GET /api/v1/painel`.
   Switches "não usa ficha de treino" / "não faz avaliação física" no topo das
   seções do aluno (tiram do painel; não apagam dados).
-  24 testes automatizados (`node --test` + `fake-indexeddb`; +
-  `echarts-option-builder.test.js` puro).
+  Captura de Avaliação Física por voz (docs/adr/0018): seletor de tipo
+  (Atendimento / Avaliação física) ao iniciar o Registro (persistido; um
+  `em_andamento` por aluno **por tipo**), roteiro de ditado opcional, acento
+  teal no composer e chip na lista. Revisão da proposta em
+  `components/revisao/RevisaoAvaliacaoFisica.vue` — painel de conferência
+  (confiança por medida, trechos, "não reconhecido", ouvir áudio) +
+  `AvaliacaoFisicaForm` em `modo="revisao"` (pré-preenchido, "Confirmar
+  avaliação física", "Refazer interpretação", "Descartar").
+  30 testes automatizados (`node --test` + `fake-indexeddb`; +
+  `echarts-option-builder.test.js` e `avaliacaoFisica.test.js` puros).
 - **Docker**: `compose.dev.yml` (Postgres + pgAdmin) e `compose.prod.yml`
   (Postgres + backend + frontend) validados; Dockerfiles com healthcheck
   em ambos os serviços da aplicação.
@@ -375,10 +398,14 @@ MVP completo e verificado de ponta a ponta:
   navegador real (Playwright), sem erros de console.
 - **CI/CD**: `.github/workflows/ci-cd.yml` testa backend e frontend em todo
   push/PR e publica as imagens no GHCR a cada push em `main`.
-- **Pendências reais**: nenhuma chamada real ao Gemini foi validada (precisa
-  de `GEMINI_API_KEY` de verdade); deploy automático num servidor real ainda
-  não existe (falta o servidor em si — host/SSH nos secrets do repositório);
-  domínio/TLS de produção não configurados — ver `docs/deploy.md`.
+- **Pendências reais**: com `GEMINI_API_KEY` real configurada em dev, o
+  interpretador de avaliação física (docs/adr/0018) foi exercitado ponta a
+  ponta contra o Gemini (extração e conversão de unidade corretas em um caso
+  simples); os demais passos de IA (transcrição de áudio real, interpretação
+  de relato, acompanhamento mensal) ainda não foram validados com chamada
+  real. Deploy automático num servidor real ainda não existe (falta o servidor
+  em si — host/SSH nos secrets do repositório); domínio/TLS de produção não
+  configurados — ver `docs/deploy.md`.
   A importação do BodyMove (ADR-0016) foi validada por `--dry-run` e testes
   (transform contra o `.bak` real + persistência no banco de teste), mas a
   carga de verdade num banco alvo ainda não foi executada

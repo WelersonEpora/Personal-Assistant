@@ -3,6 +3,7 @@
 const registroService = require("../services/registro.service");
 const registroSyncService = require("../services/registro-sync.service");
 const registroConfirmacaoService = require("../services/registro-confirmacao.service");
+const registroAvaliacaoFisicaConfirmacaoService = require("../services/registro-avaliacao-fisica-confirmacao.service");
 const { success } = require("../shared/utils/api-response");
 const { ValidationError } = require("../shared/errors");
 
@@ -59,6 +60,19 @@ async function confirmar(req, res) {
   success(res, validacao, { statusCode: 201 });
 }
 
+// docs/adr/0018 - confirmação de Registro `tipo = avaliacao_fisica`. Endpoint
+// separado de propósito: `/confirmar` continua sendo o único que escreve
+// `validacao` (docs/adr/0007).
+async function confirmarAvaliacaoFisica(req, res) {
+  const resultado = await registroAvaliacaoFisicaConfirmacaoService.confirmar({
+    usuarioId: req.usuarioId,
+    equipeId: req.equipeId,
+    registroId: req.params.id,
+    payload: req.body || {}
+  });
+  success(res, resultado, { statusCode: 201 });
+}
+
 async function excluir(req, res) {
   await registroService.excluir(req.equipeId, req.params.id);
   success(res, { id: req.params.id });
@@ -69,4 +83,4 @@ async function reprocessar(req, res) {
   success(res, registro);
 }
 
-module.exports = { list, getById, sincronizar, streamAudio, confirmar, excluir, reprocessar };
+module.exports = { list, getById, sincronizar, streamAudio, confirmar, confirmarAvaliacaoFisica, excluir, reprocessar };

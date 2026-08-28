@@ -2,10 +2,11 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import registrosService from '../../services/registros.service.js'
-import { corParaId, iniciais, formatarData, formatarHora, resumoEntradas } from '../../utils/registroStatus.js'
+import { corParaId, iniciais, formatarData, formatarHora, resumoEntradas, tipoMeta } from '../../utils/registroStatus.js'
 import { useToasts } from '../../composables/useToasts.js'
 import { useConfirm } from '../../composables/useConfirm.js'
 import ToastStack from '../../components/ToastStack.vue'
+import RevisaoAvaliacaoFisica from '../../components/revisao/RevisaoAvaliacaoFisica.vue'
 
 const props = defineProps({ id: { type: String, default: null } })
 const emit = defineEmits(['registro-processado'])
@@ -115,6 +116,13 @@ function confirmarSemEditar() {
   confirmarRegistro(itensIa.value, notaGeralIa.value)
 }
 
+// docs/adr/0018 - RevisaoAvaliacaoFisica já mostrou o toast e chamou a API;
+// aqui só sai do detalhe e recarrega a fila (igual ao pós-confirmação do relato).
+async function aoProcessarRegistro() {
+  emit('registro-processado')
+  await carregarFila()
+}
+
 // Exclusão (soft-delete, docs/adr/0007) - mesmo padrão de RegistrosView: o
 // backend já rejeita "confirmado", mas nesta tela isso nunca acontece porque
 // só chegam registros 'aguardando_revisao'.
@@ -147,6 +155,14 @@ async function excluirRegistro() {
           Assim que a IA processar um novo registro, ele aparece aqui.
         </div>
       </div>
+
+      <!-- docs/adr/0018 - Registro de avaliação física tem revisão própria
+           (formulário pré-preenchido pela proposta; NÃO cria validacao). -->
+      <RevisaoAvaliacaoFisica
+        v-else-if="selecionado.tipo === 'avaliacao_fisica'"
+        :registro="selecionado"
+        @processado="aoProcessarRegistro"
+      />
 
       <div v-else class="card revisao-card">
         <div class="detail-header" style="margin-bottom: 14px;">
@@ -253,7 +269,10 @@ async function excluirRegistro() {
         >
           <span class="avatar sz-sm" :style="{ background: corParaId(registro.aluno?.id) }">{{ iniciais(registro.aluno?.nome) }}</span>
           <span class="queue-item-body">
-            <span class="queue-item-title">{{ registro.aluno?.nome }} — {{ registro.titulo || 'Registro' }}</span>
+            <span class="queue-item-title">
+              {{ registro.aluno?.nome }} — {{ registro.titulo || 'Registro' }}
+              <span v-if="registro.tipo === 'avaliacao_fisica'" class="badge badge-avaliacao" style="font-size: 10px;">{{ tipoMeta(registro.tipo).icon }} {{ tipoMeta(registro.tipo).chip }}</span>
+            </span>
             <span class="queue-item-sub">{{ formatarData(registro.created_at) }} — {{ formatarHora(registro.iniciado_em) }}</span>
           </span>
         </button>

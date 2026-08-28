@@ -8,6 +8,8 @@ const { enfileirarRegistro } = require("../jobs/processador-fila-ia");
 
 const { Registro, sequelize } = registroRepository;
 
+const TIPOS_REGISTRO = Object.values(Registro.TIPOS);
+
 function validarMetadata(registroId, metadata) {
   if (!metadata || metadata.id !== registroId) {
     throw new ValidationError('O "id" do metadata precisa ser igual ao id do Registro na URL.');
@@ -17,6 +19,11 @@ function validarMetadata(registroId, metadata) {
   }
   if (!metadata.iniciadoEm) {
     throw new ValidationError('"iniciadoEm" é obrigatório.');
+  }
+  // docs/adr/0018 - o tipo nasce no cliente; ausente = `atendimento` (mantém
+  // compatível com clientes/Registros anteriores a esta mudança).
+  if (metadata.tipo !== undefined && !TIPOS_REGISTRO.includes(metadata.tipo)) {
+    throw new ValidationError(`"tipo" deve ser um de: ${TIPOS_REGISTRO.join(", ")}.`);
   }
   if (!Array.isArray(metadata.entradas) || metadata.entradas.length === 0) {
     throw new ValidationError("O Registro precisa de ao menos uma entrada.");
@@ -49,7 +56,15 @@ async function sincronizar({ usuarioId, equipeId, registroId, metadata, arquivos
 
   const { registro, criado } = await sequelize.transaction(async (transaction) => {
     const resultado = await registroRepository.obterOuCriarRegistro(
-      { id: registroId, usuarioId, equipeId, alunoId: metadata.alunoId, titulo: metadata.titulo, iniciadoEm: metadata.iniciadoEm },
+      {
+        id: registroId,
+        usuarioId,
+        equipeId,
+        alunoId: metadata.alunoId,
+        titulo: metadata.titulo,
+        iniciadoEm: metadata.iniciadoEm,
+        tipo: metadata.tipo || Registro.TIPOS.ATENDIMENTO
+      },
       transaction
     );
 

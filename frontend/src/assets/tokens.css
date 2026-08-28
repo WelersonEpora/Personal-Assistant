@@ -27,6 +27,12 @@
   --color-info: #0ea5e9;
   --color-info-light: #e0f2fe;
 
+  /* docs/adr/0018 - identidade visual do Registro tipo "avaliação física"
+     (teal, distinto do indigo primário e do cyan --color-info). */
+  --color-avaliacao: #0d9488;
+  --color-avaliacao-dark: #0f766e;
+  --color-avaliacao-light: #ccfbf1;
+
   --color-text: #12141c;
   --color-text-secondary: #6b7280;
   --color-text-faint: #9ca3af;
@@ -81,6 +87,7 @@ img { max-width: 100%; display: block; }
 .badge-info    { background: var(--color-info-light);    color: #0369a1; }
 .badge-neutral { background: #eef0f4; color: var(--color-text-secondary); }
 .badge-primary { background: var(--color-primary-light); color: var(--color-primary-dark); }
+.badge-avaliacao { background: var(--color-avaliacao-light); color: var(--color-avaliacao-dark); }
 
 /* ---- shared button component ---- */
 .btn {

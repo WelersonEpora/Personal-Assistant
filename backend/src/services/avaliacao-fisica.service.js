@@ -134,7 +134,14 @@ async function obter(equipeId, alunoId, id) {
   return avaliacao;
 }
 
-async function criar(equipeId, alunoId, autorId, dados = {}) {
+// `opcoes` (docs/adr/0018): `origem` continua server-set - o cliente nunca a
+// escolhe; o default `manual` é o CRUD direto, `captura_ia` vem do service de
+// confirmação de Registro. `registroId` liga a avaliação ao Registro que a
+// originou. `transaction` compõe esta criação com o avanço de `registro.status`
+// numa transação única - nesse caso devolve só o id (o chamador refaz o fetch
+// depois do commit, fora da transação estrangeira).
+async function criar(equipeId, alunoId, autorId, dados = {}, opcoes = {}) {
+  const { origem = "manual", registroId = null, transaction = null } = opcoes;
   await verificarAluno(equipeId, alunoId);
 
   const catalogo = await carregarCatalogo();
@@ -142,15 +149,17 @@ async function criar(equipeId, alunoId, autorId, dados = {}) {
     aluno_id: alunoId,
     equipe_id: equipeId,
     data: validarData(dados.data),
-    origem: "manual", // server-set; o cliente nunca escolhe a origem
+    origem,
     avaliador_id: autorId,
+    registro_id: registroId,
     anamnese_json: validarAnamneseJson(dados.anamnese_json ?? null),
     postural_json: validarPosturalJson(dados.postural_json ?? null),
     observacoes: validarObservacoes(dados.observacoes)
   };
   const medidas = normalizarMedidas(dados.medidas ?? [], catalogo) || [];
 
-  const id = await avaliacaoFisicaRepository.criar({ header, medidas });
+  const id = await avaliacaoFisicaRepository.criar({ header, medidas }, transaction);
+  if (transaction) return id;
   return avaliacaoFisicaRepository.obterPorId({ id, equipeId });
 }
 

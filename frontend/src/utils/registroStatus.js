@@ -21,6 +21,15 @@ export function statusMeta(status) {
   return STATUS_META[status] || { label: status, badge: 'neutral', icon: '•' }
 }
 
+// docs/adr/0018 - tipo do Registro. `atendimento` é o default e não recebe
+// selo (não polui a lista); `avaliacao_fisica` fica visualmente destacado.
+export function tipoMeta(tipo) {
+  if (tipo === 'avaliacao_fisica') {
+    return { tipo, label: 'Avaliação física', chip: 'Avaliação', icon: '📏', badge: 'avaliacao' }
+  }
+  return { tipo: 'atendimento', label: 'Atendimento', chip: '', icon: '📝', badge: 'neutral' }
+}
+
 export function entradaIcon(tipo) {
   return tipo === 'audio' ? '🎙️' : '⌨️'
 }

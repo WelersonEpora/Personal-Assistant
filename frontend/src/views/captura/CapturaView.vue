@@ -8,12 +8,14 @@ import usuariosService from '../../services/usuarios.service.js'
 import { salvarAlunosCache, listarAlunosCache, salvarAudioLocal, removerAudioLocal, obterAudioLocal } from '../../offline/db.js'
 import { criarGravador } from '../../offline/recorder.js'
 import { useToasts } from '../../composables/useToasts.js'
-import { statusMeta, resumoEntradas, corParaId, iniciais, formatarDataHora } from '../../utils/registroStatus.js'
+import { statusMeta, tipoMeta, resumoEntradas, corParaId, iniciais, formatarDataHora } from '../../utils/registroStatus.js'
 import { gerarUuid } from '../../utils/uuid.js'
 import AlunoSheet from '../../components/AlunoSheet.vue'
+import RoteiroDitado from '../../components/RoteiroDitado.vue'
 import ToastStack from '../../components/ToastStack.vue'
 
 const ULTIMO_ALUNO_KEY = 'personal_assistant_ultimo_aluno'
+const ULTIMO_TIPO_KEY = 'personal_assistant_ultimo_tipo'
 
 const auth = useAuthStore()
 const syncQueue = useSyncQueueStore()
@@ -23,6 +25,10 @@ const gravador = criarGravador()
 const alunos = ref([])
 const alunoAtualId = ref(null)
 const sheetAberto = ref(false)
+// docs/adr/0018 - tipo escolhido ANTES de iniciar (nunca inferido depois).
+const TIPOS_VALIDOS = ['atendimento', 'avaliacao_fisica']
+const tipoSelecionadoSalvo = localStorage.getItem(ULTIMO_TIPO_KEY)
+const tipoSelecionado = ref(TIPOS_VALIDOS.includes(tipoSelecionadoSalvo) ? tipoSelecionadoSalvo : 'atendimento')
 const registroTituloInput = ref('')
 const composerTexto = ref('')
 const gravando = ref(false)
@@ -44,11 +50,21 @@ const alunosAtivos = computed(() => alunos.value.filter((a) => a.ativo))
 // desde "Iniciar registro" (docs/adr/0012), não mais um estado só em
 // memória. Isso é o que permite ter um Registro em_andamento por aluno ao
 // mesmo tempo (ex.: atendimento em família) sem perder progresso ao trocar.
-const registroEmAndamento = computed(() =>
-  syncQueue.registrosLocais.find((r) => r.alunoId === alunoAtualId.value && r.status === 'em_andamento') ?? null
+// docs/adr/0018 - a regra da ADR-0012 passa a ser um Registro 'em_andamento'
+// por aluno POR TIPO: o personal pode ter um 'atendimento' e uma
+// 'avaliacao_fisica' abertos ao mesmo tempo para o mesmo aluno.
+const registroEmAndamento = computed(
+  () =>
+    syncQueue.registrosLocais.find(
+      (r) =>
+        r.alunoId === alunoAtualId.value &&
+        r.status === 'em_andamento' &&
+        (r.tipo ?? 'atendimento') === tipoSelecionado.value
+    ) ?? null
 )
 const estagio = computed(() => (registroEmAndamento.value ? 'composer' : 'idle'))
 const podeIniciar = computed(() => Boolean(alunoAtualId.value) && !registroEmAndamento.value)
+const tipoEmAndamento = computed(() => tipoMeta(registroEmAndamento.value?.tipo))
 const micModo = computed(() => (composerTexto.value.trim() ? 'send' : 'mic'))
 const alunosComRegistroEmAndamento = computed(
   () => new Set(syncQueue.registrosLocais.filter((r) => r.status === 'em_andamento').map((r) => r.alunoId))
@@ -75,7 +91,8 @@ const recentes = computed(() => {
     titulo: r.titulo,
     iniciadoLabel: formatarDataHora(r.iniciadoEm),
     entradas: r.entradas,
-    status: r.status
+    status: r.status,
+    tipo: r.tipo
   }))
   const doServidor = registrosServidorRecentes.value
     .filter((r) => !locaisIds.has(r.id))
@@ -88,7 +105,8 @@ const recentes = computed(() => {
       titulo: r.titulo,
       iniciadoLabel: formatarDataHora(r.iniciado_em),
       entradas: r.entradas || [],
-      status: r.status
+      status: r.status,
+      tipo: r.tipo
     }))
   return [...locais, ...doServidor]
 })
@@ -197,6 +215,9 @@ async function excluirRecente(item) {
 watch(alunoAtualId, (novo) => {
   if (novo) localStorage.setItem(ULTIMO_ALUNO_KEY, novo)
 })
+watch(tipoSelecionado, (novo) => {
+  localStorage.setItem(ULTIMO_TIPO_KEY, novo)
+})
 
 // Ao trocar de aluno (ou depois de um `carregar()` recarregar registrosLocais
 // do zero, ex.: ciclo de sincronização de OUTRO Registro), garante que toda
@@ -297,6 +318,7 @@ async function iniciarRegistro() {
     id: gerarUuid(),
     alunoId: alunoAtualId.value,
     titulo: registroTituloInput.value.trim(),
+    tipo: tipoSelecionado.value,
     iniciadoEm: new Date().toISOString(),
     status: 'em_andamento',
     entradas: []
@@ -470,16 +492,59 @@ async function descartar() {
           </template>
           <template v-else>
             <div class="idle-icons">🎙️ ⌨️</div>
-            <p class="idle-title">Pronto para registrar?</p>
-            <p class="idle-subtitle">Inicie um registro e adicione quantos áudios ou textos quiser — treino, avaliação, observação, o que precisar.</p>
+            <p class="idle-title">
+              {{ tipoSelecionado === 'avaliacao_fisica' ? 'Nova avaliação física' : 'Pronto para registrar?' }}
+            </p>
+            <p class="idle-subtitle">
+              {{
+                tipoSelecionado === 'avaliacao_fisica'
+                  ? 'Grave as medidas que você coletou. A IA organiza; você confere e confirma antes de salvar.'
+                  : 'Inicie um registro e adicione quantos áudios ou textos quiser — treino, observação, o que precisar.'
+              }}
+            </p>
+
+            <div class="tipo-picker" role="group" aria-label="Tipo de registro">
+              <button
+                type="button"
+                class="tipo-opt"
+                :class="{ ativo: tipoSelecionado === 'atendimento' }"
+                @click="tipoSelecionado = 'atendimento'"
+              >
+                <span class="tipo-opt-icone">📝</span>
+                <span class="tipo-opt-nome">Atendimento</span>
+                <span class="tipo-opt-desc">treino, observação</span>
+              </button>
+              <button
+                type="button"
+                class="tipo-opt tipo-opt-avaliacao"
+                :class="{ ativo: tipoSelecionado === 'avaliacao_fisica' }"
+                @click="tipoSelecionado = 'avaliacao_fisica'"
+              >
+                <span class="tipo-opt-icone">📏</span>
+                <span class="tipo-opt-nome">Avaliação física</span>
+                <span class="tipo-opt-desc">medidas coletadas</span>
+              </button>
+            </div>
+
             <input
               v-model="registroTituloInput"
               class="registro-title-input"
-              placeholder="Título do registro (opcional)"
+              :placeholder="tipoSelecionado === 'avaliacao_fisica' ? 'Nota da avaliação (opcional)' : 'Título do registro (opcional)'"
               aria-label="Título do registro (opcional)"
               @keydown.enter="iniciarRegistro"
             />
-            <button class="start-registro-btn" type="button" :disabled="!podeIniciar" @click="iniciarRegistro">▶ Iniciar registro</button>
+            <button
+              class="start-registro-btn"
+              :class="{ 'start-registro-btn-avaliacao': tipoSelecionado === 'avaliacao_fisica' }"
+              type="button"
+              :disabled="!podeIniciar"
+              @click="iniciarRegistro"
+            >
+              ▶ {{ tipoSelecionado === 'avaliacao_fisica' ? 'Iniciar avaliação' : 'Iniciar registro' }}
+            </button>
+            <p v-if="alunoAtual && !podeIniciar" class="idle-em-andamento">
+              Já existe {{ tipoSelecionado === 'avaliacao_fisica' ? 'uma avaliação' : 'um registro' }} em andamento para {{ alunoAtual.nome }}.
+            </p>
           </template>
         </div>
 
@@ -502,7 +567,10 @@ async function descartar() {
                   {{ item.aluno ? iniciais(item.aluno.nome) : '?' }}
                 </span>
                 <span class="recent-item-body">
-                  <span class="recent-item-nome">{{ item.aluno ? item.aluno.nome : 'Aluno' }}</span>
+                  <span class="recent-item-nome">
+                    {{ item.aluno ? item.aluno.nome : 'Aluno' }}
+                    <span v-if="item.tipo === 'avaliacao_fisica'" class="recent-item-tipo">{{ tipoMeta(item.tipo).icon }} {{ tipoMeta(item.tipo).chip }}</span>
+                  </span>
                   <span v-if="item.titulo" class="recent-item-titulo">{{ item.titulo }}</span>
                   <span class="recent-item-iniciado">Iniciado {{ item.iniciadoLabel }}</span>
                 </span>
@@ -539,19 +607,27 @@ async function descartar() {
 
       <!-- ===================== registro aberto: composer ===================== -->
       <template v-else>
-        <div class="composer-view">
+        <div class="composer-view" :class="{ 'tipo-avaliacao': registroEmAndamento.tipo === 'avaliacao_fisica' }">
           <div class="registro-header">
             <span class="registro-header-dot"></span>
             <span class="registro-header-body">
-              <span class="registro-header-title">Registro aberto — {{ alunoAtual?.nome }}{{ registroEmAndamento.titulo ? ' · ' + registroEmAndamento.titulo : '' }}</span>
+              <span class="registro-header-title">
+                {{ registroEmAndamento.tipo === 'avaliacao_fisica' ? 'Avaliação física' : 'Registro aberto' }} — {{ alunoAtual?.nome }}{{ registroEmAndamento.titulo ? ' · ' + registroEmAndamento.titulo : '' }}
+              </span>
               <span class="registro-header-sub">{{ registroEmAndamento.entradas.length }} entrada(s)</span>
             </span>
             <button class="registro-header-close" type="button" title="Descartar registro" @click="descartar">✕</button>
           </div>
 
+          <RoteiroDitado v-if="registroEmAndamento.tipo === 'avaliacao_fisica'" />
+
           <div class="entries-scroll">
             <div v-if="!registroEmAndamento.entradas.length" class="entries-empty">
-              Toque e segure o microfone para gravar, ou digite um texto abaixo.
+              {{
+                registroEmAndamento.tipo === 'avaliacao_fisica'
+                  ? 'Toque e segure o microfone e dite as medidas, ou digite abaixo.'
+                  : 'Toque e segure o microfone para gravar, ou digite um texto abaixo.'
+              }}
             </div>
             <div v-for="(entrada, indice) in registroEmAndamento.entradas" :key="entrada.ordem" class="entry-bubble" :class="entrada.tipo">
               <span class="entry-bubble-icon">{{ entrada.tipo === 'audio' ? '🎙️' : '⌨️' }}</span>
@@ -571,7 +647,7 @@ async function descartar() {
                 v-show="!gravando"
                 v-model="composerTexto"
                 class="composer-input"
-                placeholder="Adicionar texto ao registro…"
+                :placeholder="registroEmAndamento.tipo === 'avaliacao_fisica' ? 'Dite ou digite as medidas…' : 'Adicionar texto ao registro…'"
                 aria-label="Adicionar texto ao registro"
                 @keydown.enter.prevent="adicionarTexto"
               />

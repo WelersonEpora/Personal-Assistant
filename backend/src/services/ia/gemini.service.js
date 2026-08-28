@@ -11,6 +11,7 @@
 const { GoogleGenAI } = require("@google/genai");
 const env = require("../../config/env");
 const logger = require("../../shared/logger");
+const { METODOS_VALIDOS } = require("../avaliacao-fisica/metodos");
 
 class GeminiConfigError extends Error {}
 
@@ -468,13 +469,112 @@ async function interpretarRegistro({ contextoConsolidado }) {
   };
 }
 
+// docs/adr/0018-avaliacao-fisica-por-captura-e-ia.md: interpretador ESPECÍFICO
+// da avaliação física ditada. Separado de interpretarRegistro - a saída é o
+// catálogo fechado de métricas v3 (docs/adr/0016), não a lista semiestruturada
+// de itens. NUNCA calcula protocolo de % de gordura (Pollock etc.), IMC, RCQ
+// nem massas, e NUNCA inventa metrica_codigo (o que não encaixa vai para
+// nao_mapeado). O resultado é uma PROPOSTA - nunca dado oficial (docs/adr/0007).
+const SCHEMA_AVALIACAO_FISICA_IA = {
+  type: "object",
+  properties: {
+    data_ouvida: { type: "string" },
+    medidas: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          metrica_codigo: { type: "string" },
+          metodo: { type: "string" },
+          valor: { type: "number" },
+          unidade_ouvida: { type: "string" },
+          principal: { type: "boolean" },
+          confianca: { type: "string", enum: ["alta", "media", "baixa"] },
+          trecho_origem: { type: "string" }
+        },
+        required: ["metrica_codigo", "valor", "confianca"]
+      }
+    },
+    observacoes: { type: "string" },
+    nao_mapeado: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { trecho: { type: "string" }, motivo: { type: "string" } },
+        required: ["trecho"]
+      }
+    }
+  },
+  required: ["medidas"]
+};
+
+// catalogo: linhas de metrica_avaliacao_fisica (codigo/rotulo/categoria/
+// unidade/casas_decimais/ativo) -> bloco de texto para o prompt.
+function montarCatalogoParaPrompt(catalogo) {
+  return catalogo
+    .filter((m) => m.ativo)
+    .map((m) => `- ${m.codigo} · ${m.rotulo} · ${m.categoria} · unidade canônica: ${m.unidade} · ${m.casas_decimais} casa(s) decimais`)
+    .join("\n");
+}
+
+const INSTRUCAO_INTERPRETACAO_AVALIACAO_FISICA = `Você ajuda um personal trainer a estruturar as MEDIDAS que ele ditou durante uma avaliação física.
+Considere APENAS o que foi dito abaixo (áudios transcritos e/ou textos, na ordem de captura). NUNCA invente número, medida ou método.
+
+Para cada medida identificada, devolva um item em "medidas" com:
+- "metrica_codigo": obrigatoriamente um código EXATO do catálogo abaixo. Se o que foi dito não corresponder a nenhuma métrica do catálogo, NÃO invente - registre em "nao_mapeado".
+- "valor": número na UNIDADE CANÔNICA da métrica (ver catálogo). Se o personal disse outra unidade, converta e registre o que foi dito em "unidade_ouvida".
+- "metodo": "direto" por padrão. Para % de gordura ou VO2, use o método citado se houver; um dos: {METODOS}.
+- "principal": true para o valor a acompanhar quando houver mais de um método para a mesma métrica; caso contrário true.
+- "confianca": "alta" quando o dado é explícito e sem ambiguidade; "media" quando houve inferência razoável; "baixa" quando ficou incerto (qual dobra? mm ou cm? valor único ou média de 3?).
+- "trecho_origem": a parte da fala de onde a medida foi tirada.
+
+Regras obrigatórias:
+- NÃO calcule % de gordura, VO2, IMC, RCQ nem massas a partir de dobras/perímetros. Registre SÓ o que foi dito como valor - o sistema calcula os índices depois.
+- "data_ouvida" (AAAA-MM-DD) só se a data da avaliação foi dita explicitamente; caso contrário "".
+- "observacoes": comentário geral do personal que não é uma medida (string vazia se não houver).
+- "nao_mapeado": lista de objetos { "trecho", "motivo" } para o que foi dito e não virou medida.
+- Se não houver nada estruturável, devolva "medidas" como lista vazia.
+
+CATÁLOGO DE MÉTRICAS (use apenas estes "metrica_codigo"):
+{CATALOGO}`;
+
+// Contexto consolidado (texto + transcrições, ordem original) + catálogo de
+// métricas -> proposta estruturada de avaliação física.
+async function interpretarAvaliacaoFisica({ contextoConsolidado, catalogo }) {
+  const instrucao = INSTRUCAO_INTERPRETACAO_AVALIACAO_FISICA.replace("{METODOS}", METODOS_VALIDOS.join(", ")).replace(
+    "{CATALOGO}",
+    montarCatalogoParaPrompt(catalogo)
+  );
+
+  const resposta = await gerarConteudo({
+    model: env.gemini.model,
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: `${instrucao}\n\n---\nConteúdo do Registro (na ordem de captura):\n${contextoConsolidado}` }]
+      }
+    ],
+    config: { responseMimeType: "application/json", responseSchema: SCHEMA_AVALIACAO_FISICA_IA }
+  });
+
+  const bruto = JSON.parse(resposta.text);
+  return {
+    dataOuvida: typeof bruto.data_ouvida === "string" ? bruto.data_ouvida : "",
+    medidas: Array.isArray(bruto.medidas) ? bruto.medidas : [],
+    observacoes: typeof bruto.observacoes === "string" ? bruto.observacoes : "",
+    naoMapeado: Array.isArray(bruto.nao_mapeado) ? bruto.nao_mapeado : []
+  };
+}
+
 module.exports = {
   transcreverAudio,
   interpretarRegistro,
+  interpretarAvaliacaoFisica,
   gerarAvaliacaoMensal,
   gerarAnaliseSobDemanda,
   GeminiConfigError,
-  // exportados para teste do retry
+  // exportados para teste
   comRetry,
-  ehTransitorio
+  ehTransitorio,
+  montarCatalogoParaPrompt
 };

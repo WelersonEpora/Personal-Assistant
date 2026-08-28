@@ -24,6 +24,21 @@ test('salvarRegistroLocal aceita um objeto vindo de um Proxy reativo (round-trip
   assert.equal(todos.find((r) => r.id === 'r1')?.status, 'pendente_sincronizacao')
 })
 
+test('salvarRegistroLocal preserva o campo tipo no round-trip (docs/adr/0018)', async () => {
+  await salvarRegistroLocal({
+    id: 'r-tipo',
+    alunoId: 'a1',
+    titulo: '',
+    tipo: 'avaliacao_fisica',
+    iniciadoEm: new Date().toISOString(),
+    status: 'em_andamento',
+    entradas: []
+  })
+
+  const todos = await listarRegistrosLocais()
+  assert.equal(todos.find((r) => r.id === 'r-tipo')?.tipo, 'avaliacao_fisica')
+})
+
 test('listarRegistrosLocais ordena do mais recente para o mais antigo (por iniciadoEm)', async () => {
   await salvarRegistroLocal({ id: 'ordem-1', alunoId: 'a1', titulo: '', iniciadoEm: '2026-08-25T08:00:00.000Z', status: 'pendente_sincronizacao', entradas: [] })
   await salvarRegistroLocal({ id: 'ordem-2', alunoId: 'a1', titulo: '', iniciadoEm: '2026-08-25T10:00:00.000Z', status: 'pendente_sincronizacao', entradas: [] })

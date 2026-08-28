@@ -5,6 +5,8 @@
 // resolve o problema real (reagir a cada sincronização quase em tempo real,
 // sem bloquear a resposta HTTP de POST /registros/:id/sincronizar).
 const registroRepository = require("../repositories/registro.repository");
+const propostaAvaliacaoFisicaRepository = require("../repositories/proposta-avaliacao-fisica.repository");
+const avaliacaoFisicaRepository = require("../repositories/avaliacaoFisica.repository");
 const storageAudio = require("../services/storage-audio.service");
 const geminiService = require("../services/ia/gemini.service");
 const env = require("../config/env");
@@ -69,6 +71,37 @@ async function transcreverEntradasDeAudio(registroId, entradas) {
   }
 }
 
+// docs/adr/0018: Registro `tipo = avaliacao_fisica`. Bifurca depois da
+// transcrição - em vez de interpretarRegistro (itens[] livres), roda o
+// interpretador do catálogo fechado e grava uma PROPOSTA (nunca dado oficial;
+// a avaliacao_fisica só nasce da confirmação humana, via avaliacao-fisica.service).
+async function interpretarAvaliacaoFisica(registroId) {
+  const registro = await registroRepository.obterParaProcessamento(registroId);
+  const contexto = montarContextoConsolidado(registro.entradas);
+  const catalogo = await avaliacaoFisicaRepository.listarCatalogo();
+
+  await registroRepository.atualizarStatus(registroId, Registro.STATUS.INTERPRETANDO);
+  try {
+    const proposta = await geminiService.interpretarAvaliacaoFisica({ contextoConsolidado: contexto, catalogo });
+    await propostaAvaliacaoFisicaRepository.salvarProposta(registroId, {
+      payload_json: {
+        data_ouvida: proposta.dataOuvida,
+        medidas: proposta.medidas,
+        observacoes: proposta.observacoes
+      },
+      avisos_json: proposta.naoMapeado,
+      status: "concluido",
+      erro: null,
+      modelo: env.gemini.model
+    });
+    await registroRepository.atualizarStatus(registroId, Registro.STATUS.AGUARDANDO_REVISAO);
+  } catch (err) {
+    await propostaAvaliacaoFisicaRepository.salvarProposta(registroId, { status: "falha", erro: err.message });
+    await registroRepository.atualizarStatus(registroId, Registro.STATUS.ERRO_INTERPRETACAO);
+    throw err;
+  }
+}
+
 async function interpretarConteudoConsolidado(registroId) {
   const registroAtualizado = await registroRepository.obterParaProcessamento(registroId);
   const contexto = montarContextoConsolidado(registroAtualizado.entradas);
@@ -96,7 +129,14 @@ async function processarRegistro(registroId) {
 
   await registroRepository.atualizarStatus(registroId, Registro.STATUS.TRANSCREVENDO);
   await transcreverEntradasDeAudio(registroId, registro.entradas);
-  await interpretarConteudoConsolidado(registroId);
+
+  // docs/adr/0018 - a transcrição é igual para os dois tipos; só a
+  // interpretação bifurca.
+  if (registro.tipo === Registro.TIPOS.AVALIACAO_FISICA) {
+    await interpretarAvaliacaoFisica(registroId);
+  } else {
+    await interpretarConteudoConsolidado(registroId);
+  }
 }
 
 async function reenfileirarRegistrosPendentes() {
@@ -107,4 +147,4 @@ async function reenfileirarRegistrosPendentes() {
   }
 }
 
-module.exports = { enfileirarRegistro, reenfileirarRegistrosPendentes, montarContextoConsolidado };
+module.exports = { enfileirarRegistro, reenfileirarRegistrosPendentes, montarContextoConsolidado, processarRegistro };

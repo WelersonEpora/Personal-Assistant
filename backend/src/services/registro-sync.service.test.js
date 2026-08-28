@@ -63,3 +63,13 @@ test("validarMetadata: rejeita ordem negativa ou não inteira", () => {
     /ordem/
   );
 });
+
+test("validarMetadata: aceita tipo ausente (compat) e tipo válido", () => {
+  assert.doesNotThrow(() => validarMetadata("registro-1", metadataValida({ tipo: undefined })));
+  assert.doesNotThrow(() => validarMetadata("registro-1", metadataValida({ tipo: "avaliacao_fisica" })));
+  assert.doesNotThrow(() => validarMetadata("registro-1", metadataValida({ tipo: "atendimento" })));
+});
+
+test("validarMetadata: rejeita tipo de Registro desconhecido", () => {
+  assert.throws(() => validarMetadata("registro-1", metadataValida({ tipo: "ficha" })), /tipo/);
+});

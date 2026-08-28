@@ -15,6 +15,12 @@ const STATUS_VALIDOS = [
   "erro_interpretacao"
 ];
 
+// docs/adr/0018: o tipo é escolhido no cliente ao iniciar o Registro e é
+// imutável depois. `atendimento` = fluxo atual (relato -> resultado_ia ->
+// validacao); `avaliacao_fisica` bifurca o pipeline de IA para um
+// interpretador próprio e uma proposta_avaliacao_fisica.
+const TIPOS_VALIDOS = ["atendimento", "avaliacao_fisica"];
+
 module.exports = (sequelize) => {
   const Registro = sequelize.define(
     "Registro",
@@ -61,6 +67,13 @@ module.exports = (sequelize) => {
         defaultValue: "recebido",
         validate: { isIn: [STATUS_VALIDOS] }
       },
+      // docs/adr/0018 - nasce no cliente junto com o id, imutável depois.
+      tipo: {
+        type: DataTypes.STRING(20),
+        allowNull: false,
+        defaultValue: "atendimento",
+        validate: { isIn: [TIPOS_VALIDOS] }
+      },
       // Soft-delete - só permitido para Registros ainda não confirmados
       // (docs/adr/0007). NULL = não excluído.
       deletado_em: {
@@ -78,6 +91,7 @@ module.exports = (sequelize) => {
   );
 
   Registro.STATUS = Object.fromEntries(STATUS_VALIDOS.map((s) => [s.toUpperCase(), s]));
+  Registro.TIPOS = Object.fromEntries(TIPOS_VALIDOS.map((t) => [t.toUpperCase(), t]));
 
   Registro.associate = (models) => {
     Registro.belongsTo(models.Usuario, { foreignKey: "usuario_id", as: "usuario" });
@@ -86,6 +100,9 @@ module.exports = (sequelize) => {
     Registro.hasMany(models.RegistroEntrada, { foreignKey: "registro_id", as: "entradas" });
     Registro.hasOne(models.ResultadoIa, { foreignKey: "registro_id", as: "resultadoIa" });
     Registro.hasOne(models.Validacao, { foreignKey: "registro_id", as: "validacao" });
+    // docs/adr/0018 - só para tipo = avaliacao_fisica.
+    Registro.hasOne(models.PropostaAvaliacaoFisica, { foreignKey: "registro_id", as: "propostaAvaliacaoFisica" });
+    Registro.hasOne(models.AvaliacaoFisica, { foreignKey: "registro_id", as: "avaliacaoFisica" });
   };
 
   return Registro;

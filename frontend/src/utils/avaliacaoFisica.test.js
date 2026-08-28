@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { propostaParaRascunho } from './avaliacaoFisica.js'
+import { propostaParaRascunho, DERIVADAS } from './avaliacaoFisica.js'
 
 // docs/adr/0018 - a proposta da IA vira o rascunho que o formulário de
 // avaliação física hidrata na tela de revisão.
@@ -22,11 +22,17 @@ test('propostaParaRascunho: mapeia data_ouvida, observacoes e medidas', () => {
   ])
 })
 
-test('propostaParaRascunho: descarta derivadas e valores não positivos', () => {
+test('DERIVADAS espelha as métricas calculadas pelo service (imc, rcq, massa gorda/magra)', () => {
+  assert.deepEqual([...DERIVADAS].sort(), ['imc', 'massa_gorda', 'massa_magra', 'rcq'])
+})
+
+test('propostaParaRascunho: descarta derivadas (incl. massa gorda/magra) e valores não positivos', () => {
   const r = propostaParaRascunho({
     medidas: [
       { metrica_codigo: 'imc', valor: 24.5 },
       { metrica_codigo: 'rcq', valor: 0.86 },
+      { metrica_codigo: 'massa_gorda', valor: 14.1 },
+      { metrica_codigo: 'massa_magra', valor: 64.3 },
       { metrica_codigo: 'altura', valor: 0 },
       { metrica_codigo: 'peso', valor: 80 }
     ]

@@ -398,10 +398,14 @@ MVP completo e verificado de ponta a ponta:
   navegador real (Playwright), sem erros de console.
 - **CI/CD**: `.github/workflows/ci-cd.yml` testa backend e frontend em todo
   push/PR e publica as imagens no GHCR a cada push em `main`.
-- **Pendências reais**: nenhuma chamada real ao Gemini foi validada (precisa
-  de `GEMINI_API_KEY` de verdade); deploy automático num servidor real ainda
-  não existe (falta o servidor em si — host/SSH nos secrets do repositório);
-  domínio/TLS de produção não configurados — ver `docs/deploy.md`.
+- **Pendências reais**: com `GEMINI_API_KEY` real configurada em dev, o
+  interpretador de avaliação física (docs/adr/0018) foi exercitado ponta a
+  ponta contra o Gemini (extração e conversão de unidade corretas em um caso
+  simples); os demais passos de IA (transcrição de áudio real, interpretação
+  de relato, acompanhamento mensal) ainda não foram validados com chamada
+  real. Deploy automático num servidor real ainda não existe (falta o servidor
+  em si — host/SSH nos secrets do repositório); domínio/TLS de produção não
+  configurados — ver `docs/deploy.md`.
   A importação do BodyMove (ADR-0016) foi validada por `--dry-run` e testes
   (transform contra o `.bak` real + persistência no banco de teste), mas a
   carga de verdade num banco alvo ainda não foi executada

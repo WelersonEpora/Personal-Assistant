@@ -242,7 +242,7 @@ insuficientes, diferenciar fato/interpretação/hipótese e nunca inventar. É
 - Novas funções `gerarAvaliacaoMensal` e `gerarAnaliseSobDemanda` em
   `services/ia/gemini.service.js` (2ª e 3ª saídas estruturadas do sistema),
   ambas partindo da persona `PERSONA_PERSONAL_SENIOR`.
-- Frontend: o acompanhamento **não é tela própria** — é a seção principal da
+- Frontend: o acompanhamento **não é tela própria** — é uma das abas da
   tela de detalhe do aluno (`AlunoDetalheView.vue` + componente
   `AcompanhamentoAluno.vue`; a rota antiga `/admin/alunos/:id/acompanhamento`
   redireciona para o detalhe). Uma **linha do tempo agrupada por mês** (card
@@ -254,6 +254,14 @@ insuficientes, diferenciar fato/interpretação/hipótese e nunca inventar. É
   escrever avaliação — editor inline). Filtros por tipo. Sem etapa de
   validação. A geração manual com dados insuficientes não persiste (ver
   "Gatilho de geração").
+- Depois desta ADR, **Ficha de Treino (ADR-0013) e Avaliações Físicas
+  (ADR-0016) também deixaram de ser tela própria** — pela mesma razão: são
+  abas do mesmo slot no `AlunoDetalheView.vue`, com o card de identidade do
+  aluno sempre visível por cima. Componentes `FichaTreinoSecao.vue` e
+  `AvaliacoesFisicasSecao.vue` (corpo das telas antigas, sem `← Voltar` /
+  `<h1>` / fetch do aluno). A aba fica no query (`?aba=ficha` /
+  `?aba=avaliacoes`); as rotas `/admin/alunos/:id/ficha-treino` e
+  `/admin/alunos/:id/avaliacoes-fisicas` redirecionam com o `aba` certo.
 - O backend continua um único processo Node; escalar para múltiplas
   instâncias exigiria revisar o agendador (mesma limitação já registrada na
   ADR-0009).

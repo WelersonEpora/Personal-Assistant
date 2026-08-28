@@ -63,6 +63,22 @@ module.exports = (sequelize) => {
         allowNull: false,
         defaultValue: false
       },
+      // docs/adr/0013 + 0017: aluno que não usa ficha de treino com o personal.
+      // Só efeito: sai do alerta "sem ficha ativa" / "ficha antiga" do painel e
+      // a seção de Ficha de Treino fica recolhida. Não apaga fichas existentes.
+      dispensa_ficha_treino: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false
+      },
+      // docs/adr/0016 + 0017: aluno que não faz avaliação física com o personal.
+      // Só efeito: sai do alerta "avaliação física vencida" do painel. O
+      // histórico (inclusive importado do BodyMove) continua visível.
+      dispensa_avaliacao_fisica: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false
+      },
       // Soft-delete - excluir um aluno leva consigo seus Registros/Validacoes
       // (ver aluno.service.js::excluir). NULL = não excluído.
       deletado_em: {

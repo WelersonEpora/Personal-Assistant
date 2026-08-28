@@ -29,6 +29,7 @@ const disponibilidade = ref(null)
 
 const expandidoId = ref(null)
 const filtro = ref('tudo')
+const mostrarAjuda = ref(false)
 
 // Ações
 const gerandoMes = ref(null) // "YYYY-MM" do mês cuja avaliação está sendo (re)gerada
@@ -356,7 +357,13 @@ async function excluirAvaliacaoPersonal(avaliacao) {
 
 <template>
   <div>
-    <div class="exercise-obs" style="margin-bottom: 18px;">
+    <div class="acomp-cabecalho">
+      <h2 class="acomp-titulo">Acompanhamento</h2>
+      <button type="button" class="acomp-ajuda-toggle" :aria-expanded="mostrarAjuda" @click="mostrarAjuda = !mostrarAjuda">
+        ⓘ Como funciona
+      </button>
+    </div>
+    <div v-if="mostrarAjuda" class="exercise-obs acomp-ajuda-corpo">
       <span class="acomp-obs-item">
         As análises da IA são apoio técnico e não substituem sua avaliação. Você também pode registrar suas
         próprias observações, que serão consideradas nas próximas análises junto aos relatos.
@@ -540,6 +547,29 @@ async function excluirAvaliacaoPersonal(avaliacao) {
 </template>
 
 <style scoped>
+.acomp-cabecalho {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.acomp-titulo {
+  font-size: 17px;
+  font-weight: 800;
+}
+.acomp-ajuda-toggle {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--color-primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+.acomp-ajuda-corpo {
+  margin-top: 0;
+  margin-bottom: 18px;
+}
 .acomp-acoes-grupo {
   display: flex;
   flex-wrap: wrap;

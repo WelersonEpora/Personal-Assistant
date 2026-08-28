@@ -68,6 +68,9 @@ async function updateAluno(equipeId, id, dados) {
   if (dados.telefone !== undefined) atualizacao.telefone = dados.telefone ? dados.telefone.trim() : null;
   if (dados.ativo !== undefined) atualizacao.ativo = Boolean(dados.ativo);
   if (dados.favorito !== undefined) atualizacao.favorito = Boolean(dados.favorito);
+  if (dados.dispensa_ficha_treino !== undefined) atualizacao.dispensa_ficha_treino = Boolean(dados.dispensa_ficha_treino);
+  if (dados.dispensa_avaliacao_fisica !== undefined)
+    atualizacao.dispensa_avaliacao_fisica = Boolean(dados.dispensa_avaliacao_fisica);
   if (dados.data_nascimento !== undefined) atualizacao.data_nascimento = validarDataNascimento(dados.data_nascimento);
   if (dados.sexo !== undefined) atualizacao.sexo = validarSexo(dados.sexo);
 

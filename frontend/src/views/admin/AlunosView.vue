@@ -12,7 +12,16 @@ const { toasts, showToast } = useToasts()
 const { confirmar } = useConfirm()
 
 const alunos = ref([])
+const busca = ref('')
 const carregando = ref(true)
+
+// Busca sem diferenciar acento/maiúscula - digitar "joao" acha "João".
+function normalizar(texto) {
+  return (texto || '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+}
 const modalAberto = ref(false)
 const novoNome = ref('')
 const novoTelefone = ref('')
@@ -64,8 +73,14 @@ function compararAlunos(a, b) {
   return a.nome.localeCompare(b.nome, 'pt-BR')
 }
 
-const ativos = computed(() => alunos.value.filter((a) => a.ativo))
-const inativos = computed(() => alunos.value.filter((a) => !a.ativo))
+const filtrados = computed(() => {
+  const termo = normalizar(busca.value.trim())
+  if (!termo) return alunos.value
+  return alunos.value.filter((a) => normalizar(a.nome).includes(termo))
+})
+
+const ativos = computed(() => filtrados.value.filter((a) => a.ativo))
+const inativos = computed(() => filtrados.value.filter((a) => !a.ativo))
 
 function abrirDetalhe(id) {
   router.push({ name: 'admin-aluno-detalhe', params: { id } })
@@ -139,15 +154,26 @@ async function salvarNovoAluno() {
     <div class="view-header">
       <div>
         <h1>Alunos</h1>
-        <p>{{ alunos.length }} aluno(s) cadastrado(s).</p>
+        <p v-if="busca.trim()">{{ filtrados.length }} de {{ alunos.length }} aluno(s).</p>
+        <p v-else>{{ alunos.length }} aluno(s) cadastrado(s).</p>
       </div>
-      <button class="btn btn-primary" type="button" @click="abrirModal">+ Novo aluno</button>
+      <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <input
+          v-if="alunos.length"
+          v-model="busca"
+          type="search"
+          class="search-input"
+          placeholder="Buscar por nome…"
+          aria-label="Buscar aluno por nome"
+        />
+        <button class="btn btn-primary" type="button" @click="abrirModal">+ Novo aluno</button>
+      </div>
     </div>
 
-    <p v-if="alunos.length" style="font-size: 12px; font-weight: 700; color: var(--color-text-faint); text-transform: uppercase; letter-spacing: .03em; margin: 0 0 10px;">
+    <p v-if="alunos.length && (ativos.length || !busca.trim())" style="font-size: 12px; font-weight: 700; color: var(--color-text-faint); text-transform: uppercase; letter-spacing: .03em; margin: 0 0 10px;">
       Ativos
     </p>
-    <div v-if="alunos.length" class="students-grid" style="margin-bottom: 26px;">
+    <div v-if="alunos.length && (ativos.length || !busca.trim())" class="students-grid" style="margin-bottom: 26px;">
       <div v-for="aluno in ativos" :key="aluno.id" class="card student-card" style="position: relative;" @click="abrirDetalhe(aluno.id)">
         <div class="student-card-actions">
           <button
@@ -178,10 +204,14 @@ async function salvarNovoAluno() {
         </div>
         <div v-if="aluno.observacoes" class="student-card-workout">{{ aluno.observacoes }}</div>
         <div style="font-size: 12px; color: var(--color-text-faint);">
-          {{ aluno.registros_count || 0 }} relato(s) · {{ aluno.avaliacoes_fisicas_count || 0 }} aval. física(s)
+          {{ aluno.registros_count || 0 }} relato(s) · {{ aluno.avaliacoes_fisicas_count || 0 }} aval. física(s)<template v-if="aluno.dispensa_ficha_treino"> · não usa ficha de treino</template>
         </div>
       </div>
       <div v-if="!ativos.length" class="card empty-state">Nenhum aluno ativo.</div>
+    </div>
+
+    <div v-if="busca.trim() && !filtrados.length" class="empty-state">
+      Nenhum aluno encontrado para “{{ busca.trim() }}”.
     </div>
 
     <template v-if="inativos.length">

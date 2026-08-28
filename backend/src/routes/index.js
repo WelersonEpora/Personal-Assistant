@@ -2,6 +2,7 @@
 
 const { Router } = require("express");
 const authRoutes = require("./auth.routes");
+const painelRoutes = require("./painel.routes");
 const alunoRoutes = require("./aluno.routes");
 const registroRoutes = require("./registro.routes");
 const equipeRoutes = require("./equipe.routes");
@@ -23,6 +24,7 @@ router.get("/health", (_req, res) => {
 });
 
 router.use("/api/v1/auth", authRoutes);
+router.use("/api/v1/painel", painelRoutes);
 router.use("/api/v1/alunos", alunoRoutes);
 router.use("/api/v1/registros", registroRoutes);
 router.use("/api/v1/equipe", equipeRoutes);

@@ -191,6 +191,28 @@ test("createAluno: nasce inativo=false e favorito=false por padrão; updateAluno
   assert.equal(atualizado.favorito, true);
 });
 
+test("dispensa_ficha_treino / dispensa_avaliacao_fisica: nascem false e updateAluno alterna (docs/adr/0017)", async (t) => {
+  const aluno = await alunoService.createAluno(equipeA.id, { nome: "Treina por conta" });
+  t.after(() => Aluno.destroy({ where: { id: aluno.id } }));
+
+  assert.equal(aluno.dispensa_ficha_treino, false);
+  assert.equal(aluno.dispensa_avaliacao_fisica, false);
+
+  const marcado = await alunoService.updateAluno(equipeA.id, aluno.id, {
+    dispensa_ficha_treino: true,
+    dispensa_avaliacao_fisica: true
+  });
+  assert.equal(marcado.dispensa_ficha_treino, true);
+  assert.equal(marcado.dispensa_avaliacao_fisica, true);
+
+  const desmarcado = await alunoService.updateAluno(equipeA.id, aluno.id, {
+    dispensa_ficha_treino: false,
+    dispensa_avaliacao_fisica: false
+  });
+  assert.equal(desmarcado.dispensa_ficha_treino, false);
+  assert.equal(desmarcado.dispensa_avaliacao_fisica, false);
+});
+
 // Ordenação da listagem (aluno.repository.js::findAllByEquipe): ativos
 // antes de inativos e, dentro de cada grupo, favoritos antes do resto -
 // alfabético como critério final nos dois casos.

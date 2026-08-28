@@ -1,6 +1,6 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import alunosService from '../../services/alunos.service.js'
 import { corParaId, iniciais } from '../../utils/registroStatus.js'
 import { calcularIdade, formatarDataAvaliacao } from '../../utils/avaliacaoFisica.js'
@@ -8,9 +8,29 @@ import { useToasts } from '../../composables/useToasts.js'
 import { useConfirm } from '../../composables/useConfirm.js'
 import ToastStack from '../../components/ToastStack.vue'
 import AcompanhamentoAluno from '../../components/AcompanhamentoAluno.vue'
+import FichaTreinoSecao from '../../components/FichaTreinoSecao.vue'
+import AvaliacoesFisicasSecao from '../../components/AvaliacoesFisicasSecao.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
+const route = useRoute()
 const router = useRouter()
+
+// Ficha de Treino e Avaliações Físicas deixaram de ser tela própria (como o
+// Acompanhamento na docs/adr/0015): a parte de baixo da tela é um slot com
+// abas. A aba fica no query da URL (?aba=ficha) - refresh e link direto
+// continuam funcionando; as rotas antigas redirecionam pra cá.
+const ABAS = [
+  { id: 'acompanhamento', label: 'Acompanhamento' },
+  { id: 'ficha', label: '📋 Ficha de Treino' },
+  { id: 'avaliacoes', label: '🩺 Avaliações Físicas' }
+]
+const abaAtiva = computed(() => {
+  const q = route.query.aba
+  return ABAS.some((a) => a.id === q) ? q : 'acompanhamento'
+})
+function trocarAba(id) {
+  router.replace({ query: id === 'acompanhamento' ? {} : { aba: id } })
+}
 const { toasts, showToast } = useToasts()
 const { confirmar } = useConfirm()
 
@@ -18,6 +38,9 @@ const aluno = ref(null)
 const carregando = ref(true)
 const fotoUrl = ref(null)
 
+// menuAberto: dropdown "⋯" com as ações de baixa frequência (editar cadastro,
+// foto, ativo/inativo, excluir). editando: modal de edição do cadastro.
+const menuAberto = ref(false)
 const editando = ref(false)
 const nomeEdit = ref('')
 const telefoneEdit = ref('')
@@ -53,11 +76,27 @@ async function carregar() {
   }
 }
 onMounted(carregar)
+
+function aoTeclar(evento) {
+  if (evento.key !== 'Escape') return
+  if (editando.value) editando.value = false
+  else menuAberto.value = false
+}
+function fecharMenuFora() {
+  menuAberto.value = false
+}
+onMounted(() => {
+  window.addEventListener('keydown', aoTeclar)
+  window.addEventListener('click', fecharMenuFora)
+})
 onBeforeUnmount(() => {
+  window.removeEventListener('keydown', aoTeclar)
+  window.removeEventListener('click', fecharMenuFora)
   if (fotoUrl.value) URL.revokeObjectURL(fotoUrl.value)
 })
 
 function iniciarEdicao() {
+  menuAberto.value = false
   nomeEdit.value = aluno.value.nome
   telefoneEdit.value = aluno.value.telefone || ''
   observacoesEdit.value = aluno.value.observacoes || ''
@@ -87,6 +126,7 @@ async function salvarEdicao() {
 }
 
 function selecionarFoto() {
+  menuAberto.value = false
   fotoInput.value?.click()
 }
 
@@ -107,6 +147,7 @@ async function onFotoSelecionada(evento) {
 }
 
 async function removerFoto() {
+  menuAberto.value = false
   removendoFoto.value = true
   try {
     aluno.value = await alunosService.removerFoto(props.id)
@@ -132,6 +173,7 @@ async function alternarFavorito() {
 // da lista de "Ativos" mas o histórico e o cadastro continuam intactos
 // para quando ele voltar.
 async function alternarAtivo() {
+  menuAberto.value = false
   const ativo = !aluno.value.ativo
   if (!ativo) {
     const ok = await confirmar({
@@ -152,6 +194,7 @@ async function alternarAtivo() {
 // Soft-delete (docs/adr/0007) - leva consigo todos os Registros/Validações
 // do aluno, por isso o aviso explícito antes de confirmar.
 async function excluirAluno() {
+  menuAberto.value = false
   const ok = await confirmar({
     titulo: `Excluir ${aluno.value.nome}?`,
     mensagem: 'Isso também remove todos os relatos e avaliações deste aluno. Essa ação não pode ser desfeita.',
@@ -167,57 +210,21 @@ async function excluirAluno() {
     showToast('Não foi possível excluir o aluno.', 'warning')
   }
 }
-
 </script>
 
 <template>
   <div v-if="aluno">
     <router-link class="detail-back" :to="{ name: 'admin-alunos' }">← Voltar para Alunos</router-link>
-    <div class="detail-header">
-      <div style="position: relative;">
+
+    <div class="card aluno-identidade">
+      <div class="aluno-identidade-pessoa">
         <img v-if="fotoUrl" :src="fotoUrl" class="avatar sz-lg" alt="" />
         <span v-else class="avatar sz-lg" :style="{ background: corParaId(aluno.id) }">{{ iniciais(aluno.nome) }}</span>
-        <button type="button" class="btn btn-ghost" title="Enviar foto" style="position: absolute; bottom: -8px; right: -8px; padding: 4px 7px;" :disabled="enviandoFoto" @click="selecionarFoto">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 15V4M7 9l5-5 5 5M5 20h14" />
-          </svg>
-        </button>
-        <button
-          v-if="fotoUrl"
-          type="button"
-          class="btn btn-ghost"
-          title="Remover foto"
-          style="position: absolute; bottom: -8px; left: -8px; padding: 3px 7px; font-size: 15px;"
-          :disabled="removendoFoto"
-          @click="removerFoto"
-        >
-          🗑️
-        </button>
         <input ref="fotoInput" type="file" accept="image/jpeg,image/png,image/webp" style="display: none;" @change="onFotoSelecionada" />
-      </div>
-      <div style="flex: 1;">
-        <template v-if="!editando">
-          <div class="detail-header-name" style="display: flex; align-items: center; gap: 8px;">
+
+        <div>
+          <div class="detail-header-name aluno-identidade-nome">
             {{ aluno.nome }}
-            <button
-              type="button"
-              class="student-card-favorite"
-              :title="aluno.favorito ? 'Remover dos favoritos' : 'Marcar como favorito'"
-              @click="alternarFavorito"
-            >
-              {{ aluno.favorito ? '⭐' : '☆' }}
-            </button>
-          </div>
-          <div v-if="aluno.telefone" class="detail-header-sub">📞 {{ aluno.telefone }}</div>
-          <div v-if="aluno.data_nascimento || aluno.sexo" class="detail-header-sub">
-            <template v-if="aluno.data_nascimento">
-              🎂 {{ formatarDataAvaliacao(aluno.data_nascimento) }}
-              <template v-if="calcularIdade(aluno.data_nascimento) !== null"> ({{ calcularIdade(aluno.data_nascimento) }} anos)</template>
-            </template>
-            <template v-if="aluno.sexo"> · {{ aluno.sexo === 'F' ? 'Feminino' : 'Masculino' }}</template>
-          </div>
-          <div v-if="aluno.observacoes" class="detail-header-sub">{{ aluno.observacoes }}</div>
-          <div class="detail-tags">
             <button
               type="button"
               class="badge"
@@ -228,19 +235,61 @@ async function excluirAluno() {
             >
               {{ aluno.ativo ? 'Ativo' : 'Inativo' }}
             </button>
+            <button
+              type="button"
+              class="student-card-favorite"
+              :title="aluno.favorito ? 'Remover dos favoritos' : 'Marcar como favorito'"
+              @click="alternarFavorito"
+            >
+              {{ aluno.favorito ? '⭐' : '☆' }}
+            </button>
           </div>
-          <div style="display: flex; gap: 10px; margin-top: 10px; justify-content: space-between; align-items: center;">
-            <div style="display: flex; gap: 10px; align-items: center;">
-              <button type="button" class="btn btn-primary" @click="iniciarEdicao">Editar</button>
-              <button type="button" class="btn btn-danger-ghost" @click="excluirAluno">Excluir aluno</button>
-            </div>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-              <router-link class="btn btn-primary" :to="{ name: 'admin-aluno-ficha-treino', params: { id: props.id } }">📋 Ficha de Treino</router-link>
-              <router-link class="btn btn-primary" :to="{ name: 'admin-aluno-avaliacoes-fisicas', params: { id: props.id } }">🩺 Avaliações Físicas</router-link>
-            </div>
+          <div v-if="aluno.telefone || aluno.data_nascimento || aluno.sexo" class="aluno-identidade-meta">
+            <span v-if="aluno.telefone">📞 {{ aluno.telefone }}</span>
+            <span v-if="aluno.data_nascimento">
+              🎂 {{ formatarDataAvaliacao(aluno.data_nascimento) }}<template v-if="calcularIdade(aluno.data_nascimento) !== null"> ({{ calcularIdade(aluno.data_nascimento) }} anos)</template>
+            </span>
+            <span v-if="aluno.sexo">{{ aluno.sexo === 'F' ? 'Feminino' : 'Masculino' }}</span>
           </div>
-        </template>
-        <form v-else @submit.prevent="salvarEdicao" style="max-width: 360px;">
+          <div v-if="aluno.observacoes" class="aluno-identidade-obs">{{ aluno.observacoes }}</div>
+        </div>
+      </div>
+
+      <div class="aluno-identidade-acoes">
+        <div class="aluno-menu" @click.stop>
+          <button type="button" class="btn btn-ghost aluno-menu-botao" title="Mais ações" :aria-expanded="menuAberto" @click="menuAberto = !menuAberto">⋯</button>
+          <div v-if="menuAberto" class="aluno-menu-lista">
+            <button type="button" @click="iniciarEdicao">Editar cadastro</button>
+            <button type="button" :disabled="enviandoFoto" @click="selecionarFoto">{{ enviandoFoto ? 'Enviando foto…' : (fotoUrl ? 'Trocar foto' : 'Enviar foto') }}</button>
+            <button v-if="fotoUrl" type="button" :disabled="removendoFoto" @click="removerFoto">Remover foto</button>
+            <button type="button" @click="alternarAtivo">{{ aluno.ativo ? 'Marcar como inativo' : 'Marcar como ativo' }}</button>
+            <button type="button" class="aluno-menu-perigo" @click="excluirAluno">Excluir aluno</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="filter-tabs aluno-abas">
+      <button
+        v-for="aba in ABAS"
+        :key="aba.id"
+        type="button"
+        class="filter-tab"
+        :class="{ active: abaAtiva === aba.id }"
+        @click="trocarAba(aba.id)"
+      >
+        {{ aba.label }}
+      </button>
+    </div>
+
+    <AcompanhamentoAluno v-if="abaAtiva === 'acompanhamento'" :id="props.id" />
+    <FichaTreinoSecao v-else-if="abaAtiva === 'ficha'" :id="props.id" />
+    <AvaliacoesFisicasSecao v-else-if="abaAtiva === 'avaliacoes'" :id="props.id" />
+
+    <div v-if="editando" class="sheet-overlay open" style="position: fixed;" @click.self="editando = false">
+      <div class="card" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 380px; max-width: calc(100vw - 32px); padding: 22px;">
+        <h3 style="margin-bottom: 14px;">Editar cadastro</h3>
+        <form @submit.prevent="salvarEdicao">
           <div class="form-field" style="margin-bottom: 10px;">
             <label>Nome</label>
             <input v-model="nomeEdit" type="text" required autofocus />
@@ -254,7 +303,7 @@ async function excluirAluno() {
               <label>Data de nascimento</label>
               <input v-model="dataNascimentoEdit" type="date" />
             </div>
-            <div class="form-field" style="width: 110px;">
+            <div class="form-field" style="width: 120px;">
               <label>Sexo</label>
               <select v-model="sexoEdit">
                 <option value="">—</option>
@@ -263,11 +312,11 @@ async function excluirAluno() {
               </select>
             </div>
           </div>
-          <div class="form-field" style="margin-bottom: 12px;">
+          <div class="form-field" style="margin-bottom: 16px;">
             <label>Observações</label>
             <textarea v-model="observacoesEdit" rows="2"></textarea>
           </div>
-          <div style="display: flex; gap: 10px;">
+          <div style="display: flex; gap: 10px; justify-content: flex-end;">
             <button type="button" class="btn btn-ghost" @click="editando = false">Cancelar</button>
             <button type="submit" class="btn btn-primary" :disabled="salvando || !nomeEdit.trim()">Salvar</button>
           </div>
@@ -275,18 +324,102 @@ async function excluirAluno() {
       </div>
     </div>
 
-    <AcompanhamentoAluno :id="props.id" />
-
     <ToastStack :toasts="toasts" />
   </div>
   <div v-else-if="!carregando" class="empty-state">Aluno não encontrado.</div>
 </template>
 
 <style scoped>
+.aluno-identidade {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 18px 20px;
+  margin-bottom: 22px;
+}
+.aluno-identidade-pessoa {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
 /* Avatar maior só nesta tela (a lista de Alunos mantém o .sz-lg padrão). */
-.detail-header .avatar.sz-lg {
-  width: 80px;
-  height: 80px;
-  font-size: 26px;
+.aluno-identidade .avatar.sz-lg {
+  width: 72px;
+  height: 72px;
+  font-size: 24px;
+  flex: none;
+}
+.aluno-identidade-nome {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.aluno-identidade-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--color-text-faint);
+}
+.aluno-identidade-obs {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+.aluno-identidade-acoes {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.aluno-abas {
+  margin-bottom: 20px;
+}
+.aluno-menu {
+  position: relative;
+}
+.aluno-menu-botao {
+  font-size: 18px;
+  line-height: 1;
+  padding: 8px 12px;
+}
+.aluno-menu-lista {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  min-width: 190px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+}
+.aluno-menu-lista button {
+  text-align: left;
+  padding: 9px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.aluno-menu-lista button:hover:not(:disabled) {
+  background: var(--color-surface-alt);
+}
+.aluno-menu-lista button:disabled {
+  opacity: .6;
+  cursor: default;
+}
+.aluno-menu-lista .aluno-menu-perigo {
+  color: var(--color-danger);
 }
 </style>

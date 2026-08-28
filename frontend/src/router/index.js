@@ -28,22 +28,17 @@ const routes = [
         props: true,
         meta: { titulo: 'Alunos' }
       },
+      // Ficha de Treino, Avaliações Físicas e Acompanhamento deixaram de ser
+      // tela própria - viraram abas da tela do aluno (docs/adr/0015). Redirect
+      // para não quebrar links antigos; a aba vai no query (?aba=...).
       {
         path: 'alunos/:id/ficha-treino',
-        name: 'admin-aluno-ficha-treino',
-        component: () => import('../views/admin/FichaTreinoView.vue'),
-        props: true,
-        meta: { titulo: 'Ficha de Treino' }
+        redirect: (to) => ({ name: 'admin-aluno-detalhe', params: { id: to.params.id }, query: { aba: 'ficha' } })
       },
       {
         path: 'alunos/:id/avaliacoes-fisicas',
-        name: 'admin-aluno-avaliacoes-fisicas',
-        component: () => import('../views/admin/AvaliacoesFisicasView.vue'),
-        props: true,
-        meta: { titulo: 'Avaliações Físicas' }
+        redirect: (to) => ({ name: 'admin-aluno-detalhe', params: { id: to.params.id }, query: { aba: 'avaliacoes' } })
       },
-      // O acompanhamento deixou de ser tela própria - virou seção da tela do
-      // aluno (docs/adr/0015). Redirect para não quebrar links antigos.
       {
         path: 'alunos/:id/acompanhamento',
         redirect: (to) => ({ name: 'admin-aluno-detalhe', params: { id: to.params.id } })

@@ -306,6 +306,7 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
 | 0014 | Acesso do aluno à ficha por link temporário |
 | 0015 | Acompanhamento Individual Mensal (avaliação da IA por contexto consolidado) |
 | 0016 | Avaliação Física (modelo v3) e importação do legado BodyMove |
+| 0017 | Endpoint de painel agregado para o dashboard |
 
 ## Estado atual
 
@@ -333,7 +334,13 @@ MVP completo e verificado de ponta a ponta:
   acompanhada; `scripts/recalcular-derivadas-avaliacao-fisica.js` fez o backfill
   das importadas); `data_nascimento` e `sexo` no cadastro do aluno.
   Tabela comparativa (métricas × avaliações no tempo) já existe; gráficos e uso
-  pela IA ainda não. 216 testes automatizados (`node --test`, unitários +
+  pela IA ainda não. Dashboard do `/admin` servido por um endpoint agregado
+  `GET /api/v1/painel` (docs/adr/0017 — ação necessária, KPIs, panorama dos
+  alunos, feed de atividade; somente leitura, não toca `resultado_ia`/`validacao`).
+  `aluno.dispensa_ficha_treino` e `aluno.dispensa_avaliacao_fisica` (opt-out,
+  default false) tiram o aluno dos alertas "sem ficha ativa"/"ficha antiga" e
+  "avaliação física vencida" do painel.
+  233 testes automatizados (`node --test`, unitários +
   integração contra banco de teste dedicado).
 - **Frontend**: app Vue 3 + Vite + PWA único (`/captura` mobile-first
   offline, `/admin` gestão/validação), IndexedDB + fila de sincronização
@@ -347,7 +354,13 @@ MVP completo e verificado de ponta a ponta:
   perímetros com seleção) em Apache ECharts — mesmo padrão do AgroMind
   (`components/charts/` + `utils/echarts-option-builder.js`, este com teste);
   avaliações importadas do BodyMove editáveis com `origem` preservada).
-  21 testes automatizados (`node --test` + `fake-indexeddb`; +
+  Dashboard reorganizado (docs/adr/0017): seção "Ação necessária" (só aparece
+  quando há pendência, com reprocessar inline), KPIs, "Panorama dos alunos"
+  (sem ficha ativa / ficha antiga / avaliação vencida / aniversariantes) e
+  feed de atividade recente unificado — consome `GET /api/v1/painel`.
+  Switches "não usa ficha de treino" / "não faz avaliação física" no topo das
+  seções do aluno (tiram do painel; não apagam dados).
+  24 testes automatizados (`node --test` + `fake-indexeddb`; +
   `echarts-option-builder.test.js` puro).
 - **Docker**: `compose.dev.yml` (Postgres + pgAdmin) e `compose.prod.yml`
   (Postgres + backend + frontend) validados; Dockerfiles com healthcheck

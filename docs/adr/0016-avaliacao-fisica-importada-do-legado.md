@@ -35,6 +35,13 @@
 > mínimo em 15–35 (união com o intervalo do aluno) para ele ver a distância
 > até as outras faixas, em vez do auto-zoom do ECharts na variação. O bloco `fato` para o prompt da IA
 > (§7/§12.8) continua fora de escopo.
+>
+> **Atualização (2026-08-28, cont.):** Avaliações Físicas deixou de ser tela
+> própria — virou uma aba do slot do `AlunoDetalheView.vue`, ao lado de
+> Acompanhamento e Ficha de Treino (ver ADR-0015, Consequências). Corpo movido
+> para `components/AvaliacoesFisicasSecao.vue`; `modo` (comparar/novo/editar)
+> troca só o conteúdo da aba. Rota `/admin/alunos/:id/avaliacoes-fisicas`
+> passou a redirecionar para `/admin/alunos/:id?aba=avaliacoes`.
 
 ## Contexto
 

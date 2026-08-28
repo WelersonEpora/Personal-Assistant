@@ -1,23 +1,32 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import alunosService from '../../services/alunos.service.js'
-import avaliacoesFisicasService from '../../services/avaliacoesFisicas.service.js'
-import { useToasts } from '../../composables/useToasts.js'
-import { useConfirm } from '../../composables/useConfirm.js'
-import ToastStack from '../../components/ToastStack.vue'
-import AvaliacaoFisicaDetalhe from '../../components/avaliacaoFisica/AvaliacaoFisicaDetalhe.vue'
-import AvaliacaoFisicaForm from '../../components/avaliacaoFisica/AvaliacaoFisicaForm.vue'
-import AvaliacaoFisicaComparar from '../../components/avaliacaoFisica/AvaliacaoFisicaComparar.vue'
-import { formatarDataAvaliacao } from '../../utils/avaliacaoFisica.js'
+import avaliacoesFisicasService from '../services/avaliacoesFisicas.service.js'
+import alunosService from '../services/alunos.service.js'
+import { useToasts } from '../composables/useToasts.js'
+import { useConfirm } from '../composables/useConfirm.js'
+import ToastStack from './ToastStack.vue'
+import AvaliacaoFisicaDetalhe from './avaliacaoFisica/AvaliacaoFisicaDetalhe.vue'
+import AvaliacaoFisicaForm from './avaliacaoFisica/AvaliacaoFisicaForm.vue'
+import AvaliacaoFisicaComparar from './avaliacaoFisica/AvaliacaoFisicaComparar.vue'
+import { formatarDataAvaliacao } from '../utils/avaliacaoFisica.js'
 
+// Seção "Avaliações Físicas" da tela do aluno (docs/adr/0015 estendida, 0016):
+// deixou de ser tela própria - vive num slot com abas no AlunoDetalheView. O
+// "modo" (comparar / novo / editar) troca só o conteúdo da seção; o card de
+// identidade e as abas continuam visíveis por cima.
 const props = defineProps({ id: { type: String, required: true } })
 const { toasts, showToast } = useToasts()
 const { confirmar } = useConfirm()
 
-const aluno = ref(null)
 const metricas = ref([])
 const avaliacoes = ref([])
+const aluno = ref(null)
 const carregando = ref(true)
+const salvandoDispensa = ref(false)
+
+// Aluno que não faz avaliação física com o personal (docs/adr/0017): sai do
+// alerta "avaliação física vencida" do painel. O histórico continua visível.
+const dispensaAvaliacao = computed(() => aluno.value?.dispensa_avaliacao_fisica === true)
 
 // 'lista' | 'comparar' | 'novo' | 'editar' - "ver" é expansão inline do card.
 const modo = ref('lista')
@@ -27,19 +36,35 @@ const expandidoId = ref(null)
 async function carregar() {
   carregando.value = true
   try {
-    const [dadosAluno, dadosMetricas, dadosAvaliacoes] = await Promise.all([
-      alunosService.obter(props.id),
+    const [dadosMetricas, dadosAvaliacoes, dadosAluno] = await Promise.all([
       avaliacoesFisicasService.listarMetricas(),
-      avaliacoesFisicasService.listar(props.id)
+      avaliacoesFisicasService.listar(props.id),
+      alunosService.obter(props.id)
     ])
-    aluno.value = dadosAluno
     metricas.value = dadosMetricas
     avaliacoes.value = dadosAvaliacoes
+    aluno.value = dadosAluno
   } finally {
     carregando.value = false
   }
 }
 onMounted(carregar)
+
+async function alternarDispensa() {
+  const marcar = !dispensaAvaliacao.value
+  salvandoDispensa.value = true
+  try {
+    aluno.value = await alunosService.atualizar(props.id, { dispensa_avaliacao_fisica: marcar })
+    showToast(
+      marcar ? 'Aluno marcado como “não faz avaliação física”.' : 'Avaliação física reativada para este aluno.',
+      'neutral'
+    )
+  } catch (_err) {
+    showToast('Não foi possível atualizar.', 'warning')
+  } finally {
+    salvandoDispensa.value = false
+  }
+}
 
 // resumo da lista (medida principal): peso, IMC, % gordura, massa magra/gorda
 function principal(av, codigo) {
@@ -114,22 +139,11 @@ async function excluir(av) {
 </script>
 
 <template>
-  <div v-if="aluno">
-    <router-link
-      v-if="modo === 'lista'"
-      class="detail-back"
-      :to="{ name: 'admin-aluno-detalhe', params: { id: props.id } }"
-    >
-      ← Voltar para {{ aluno.nome }}
-    </router-link>
-
+  <div>
     <!-- LISTA -->
     <template v-if="modo === 'lista'">
-      <div class="view-header">
-        <div>
-          <h1>Avaliações Físicas</h1>
-          <p>{{ aluno.nome }}</p>
-        </div>
+      <div class="secao-cabecalho">
+        <h2 class="secao-titulo">Avaliações Físicas</h2>
         <div style="display: flex; gap: 8px;">
           <button
             v-if="listaOrdenada.length >= 2"
@@ -139,9 +153,18 @@ async function excluir(av) {
           >
             Comparar
           </button>
-          <button type="button" class="btn btn-primary" @click="abrirNovo">＋ Nova avaliação</button>
+          <button v-if="!dispensaAvaliacao" type="button" class="btn btn-primary" @click="abrirNovo">＋ Nova avaliação</button>
         </div>
       </div>
+
+      <label class="dispensa-toggle">
+        <input type="checkbox" :checked="dispensaAvaliacao" :disabled="salvandoDispensa" @change="alternarDispensa" />
+        <span>Não faz avaliação física</span>
+      </label>
+
+      <p v-if="dispensaAvaliacao" class="dispensa-aviso">
+        Fora do alerta “avaliação física vencida” do painel. O histórico abaixo continua disponível.
+      </p>
 
       <div v-if="carregando" class="empty-state">Carregando…</div>
       <div v-else-if="!listaOrdenada.length" class="card empty-state">
@@ -194,10 +217,43 @@ async function excluir(av) {
 
     <ToastStack :toasts="toasts" />
   </div>
-  <div v-else-if="!carregando" class="empty-state">Aluno não encontrado.</div>
 </template>
 
 <style scoped>
+.secao-cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.secao-titulo {
+  font-size: 17px;
+  font-weight: 800;
+}
+.dispensa-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+.dispensa-toggle input {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: var(--color-primary);
+}
+.dispensa-aviso {
+  font-size: 12.5px;
+  color: var(--color-text-faint);
+  margin-bottom: 16px;
+}
 .af-acoes { display: flex; gap: 6px; margin-bottom: 14px; }
 .af-expandido {
   margin-top: 12px;

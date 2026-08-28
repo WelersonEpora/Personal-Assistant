@@ -65,7 +65,8 @@ function metricaPorCodigo(codigo) {
   return props.metricas.find((m) => m.codigo === codigo)
 }
 
-// --- IMC / RCQ ao vivo (só exibição; o backend recalcula na gravação) ---
+// --- derivadas ao vivo (só exibição; o backend recalcula na gravação, ver
+// backend/src/services/avaliacao-fisica/metricas-derivadas.js) ---
 const previewDerivadas = computed(() => {
   const num = (c) => {
     const v = Number(valores[c])
@@ -78,6 +79,15 @@ const previewDerivadas = computed(() => {
   const cintura = num('perimetro_cintura')
   const quadril = num('perimetro_quadril')
   if (cintura && quadril) out.rcq = (cintura / quadril).toFixed(2)
+  // massa gorda/magra (2 compartimentos) a partir da % de gordura acompanhada
+  const linhasGordura = multi.percentual_gordura.filter((r) => Number(r.valor) > 0)
+  const gorduraPrincipal = linhasGordura.find((r) => r.principal) || linhasGordura[0]
+  const pctGordura = gorduraPrincipal ? Number(gorduraPrincipal.valor) : null
+  if (peso && pctGordura > 0) {
+    const massaGorda = (peso * pctGordura) / 100
+    out.massa_gorda = massaGorda.toFixed(1)
+    if (peso - massaGorda > 0) out.massa_magra = (peso - massaGorda).toFixed(1)
+  }
   return out
 })
 
@@ -363,12 +373,14 @@ async function salvar() {
       </button>
     </div>
 
-    <!-- índices calculados -->
+    <!-- valores calculados pelo sistema (nunca editáveis) -->
     <div class="card card-pad" style="margin-bottom: 16px;">
-      <div style="font-size: 15px; font-weight: 700; margin-bottom: 4px;">Índices</div>
+      <div style="font-size: 15px; font-weight: 700; margin-bottom: 4px;">Calculado automaticamente</div>
       <p class="list-row-sub">
         IMC {{ previewDerivadas.imc || '—' }} · RCQ {{ previewDerivadas.rcq || '—' }}
-        <span class="af-unidade"> (calculados automaticamente a partir de peso/altura e cintura/quadril)</span>
+        · Massa gorda {{ previewDerivadas.massa_gorda ? previewDerivadas.massa_gorda + ' kg' : '—' }}
+        · Massa magra {{ previewDerivadas.massa_magra ? previewDerivadas.massa_magra + ' kg' : '—' }}
+        <span class="af-unidade"> (a partir de peso/altura, cintura/quadril e da % de gordura acompanhada)</span>
       </p>
     </div>
 

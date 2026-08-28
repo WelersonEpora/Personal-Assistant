@@ -8,7 +8,13 @@ const { success } = require("../shared/utils/api-response");
 const { ValidationError } = require("../shared/errors");
 
 async function list(req, res) {
-  const registros = await registroService.listar(req.equipeId, { status: req.query.status });
+  const registros = await registroService.listar(req.equipeId, {
+    status: req.query.status,
+    de: req.query.de,
+    ate: req.query.ate,
+    alunoId: req.query.aluno_id,
+    tipo: req.query.tipo
+  });
   success(res, registros);
 }
 

@@ -1,5 +1,6 @@
 "use strict";
 
+const { Op } = require("sequelize");
 const {
   sequelize,
   Registro,
@@ -79,9 +80,23 @@ async function criarArquivoAudio({ registroEntradaId, caminhoArmazenamento, mime
 // Lista "leve": entradas só com tipo/ordem (sem áudio/transcrição - a tela
 // de Relatos só precisa contar 🎙️/⌨️ por Registro) + validação (quando
 // confirmado, alimenta a tela de Histórico sem uma 2a chamada por linha).
-function listarPorEquipe({ equipeId, status }) {
+// Filtros opcionais `de`/`ate` (janela por `data_atendimento`, docs/adr/0019),
+// `alunoId` e `tipo` - o Histórico usa para não baixar todos os confirmados de
+// sempre num fetch só.
+function listarPorEquipe({ equipeId, status, de, ate, alunoId, tipo }) {
+  const dataAtendimento = {};
+  if (de) dataAtendimento[Op.gte] = de;
+  if (ate) dataAtendimento[Op.lte] = ate;
+
   return Registro.findAll({
-    where: { equipe_id: equipeId, deletado_em: null, ...(status ? { status } : {}) },
+    where: {
+      equipe_id: equipeId,
+      deletado_em: null,
+      ...(status ? { status } : {}),
+      ...(alunoId ? { aluno_id: alunoId } : {}),
+      ...(tipo ? { tipo } : {}),
+      ...(de || ate ? { data_atendimento: dataAtendimento } : {})
+    },
     include: [
       { model: Aluno, as: "aluno", attributes: ["id", "nome"] },
       { model: RegistroEntrada, as: "entradas", attributes: ["id", "tipo", "ordem"] },

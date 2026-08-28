@@ -126,3 +126,67 @@ test("reprocessar: rejeita quando o Registro pertence a outra equipe", async (t)
 
   await assert.rejects(() => registroService.reprocessar(outraEquipe.id, registro.id), /não encontrado/);
 });
+
+// --- filtros de listagem (Histórico não carrega tudo de uma vez) ----------
+
+async function criarRegistroEm(dataAtendimento, { tipo = Registro.TIPOS.ATENDIMENTO, alunoId = aluno.id } = {}) {
+  const registro = await Registro.create({
+    id: randomUUID(),
+    usuario_id: usuario.id,
+    equipe_id: equipe.id,
+    aluno_id: alunoId,
+    iniciado_em: new Date(`${dataAtendimento}T12:00:00Z`),
+    data_atendimento: dataAtendimento,
+    status: Registro.STATUS.CONFIRMADO,
+    tipo
+  });
+  return registro;
+}
+
+test("listar: filtra por janela de data_atendimento (de/ate)", async (t) => {
+  const dentro = await criarRegistroEm("2026-05-10");
+  const fora = await criarRegistroEm("2026-05-25");
+  t.after(() => Registro.destroy({ where: { id: [dentro.id, fora.id] } }));
+
+  const lista = await registroService.listar(equipe.id, { de: "2026-05-01", ate: "2026-05-15" });
+  const ids = lista.map((r) => r.id);
+  assert.ok(ids.includes(dentro.id));
+  assert.ok(!ids.includes(fora.id));
+});
+
+test("listar: filtra por aluno_id e por tipo", async (t) => {
+  const outroAluno = await Aluno.create({ equipe_id: equipe.id, nome: "Outro Aluno Filtro" });
+  const atendimento = await criarRegistroEm("2026-06-10");
+  const avaliacao = await criarRegistroEm("2026-06-11", { tipo: Registro.TIPOS.AVALIACAO_FISICA });
+  const doOutro = await criarRegistroEm("2026-06-12", { alunoId: outroAluno.id });
+  t.after(async () => {
+    await Registro.destroy({ where: { id: [atendimento.id, avaliacao.id, doOutro.id] } });
+    await Aluno.destroy({ where: { id: outroAluno.id } });
+  });
+
+  const soAtendimento = await registroService.listar(equipe.id, {
+    de: "2026-06-01",
+    ate: "2026-06-30",
+    tipo: "atendimento"
+  });
+  const idsTipo = soAtendimento.map((r) => r.id);
+  assert.ok(idsTipo.includes(atendimento.id));
+  assert.ok(!idsTipo.includes(avaliacao.id));
+
+  const soAluno = await registroService.listar(equipe.id, { de: "2026-06-01", ate: "2026-06-30", alunoId: outroAluno.id });
+  assert.deepEqual(soAluno.map((r) => r.id), [doOutro.id]);
+});
+
+test("listar: rejeita data inválida, de > ate e tipo desconhecido", async () => {
+  await assert.rejects(() => registroService.listar(equipe.id, { de: "2026-13-01" }), /formato|válida/);
+  await assert.rejects(() => registroService.listar(equipe.id, { de: "2026-05-10", ate: "2026-05-01" }), /depois/);
+  await assert.rejects(() => registroService.listar(equipe.id, { tipo: "qualquer" }), /tipo/);
+});
+
+test("listar: sem filtro de data mantém o comportamento antigo (todos os status pedidos)", async (t) => {
+  const antigo = await criarRegistroEm("2020-01-01");
+  t.after(() => Registro.destroy({ where: { id: antigo.id } }));
+
+  const lista = await registroService.listar(equipe.id, { status: "confirmado" });
+  assert.ok(lista.some((r) => r.id === antigo.id));
+});

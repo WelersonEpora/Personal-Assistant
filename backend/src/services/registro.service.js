@@ -3,13 +3,32 @@
 const registroRepository = require("../repositories/registro.repository");
 const storageAudio = require("./storage-audio.service");
 const { enfileirarRegistro } = require("../jobs/processador-fila-ia");
-const { NotFoundError, ConflictError } = require("../shared/errors");
+const { NotFoundError, ConflictError, ValidationError } = require("../shared/errors");
+const { validarDataIso } = require("../shared/utils/periodo");
 
 const { Registro } = registroRepository;
 const STATUS_REPROCESSAVEIS = new Set([Registro.STATUS.ERRO_TRANSCRICAO, Registro.STATUS.ERRO_INTERPRETACAO]);
 
-async function listar(equipeId, { status } = {}) {
-  return registroRepository.listarPorEquipe({ equipeId, status });
+// Filtros opcionais (docs/adr/0019 - janela por `data_atendimento`). O Histórico
+// abre com "Últimos 90 dias" e passa `tipo = atendimento`; sem filtro, mantém o
+// comportamento antigo (usado pela fila de revisão e pelo badge da navegação).
+async function listar(equipeId, { status, de, ate, alunoId, tipo } = {}) {
+  const deValido = de ? validarDataIso(String(de), "de") : null;
+  const ateValido = ate ? validarDataIso(String(ate), "ate") : null;
+  if (deValido && ateValido && deValido > ateValido) {
+    throw new ValidationError('"de" não pode ser depois de "ate".');
+  }
+  if (tipo && !Registro.TIPOS[tipo.toUpperCase()]) {
+    throw new ValidationError('"tipo" deve ser "atendimento" ou "avaliacao_fisica".');
+  }
+  return registroRepository.listarPorEquipe({
+    equipeId,
+    status,
+    de: deValido,
+    ate: ateValido,
+    alunoId: alunoId || null,
+    tipo: tipo || null
+  });
 }
 
 async function obterDetalhe(equipeId, registroId) {

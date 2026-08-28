@@ -1,7 +1,16 @@
 import http from './http.js'
 
-async function listar({ status } = {}) {
-  const { data } = await http.get('/api/v1/registros', { params: status ? { status } : {} })
+// Filtros opcionais (docs/adr/0020): `de`/`ate` (janela por data_atendimento),
+// `alunoId` e `tipo`. O Histórico usa para não baixar todos os confirmados de
+// uma vez; a fila de revisão e o badge continuam chamando só com `status`.
+async function listar({ status, de, ate, alunoId, tipo } = {}) {
+  const params = {}
+  if (status) params.status = status
+  if (de) params.de = de
+  if (ate) params.ate = ate
+  if (alunoId) params.aluno_id = alunoId
+  if (tipo) params.tipo = tipo
+  const { data } = await http.get('/api/v1/registros', { params })
   return data.data
 }
 

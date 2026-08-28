@@ -2,33 +2,65 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import registrosService from '../../services/registros.service.js'
+import alunosService from '../../services/alunos.service.js'
 import { corParaId, iniciais, formatarData, formatarDataAtendimento } from '../../utils/registroStatus.js'
+import SeletorPeriodo from '../../components/SeletorPeriodo.vue'
 
 const route = useRoute()
 
 const registros = ref([])
+const alunos = ref([])
 const carregando = ref(true)
 
+// docs/adr/0020: o Histórico não baixa mais todos os confirmados de sempre -
+// abre em "Últimos 90 dias" e filtra por janela de `data_atendimento` + aluno.
+// Só relatos (`tipo = atendimento`); avaliação física tem a tela do aluno.
+// Vindo do perfil do aluno com um Registro específico em mente, começa em
+// "Tudo" para o alvo não cair fora da janela.
+const periodo = ref(null) // { de, ate } - definido pelo SeletorPeriodo na montagem
+const alunoId = ref('')
+const presetInicial = route.query.registro ? 'tudo' : 'ultimos_90'
+
 async function carregar() {
+  if (!periodo.value) return
   carregando.value = true
   try {
-    registros.value = await registrosService.listar({ status: 'confirmado' })
+    registros.value = await registrosService.listar({
+      status: 'confirmado',
+      tipo: 'atendimento',
+      de: periodo.value.de || undefined,
+      ate: periodo.value.ate || undefined,
+      alunoId: alunoId.value || undefined
+    })
   } finally {
     carregando.value = false
   }
-  // Vindo do perfil do aluno com um Registro específico em mente (ver
-  // AlunoDetalheView) - expande e rola até ele em vez de ter uma URL própria
-  // por Registro (trade-off aceito ao trocar a tela de detalhe por expandir
-  // a linha aqui, mesmo padrão de RegistrosView).
+  // Vindo do perfil do aluno (ver AlunoDetalheView) - expande e rola até o
+  // Registro. Mesmo padrão de RegistrosView (a tela de detalhe virou expandir
+  // a linha aqui).
   if (route.query.registro && registros.value.some((r) => r.id === route.query.registro)) {
     await alternarExpandido(registros.value.find((r) => r.id === route.query.registro))
     await nextTick()
     document.getElementById(`historico-${route.query.registro}`)?.scrollIntoView({ block: 'center' })
   }
 }
-onMounted(carregar)
 
-const ordenados = computed(() => [...registros.value].sort((a, b) => (a.validacao?.confirmado_em < b.validacao?.confirmado_em ? 1 : -1)))
+function aoMudarPeriodo(intervalo) {
+  periodo.value = intervalo
+  carregar()
+}
+
+onMounted(async () => {
+  try {
+    alunos.value = await alunosService.listar()
+  } catch (_err) {
+    alunos.value = []
+  }
+})
+
+const ordenados = computed(() =>
+  [...registros.value].sort((a, b) => (a.validacao?.confirmado_em < b.validacao?.confirmado_em ? 1 : -1))
+)
 
 // Clicar no card expande/colapsa - `listar()` só traz entradas leves
 // (id/tipo/ordem) e a validação (ver registro.repository.js), então ao
@@ -92,7 +124,20 @@ function notaGeralConfirmada(registro) {
       </div>
     </div>
 
-    <div class="registros-list">
+    <div class="card card-pad hist-filtros">
+      <SeletorPeriodo :inicial="presetInicial" @change="aoMudarPeriodo" />
+      <div class="field-group hist-aluno">
+        <label>Aluno</label>
+        <select v-model="alunoId" @change="carregar">
+          <option value="">Todos os alunos</option>
+          <option v-for="a in alunos" :key="a.id" :value="a.id">{{ a.nome }}</option>
+        </select>
+      </div>
+    </div>
+
+    <div v-if="carregando && !registros.length" class="empty-state">Carregando…</div>
+
+    <div v-else class="registros-list">
       <div
         v-for="registro in ordenados"
         :id="`historico-${registro.id}`"
@@ -153,7 +198,18 @@ function notaGeralConfirmada(registro) {
         </div>
       </div>
 
-      <div v-if="!carregando && !ordenados.length" class="empty-state">Nenhum registro confirmado ainda.</div>
+      <div v-if="!carregando && !ordenados.length" class="empty-state">Nenhum registro confirmado no período.</div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.hist-filtros {
+  margin-bottom: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.hist-aluno { max-width: 280px; }
+.hist-aluno select { width: 100%; }
+</style>

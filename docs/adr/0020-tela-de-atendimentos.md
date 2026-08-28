@@ -206,6 +206,30 @@ bucket traz os dois valores (`atendimento`, `avaliacao_fisica`).
 - **Sem estado offline / sem Pinia** — é tela de leitura do `/admin`, uma
   requisição a cada mudança de filtro (igual ao resto do `/admin`).
 
+### Filtro do Histórico (mesma base)
+
+O Histórico (`/admin/historico`) baixava **todos** os Registros confirmados da
+equipe num fetch só, sem filtro nem paginação — "saco sem fundo" com o tempo.
+Nesta ADR ele passa a usar o mesmo eixo:
+
+- `GET /api/v1/registros` ganha filtros **opcionais** `de`/`ate` (janela por
+  `data_atendimento`), `aluno_id` e `tipo` — retrocompatível: sem parâmetros, o
+  comportamento é o de antes (usado pela fila de revisão e pelo badge da
+  navegação, que continuam chamando só com `status`). Datas inválidas ou
+  `de > ate` → `400` (mesmo `validarDataIso` da tela de Atendimentos, extraído
+  para `shared/utils/periodo.js`).
+- A tela abre em **"Últimos 90 dias"** e só lista `tipo = atendimento` — Registro
+  `tipo = avaliacao_fisica` sai do Histórico (já tem a tela de Avaliações
+  Físicas do aluno; além disso não tem `validacao`, então aparecia quebrado).
+  Deep-link vindo do perfil do aluno (`?registro=<id>`) abre em **"Tudo"** para o
+  alvo não cair fora da janela.
+- O seletor de período vira um componente compartilhado
+  (`components/SeletorPeriodo.vue` + `utils/periodos.js`), usado pelas duas telas.
+  O preset **"Tudo"** existe para o Histórico (sem limite); a tela de
+  Atendimentos não o oferece (o endpoint `/atividades` limita a 1 ano).
+- A ordenação do Histórico continua por `confirmado_em`; só o **recorte** é por
+  `data_atendimento`.
+
 ### Fora do escopo desta primeira versão
 
 - **Cadência média** (dias entre atendimentos por aluno). O `por_aluno` já
@@ -258,14 +282,19 @@ bucket traz os dois valores (`atendimento`, `avaliacao_fisica`).
   `(equipe_id, data_atendimento)` resolve sem mudar contrato.
 - **Backend:** `atividades.{controller,service,repository}.js` +
   `atividades.routes.js` montado em `/api/v1/atividades` no `routes/index.js`.
-  `atividades.service.test.js` (integração, banco de teste) cobre: default de
-  período, escolha de granularidade, preenchimento de buckets vazios, separação
-  atendimento × avaliação física, `somente_confirmados`, filtro por aluno,
-  isolamento por equipe, e a regra dos 400 (datas inválidas, `de > ate`, janela
-  > 1 ano).
+  `shared/utils/periodo.js` (`validarDataIso`, também usado pelo
+  `registro.service`). `GET /api/v1/registros` ganha `de`/`ate`/`aluno_id`/`tipo`
+  opcionais (retrocompatível). Testes de integração: `atividades.service.test.js`
+  (default de período, granularidade, buckets vazios, separação atendimento ×
+  avaliação, `somente_confirmados`, filtro por aluno, isolamento por equipe, 400
+  em datas inválidas / `de > ate` / janela > 1 ano) e novos casos em
+  `registro.service.test.js` (janela por `data_atendimento`, `aluno_id`, `tipo`,
+  retrocompatibilidade sem filtro).
 - **Frontend:** `views/admin/AtividadesView.vue`, `services/atividades.service.js`,
   `components/charts/BarChart.vue`, `utils/echarts-bar-option-builder.js`
-  (+ teste puro), entrada no menu (`AdminShell.vue`) e rota
+  (+ teste puro), `components/SeletorPeriodo.vue` + `utils/periodos.js`
+  (+ teste puro, compartilhado com o Histórico), filtro em
+  `views/admin/HistoricoView.vue`, entrada no menu (`AdminShell.vue`) e rota
   (`router/index.js`).
 - **ADR-0015 e ADR-0017 intactas** — nenhuma mudança em bucketing mensal nem no
   feed do painel.

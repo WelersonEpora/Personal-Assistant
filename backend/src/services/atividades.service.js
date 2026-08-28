@@ -8,8 +8,8 @@
 // ciclo mensal segue por `confirmado_em`) nem a ADR-0017 (feed por `created_at`).
 const atividadesRepository = require("../repositories/atividades.repository");
 const { ValidationError } = require("../shared/errors");
+const { validarDataIso } = require("../shared/utils/periodo");
 
-const FORMATO_DATA = /^\d{4}-\d{2}-\d{2}$/;
 const MS_DIA = 24 * 60 * 60 * 1000;
 // Guarda-corpo de custo - a UI só oferece presets até "Este ano".
 const JANELA_MAX_DIAS = 366;
@@ -20,17 +20,6 @@ function hojeIso() {
 }
 function primeiroDiaDoMesIso() {
   return `${hojeIso().slice(0, 8)}01`;
-}
-
-function validarData(valor, campo) {
-  if (!FORMATO_DATA.test(valor)) {
-    throw new ValidationError(`"${campo}" precisa estar no formato AAAA-MM-DD.`);
-  }
-  const data = new Date(`${valor}T00:00:00Z`);
-  if (Number.isNaN(data.getTime()) || data.toISOString().slice(0, 10) !== valor) {
-    throw new ValidationError(`"${campo}" não é uma data válida.`);
-  }
-  return valor;
 }
 
 function diasEntre(de, ate) {
@@ -45,8 +34,8 @@ function escolherGranularidade(amplitudeDias) {
 }
 
 function normalizarFiltros(equipeId, query = {}) {
-  const de = query.de ? validarData(String(query.de), "de") : primeiroDiaDoMesIso();
-  const ate = query.ate ? validarData(String(query.ate), "ate") : hojeIso();
+  const de = query.de ? validarDataIso(String(query.de), "de") : primeiroDiaDoMesIso();
+  const ate = query.ate ? validarDataIso(String(query.ate), "ate") : hojeIso();
   if (de > ate) {
     throw new ValidationError('"de" não pode ser depois de "ate".');
   }

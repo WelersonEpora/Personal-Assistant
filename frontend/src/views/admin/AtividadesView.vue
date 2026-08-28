@@ -4,7 +4,7 @@ import atividadesService from '../../services/atividades.service.js'
 import alunosService from '../../services/alunos.service.js'
 import { rotuloMesAno, PALETA_SERIES } from '../../utils/avaliacaoFisica.js'
 import { formatarDataAtendimento } from '../../utils/registroStatus.js'
-import CampoData from '../../components/CampoData.vue'
+import SeletorPeriodo from '../../components/SeletorPeriodo.vue'
 import BarChart from '../../components/charts/BarChart.vue'
 
 // docs/adr/0020 - tela de Atendimentos: o que foi registrado no período.
@@ -16,45 +16,10 @@ const COR_AVALIACAO = PALETA_SERIES[1]
 const TOP_RANKING = 8
 const NOMES_MES_CURTO = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
 
-function isoHoje() {
-  return new Date().toISOString().slice(0, 10)
-}
-function iso(ano, mes, dia) {
-  return `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`
-}
-
-// Presets de período - todos ancorados em "hoje", resolvidos para { de, ate }.
-const PRESETS = [
-  { chave: 'mes_atual', rotulo: 'Este mês' },
-  { chave: 'mes_passado', rotulo: 'Mês passado' },
-  { chave: 'ultimos_30', rotulo: 'Últimos 30 dias' },
-  { chave: 'ultimos_90', rotulo: 'Últimos 90 dias' },
-  { chave: 'ano_atual', rotulo: 'Este ano' },
-  { chave: 'personalizado', rotulo: 'Personalizado' }
-]
-
-function resolverPreset(chave, custom) {
-  const agora = new Date()
-  const ano = agora.getFullYear()
-  const mes = agora.getMonth() + 1
-  if (chave === 'mes_atual') return { de: iso(ano, mes, 1), ate: isoHoje() }
-  if (chave === 'mes_passado') {
-    const y = mes === 1 ? ano - 1 : ano
-    const m = mes === 1 ? 12 : mes - 1
-    const ultimoDia = new Date(y, m, 0).getDate()
-    return { de: iso(y, m, 1), ate: iso(y, m, ultimoDia) }
-  }
-  if (chave === 'ultimos_30' || chave === 'ultimos_90') {
-    const dias = chave === 'ultimos_30' ? 29 : 89
-    return { de: new Date(Date.now() - dias * 86400000).toISOString().slice(0, 10), ate: isoHoje() }
-  }
-  if (chave === 'ano_atual') return { de: iso(ano, 1, 1), ate: isoHoje() }
-  return { de: custom.de, ate: custom.ate }
-}
+// O endpoint /atividades limita a janela a 1 ano - "Tudo" não faz sentido aqui.
+const PRESETS_ATIVIDADES = ['mes_atual', 'mes_passado', 'ultimos_30', 'ultimos_90', 'ano_atual', 'personalizado']
 
 const filtros = reactive({
-  preset: 'mes_atual',
-  custom: { de: '', ate: isoHoje() },
   alunoId: '',
   tipo: '',
   // docs/adr/0020: a tela começa com o número "fechado" (só relatos revisados);
@@ -62,6 +27,7 @@ const filtros = reactive({
   // continua com default `false` para outros consumidores.
   somenteConfirmados: true
 })
+const periodo = ref({ de: null, ate: null })
 
 const alunos = ref([])
 const dados = ref(null)
@@ -69,21 +35,14 @@ const carregando = ref(true)
 const erro = ref('')
 const verTodosAlunos = ref(false)
 
-const periodoResolvido = computed(() => resolverPreset(filtros.preset, filtros.custom))
-const periodoPronto = computed(() => {
-  const { de, ate } = periodoResolvido.value
-  return Boolean(de && ate && de <= ate)
-})
-
 async function carregar() {
-  if (!periodoPronto.value) return
+  if (!periodo.value.de || !periodo.value.ate) return
   carregando.value = true
   erro.value = ''
   try {
-    const { de, ate } = periodoResolvido.value
     dados.value = await atividadesService.obter({
-      de,
-      ate,
+      de: periodo.value.de,
+      ate: periodo.value.ate,
       alunoId: filtros.alunoId || undefined,
       tipo: filtros.tipo || undefined,
       somenteConfirmados: filtros.somenteConfirmados
@@ -96,19 +55,20 @@ async function carregar() {
   }
 }
 
+function aoMudarPeriodo(intervalo) {
+  periodo.value = intervalo
+  carregar()
+}
+
 onMounted(async () => {
   try {
     alunos.value = await alunosService.listar()
   } catch (_e) {
     alunos.value = []
   }
-  carregar()
 })
 
-watch(
-  () => [filtros.preset, filtros.custom.de, filtros.custom.ate, filtros.alunoId, filtros.tipo, filtros.somenteConfirmados],
-  () => carregar()
-)
+watch(() => [filtros.alunoId, filtros.tipo, filtros.somenteConfirmados], () => carregar())
 
 // --- rótulo do bucket conforme a granularidade escolhida pelo servidor -----
 function rotuloBucket(bucket, granularidade) {
@@ -208,29 +168,9 @@ const temResultado = computed(
 
     <!-- Filtros -->
     <div class="card card-pad atv-filtros">
-      <div class="filter-tabs">
-        <button
-          v-for="p in PRESETS"
-          :key="p.chave"
-          type="button"
-          class="filter-tab"
-          :class="{ active: filtros.preset === p.chave }"
-          @click="filtros.preset = p.chave"
-        >
-          {{ p.rotulo }}
-        </button>
-      </div>
+      <SeletorPeriodo :presets="PRESETS_ATIVIDADES" inicial="mes_atual" @change="aoMudarPeriodo" />
 
       <div class="atv-campos">
-        <div v-if="filtros.preset === 'personalizado'" class="field-group">
-          <label>De</label>
-          <CampoData v-model="filtros.custom.de" :max="filtros.custom.ate || undefined" aria-label="Data inicial" />
-        </div>
-        <div v-if="filtros.preset === 'personalizado'" class="field-group">
-          <label>Até</label>
-          <CampoData v-model="filtros.custom.ate" :min="filtros.custom.de || undefined" aria-label="Data final" />
-        </div>
-
         <div class="field-group">
           <label>Aluno</label>
           <select v-model="filtros.alunoId">

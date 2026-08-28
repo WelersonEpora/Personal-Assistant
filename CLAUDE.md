@@ -392,7 +392,12 @@ MVP completo e verificado de ponta a ponta:
   (Registros × dias distintos), `por_dia_semana` e `por_mes`. Atendimento e
   avaliação física contados em trilhas separadas. Cadência média ficou de fora
   desta 1ª versão (o payload já traz `primeiro`/`ultimo`/`dias_distintos`).
-  277 testes automatizados (`node --test`, unitários +
+  Na mesma ADR-0020, `GET /api/v1/registros` ganhou filtros opcionais
+  `de`/`ate` (janela por `data_atendimento`), `aluno_id` e `tipo`
+  (retrocompatível — sem parâmetro, comportamento antigo); o Histórico usa isso,
+  abrindo em "Últimos 90 dias" e só com `tipo = atendimento` (avaliação física
+  saiu do Histórico). Validação de data em `shared/utils/periodo.js`.
+  281 testes automatizados (`node --test`, unitários +
   integração contra banco de teste dedicado).
 - **Frontend**: app Vue 3 + Vite + PWA único (`/captura` mobile-first
   offline, `/admin` gestão/validação), IndexedDB + fila de sincronização
@@ -435,9 +440,12 @@ MVP completo e verificado de ponta a ponta:
   semana e tabelas por aluno/mês. Gráficos de barra em
   `components/charts/BarChart.vue` + `utils/echarts-bar-option-builder.js`
   (mesmo padrão testável do `LineChart`), no chunk `vendor-echarts` lazy.
-  45 testes automatizados (`node --test` + `fake-indexeddb`; +
+  Seletor de período compartilhado (`components/SeletorPeriodo.vue` +
+  `utils/periodos.js`) usado também pelo filtro do Histórico
+  (`HistoricoView.vue` — período + aluno, default "Últimos 90 dias").
+  53 testes automatizados (`node --test` + `fake-indexeddb`; +
   `echarts-option-builder.test.js`, `echarts-bar-option-builder.test.js`,
-  `avaliacaoFisica.test.js` e `registroStatus.test.js` puros).
+  `periodos.test.js`, `avaliacaoFisica.test.js` e `registroStatus.test.js` puros).
 - **Docker**: `compose.dev.yml` (Postgres + pgAdmin) e `compose.prod.yml`
   (Postgres + backend + frontend) validados; Dockerfiles com healthcheck
   em ambos os serviços da aplicação.

@@ -18,10 +18,19 @@ const INCLUDE_ENTRADAS_COMPLETO = {
 // cliente - se o Registro já existe, devolve o existente sem sobrescrever
 // nada (reenvio seguro). "criado" avisa o chamador se é a 1a vez que este
 // Registro chega ao servidor (só nesse caso ele deve entrar na fila de IA).
-async function obterOuCriarRegistro({ id, usuarioId, equipeId, alunoId, titulo, iniciadoEm }, transaction) {
+async function obterOuCriarRegistro({ id, usuarioId, equipeId, alunoId, titulo, iniciadoEm, tipo }, transaction) {
   const [registro, criado] = await Registro.findOrCreate({
     where: { id },
-    defaults: { usuario_id: usuarioId, equipe_id: equipeId, aluno_id: alunoId, titulo: titulo || null, iniciado_em: iniciadoEm },
+    // `tipo` só entra no INSERT da 1a vez (docs/adr/0018 - imutável depois);
+    // reenvio devolve o Registro existente sem tocar no tipo.
+    defaults: {
+      usuario_id: usuarioId,
+      equipe_id: equipeId,
+      aluno_id: alunoId,
+      titulo: titulo || null,
+      iniciado_em: iniciadoEm,
+      tipo: tipo || "atendimento"
+    },
     transaction
   });
   return { registro, criado };

@@ -51,6 +51,34 @@ test("obterOuCriarRegistro: chamado duas vezes com o mesmo id não duplica nem s
   assert.equal(total, 1);
 });
 
+test("obterOuCriarRegistro: grava o tipo na criação e não o altera no reenvio (docs/adr/0018)", async (t) => {
+  const registroId = randomUUID();
+  t.after(async () => Registro.destroy({ where: { id: registroId } }));
+
+  const primeira = await registroRepository.obterOuCriarRegistro(
+    { id: registroId, usuarioId: usuario.id, equipeId: equipe.id, alunoId: aluno.id, titulo: null, iniciadoEm: new Date(), tipo: "avaliacao_fisica" },
+    null
+  );
+  assert.equal(primeira.registro.tipo, "avaliacao_fisica");
+
+  const segunda = await registroRepository.obterOuCriarRegistro(
+    { id: registroId, usuarioId: usuario.id, equipeId: equipe.id, alunoId: aluno.id, titulo: null, iniciadoEm: new Date(), tipo: "atendimento" },
+    null
+  );
+  assert.equal(segunda.registro.tipo, "avaliacao_fisica", "reenvio não deve trocar o tipo já gravado");
+});
+
+test("obterOuCriarRegistro: tipo ausente cai em 'atendimento'", async (t) => {
+  const registroId = randomUUID();
+  t.after(async () => Registro.destroy({ where: { id: registroId } }));
+
+  const { registro } = await registroRepository.obterOuCriarRegistro(
+    { id: registroId, usuarioId: usuario.id, equipeId: equipe.id, alunoId: aluno.id, titulo: null, iniciadoEm: new Date() },
+    null
+  );
+  assert.equal(registro.tipo, "atendimento");
+});
+
 test("obterOuCriarEntrada: reenviar a mesma (registro_id, ordem) não duplica a entrada", async (t) => {
   const registroId = randomUUID();
   t.after(async () => Registro.destroy({ where: { id: registroId } }));

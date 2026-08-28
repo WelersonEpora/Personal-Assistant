@@ -260,12 +260,16 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
   Personal Trainer" sem decisão explícita — o modelo atual é provisório
   (ADR-0008). Já decididos e implementados: catálogo de exercícios/ficha
   (ADR-0013) e avaliação física + importação do BodyMove (ADR-0016).
-- **Avaliação física nunca passa pelo pipeline de IA nem vira `validacao`**
-  (ADR-0016) — é dado objetivo do personal, CRUD direto como
-  `avaliacao_personal`. Nenhum job/worker escreve em `avaliacao_fisica*`.
-  Métricas derivadas (`imc`, `rcq`) são do service, nunca escritas por humano.
+- **Avaliação física nunca vira `validacao` e nenhum job/worker escreve em
+  `avaliacao_fisica*`** (ADR-0016) — é dado objetivo do personal, CRUD direto
+  como `avaliacao_personal`. Métricas derivadas (`imc`, `rcq`, `massa_gorda`,
+  `massa_magra`) são do service, nunca escritas por humano nem por IA.
   Importação do legado é idempotente por `(aluno_id, data, origem)` e mantém
-  `origem = legado_bodymove`.
+  `origem = legado_bodymove`. A ADR-0018 (decidida, não implementada) permite
+  que a IA gere um **rascunho** de avaliação (tabela `proposta_avaliacao_fisica`,
+  descartável, nunca oficial) a partir de um Registro `tipo = avaliacao_fisica`;
+  a `avaliacao_fisica` em si continua nascendo só do CRUD, acionada pelo personal
+  na revisão (`origem = captura_ia`).
 - **`registro.id` sempre nasce no cliente.** Qualquer endpoint que receba um
   Registro precisa ser idempotente por esse id.
 - Toda decisão arquitetural relevante e difícil de reverter vira ADR em
@@ -307,6 +311,7 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
 | 0015 | Acompanhamento Individual Mensal (avaliação da IA por contexto consolidado) |
 | 0016 | Avaliação Física (modelo v3) e importação do legado BodyMove |
 | 0017 | Endpoint de painel agregado para o dashboard |
+| 0018 | Avaliação Física por captura (áudio/texto) + interpretação da IA (decidida, não implementada) |
 
 ## Estado atual
 

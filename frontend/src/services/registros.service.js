@@ -57,6 +57,14 @@ async function confirmar(id, { itens, notaGeral }) {
   return data.data
 }
 
+// docs/adr/0018 - confirmação de Registro tipo avaliacao_fisica. Endpoint
+// próprio; NUNCA escreve `validacao` (ADR-0007). `payload` é a avaliação
+// revisada, mesmo formato do CRUD (data, observacoes, medidas, ...).
+async function confirmarAvaliacaoFisica(id, payload) {
+  const { data } = await http.post(`/api/v1/registros/${id}/confirmar-avaliacao-fisica`, payload)
+  return data.data
+}
+
 // Soft-delete (docs/adr/0007) - o backend rejeita quando o Registro já está
 // confirmado, ver comentário em registro.service.js.
 async function excluir(id) {
@@ -71,4 +79,4 @@ async function reprocessar(id) {
   return data.data
 }
 
-export default { listar, obter, obterAudio, sincronizar, confirmar, excluir, reprocessar }
+export default { listar, obter, obterAudio, sincronizar, confirmar, confirmarAvaliacaoFisica, excluir, reprocessar }

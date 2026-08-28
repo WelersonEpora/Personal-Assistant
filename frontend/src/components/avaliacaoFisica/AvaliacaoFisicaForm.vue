@@ -20,14 +20,24 @@ import {
 const props = defineProps({
   alunoId: { type: String, required: true },
   metricas: { type: Array, required: true },
-  avaliacao: { type: Object, default: null } // null = criar
+  avaliacao: { type: Object, default: null }, // null = criar
+  // docs/adr/0018 - 'criar' | 'editar' | 'revisao'. Em 'revisao' o form é
+  // pré-preenchido por `rascunhoInicial` (proposta da IA) e, ao confirmar,
+  // emite `confirmar(payload)` em vez de chamar o service - quem confirma é a
+  // tela de revisão (endpoint /confirmar-avaliacao-fisica).
+  modo: { type: String, default: null },
+  rascunhoInicial: { type: Object, default: null },
+  // 'revisao': o pai controla o estado de envio (a confirmação é dele).
+  ocupado: { type: Boolean, default: false }
 })
-const emit = defineEmits(['salvo', 'cancelar'])
+const emit = defineEmits(['salvo', 'cancelar', 'confirmar'])
 
 const { toasts, showToast } = useToasts()
 const salvando = ref(false)
 
-const editando = computed(() => Boolean(props.avaliacao))
+const modoEfetivo = computed(() => props.modo || (props.avaliacao ? 'editar' : 'criar'))
+const editando = computed(() => modoEfetivo.value === 'editar')
+const revisao = computed(() => modoEfetivo.value === 'revisao')
 const importada = computed(() => props.avaliacao?.origem === 'legado_bodymove')
 
 function hoje() {
@@ -137,12 +147,14 @@ function resetar() {
 
 function hidratar() {
   resetar()
-  const av = props.avaliacao
+  // docs/adr/0018 - em 'revisao' a fonte é o rascunho da IA (sem anamnese/
+  // postural); nos demais modos é a avaliação existente (ou nada, em 'criar').
+  const av = revisao.value ? props.rascunhoInicial : props.avaliacao
   if (!av) {
     data.value = hoje()
     return
   }
-  data.value = String(av.data).slice(0, 10)
+  data.value = av.data ? String(av.data).slice(0, 10) : hoje()
   observacoes.value = av.observacoes || ''
 
   for (const m of av.medidas || []) {
@@ -182,7 +194,7 @@ function hidratar() {
 // Síncrono no setup - o template lê `postural[regiao][...]` já no primeiro
 // render, então a estrutura precisa existir antes de montar.
 hidratar()
-watch(() => props.avaliacao, hidratar)
+watch([() => props.avaliacao, () => props.rascunhoInicial], hidratar)
 
 function metodosDisponiveis(codigo, jaUsados) {
   return METODOS_POR_METRICA[codigo].filter((m) => !jaUsados.includes(m))
@@ -265,9 +277,17 @@ async function salvar() {
     showToast('Informe a data da avaliação.', 'warning')
     return
   }
+  const payload = montarPayload()
+
+  // docs/adr/0018 - em 'revisao' quem persiste é a tela de revisão, pelo
+  // endpoint /confirmar-avaliacao-fisica (não o CRUD direto).
+  if (revisao.value) {
+    emit('confirmar', payload)
+    return
+  }
+
   salvando.value = true
   try {
-    const payload = montarPayload()
     const salvo = editando.value
       ? await avaliacoesFisicasService.atualizar(props.alunoId, props.avaliacao.id, payload)
       : await avaliacoesFisicasService.criar(props.alunoId, payload)
@@ -283,7 +303,7 @@ async function salvar() {
 
 <template>
   <form @submit.prevent="salvar">
-    <div class="view-header">
+    <div v-if="!revisao" class="view-header">
       <div>
         <h1>{{ editando ? 'Editar avaliação' : 'Nova avaliação física' }}</h1>
         <p v-if="importada"><span class="badge badge-neutral">Importada do BodyMove — origem preservada</span></p>
@@ -437,8 +457,8 @@ async function salvar() {
 
     <div class="revisao-actions">
       <button type="button" class="btn btn-ghost" @click="emit('cancelar')">Cancelar</button>
-      <button type="submit" class="btn btn-primary" :disabled="salvando || !data">
-        {{ editando ? 'Salvar alterações' : 'Criar avaliação' }}
+      <button type="submit" class="btn btn-primary" :disabled="salvando || ocupado || !data">
+        {{ revisao ? 'Confirmar avaliação física' : editando ? 'Salvar alterações' : 'Criar avaliação' }}
       </button>
     </div>
 

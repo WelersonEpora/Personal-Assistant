@@ -161,6 +161,26 @@ export function ehMultiMetodo(codigo) {
 
 export const DERIVADAS = ['imc', 'rcq']
 
+// docs/adr/0018 - payload_json da proposta_avaliacao_fisica -> rascunho no
+// formato que o AvaliacaoFisicaForm hidrata (sem anamnese/postural - a
+// proposta não os produz). Métricas derivadas são descartadas (o service
+// recalcula). Só medidas com valor numérico positivo entram.
+export function propostaParaRascunho(payload = {}) {
+  const medidas = Array.isArray(payload.medidas) ? payload.medidas : []
+  return {
+    data: payload.data_ouvida || '',
+    observacoes: payload.observacoes || '',
+    medidas: medidas
+      .filter((m) => m && !DERIVADAS.includes(m.metrica_codigo) && Number(m.valor) > 0)
+      .map((m) => ({
+        metrica_codigo: m.metrica_codigo,
+        metodo: m.metodo || 'direto',
+        valor: Number(m.valor),
+        principal: Boolean(m.principal)
+      }))
+  }
+}
+
 export const CATEGORIA_ROTULO = {
   antropometria: 'Antropometria',
   composicao: 'Composição corporal',

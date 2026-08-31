@@ -331,6 +331,7 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
 | 0018 | Avaliação Física por captura (áudio/texto) + interpretação da IA |
 | 0019 | Data do atendimento separada das datas do sistema |
 | 0020 | Tela de Atendimentos (relatório de atividade por período) |
+| 0021 | Interação de gravação de voz (segurar + travar, estilo WhatsApp) |
 
 ## Estado atual
 
@@ -403,6 +404,15 @@ MVP completo e verificado de ponta a ponta:
   offline, `/admin` gestão/validação), IndexedDB + fila de sincronização
   própria, gravador de áudio (MediaRecorder), múltiplos Registros
   `em_andamento` simultâneos com persistência incremental (docs/adr/0012).
+  Gravação de voz estilo WhatsApp (docs/adr/0021): segurar o microfone grava,
+  soltar envia, arrastar ↑ trava (modo mãos-livres com lixeira / pausar-retomar
+  / enviar); máquina de estados `idle | segurando | travado` em
+  `CapturaView.vue` + helpers puros testados em `utils/gravacaoVoz.js`
+  (`criarRelogioGravacao` desconta o tempo pausado; `recorder.js` ganhou
+  `pausar`/`retomar` via `MediaRecorder.pause/resume`, Blob final contínuo).
+  Aviso não-bloqueante de "gravação longa" aos 3 min (âmbar + vibração); teto
+  rígido com auto-salvamento e onda de áudio real ficaram para depois (itens
+  2-3 da ADR).
   Tela de Avaliações Físicas por aluno (docs/adr/0016 — listagem com
   data/peso/IMC/% gordura/massa magra/gorda e expansão inline do card,
   formulário de criação/edição com medidas + anamnese + checklist postural,
@@ -443,9 +453,10 @@ MVP completo e verificado de ponta a ponta:
   Seletor de período compartilhado (`components/SeletorPeriodo.vue` +
   `utils/periodos.js`) usado também pelo filtro do Histórico
   (`HistoricoView.vue` — período + aluno, default "Últimos 90 dias").
-  53 testes automatizados (`node --test` + `fake-indexeddb`; +
+  59 testes automatizados (`node --test` + `fake-indexeddb`; +
   `echarts-option-builder.test.js`, `echarts-bar-option-builder.test.js`,
-  `periodos.test.js`, `avaliacaoFisica.test.js` e `registroStatus.test.js` puros).
+  `periodos.test.js`, `avaliacaoFisica.test.js`, `gravacaoVoz.test.js` e
+  `registroStatus.test.js` puros).
 - **Docker**: `compose.dev.yml` (Postgres + pgAdmin) e `compose.prod.yml`
   (Postgres + backend + frontend) validados; Dockerfiles com healthcheck
   em ambos os serviços da aplicação.

@@ -19,6 +19,14 @@ import {
   rotuloDataAtendimento
 } from '../../utils/registroStatus.js'
 import { gerarUuid } from '../../utils/uuid.js'
+import {
+  resolverGesto,
+  progressoTravar,
+  estadoDuracao,
+  formatarCronometro,
+  criarRelogioGravacao,
+  DURACAO_MINIMA_MS
+} from '../../utils/gravacaoVoz.js'
 import AlunoSheet from '../../components/AlunoSheet.vue'
 import RoteiroDitado from '../../components/RoteiroDitado.vue'
 import SeletorDataAtendimento from '../../components/SeletorDataAtendimento.vue'
@@ -41,13 +49,28 @@ const tipoSelecionadoSalvo = localStorage.getItem(ULTIMO_TIPO_KEY)
 const tipoSelecionado = ref(TIPOS_VALIDOS.includes(tipoSelecionadoSalvo) ? tipoSelecionadoSalvo : 'atendimento')
 const registroTituloInput = ref('')
 const composerTexto = ref('')
-const gravando = ref(false)
+// docs/adr/0021 - máquina de estados do microfone (interação estilo WhatsApp):
+//   idle      -> parado
+//   segurando -> apertado e gravando; soltar envia, arrastar ↑ trava
+//   travado   -> mãos-livres; encerra pelos botões lixeira / enviar
+const micEstado = ref('idle')
 const cronometro = ref('0:00')
+const gravacaoLonga = ref(false)
+const gravacaoPausada = ref(false)
+const travarProgresso = ref(0)
 const discardConfirmando = ref(false)
 const registrosServidorRecentes = ref([])
 
-let recordStart = 0
+const gravando = computed(() => micEstado.value !== 'idle')
+const suportaPausa = typeof MediaRecorder !== 'undefined' && typeof MediaRecorder.prototype.pause === 'function'
+
+const relogioGravacao = criarRelogioGravacao()
 let cronometroInterval = null
+let gestoPointerId = null
+let gestoOrigemY = 0
+// janela curta logo depois de travar em que cliques no composer são
+// ignorados - soltar o dedo depois do arraste não pode disparar "enviar".
+let suprimirCliqueAte = 0
 
 const alunoAtual = computed(() => alunos.value.find((a) => a.id === alunoAtualId.value) || null)
 // Só alunos ativos podem ser selecionados pra um novo Registro (inativo =
@@ -234,7 +257,7 @@ watch(tipoSelecionado, (novo) => {
 // Ao trocar de aluno (ou depois de um `carregar()` recarregar registrosLocais
 // do zero, ex.: ciclo de sincronização de OUTRO Registro), garante que toda
 // entrada de áudio tenha uma audioUrl utilizável: entradas gravadas nesta
-// sessão já têm (pararGravacao já cria); entradas vindas do IndexedDB
+// sessão já têm (encerrarGravacao já cria); entradas vindas do IndexedDB
 // precisam reconstruir a partir do Blob salvo (docs/adr/0012). Reaproveita a
 // audioUrl antiga por `ordem` quando é o mesmo Registro só recarregado, em
 // vez de vazar a URL antiga e recriar uma nova à toa.
@@ -387,46 +410,80 @@ async function removerEntrada(indice) {
   }
 }
 
-function formatarDecorrido(ms) {
-  const totalSeg = Math.floor(ms / 1000)
-  const m = Math.floor(totalSeg / 60)
-  const s = totalSeg % 60
-  return `${m}:${String(s).padStart(2, '0')}`
+// --- gravação de voz (docs/adr/0021) --------------------------------------
+
+function tickCronometro() {
+  const decorridoMs = relogioGravacao.decorridoMs()
+  cronometro.value = formatarCronometro(decorridoMs)
+  if (!gravacaoLonga.value && estadoDuracao(decorridoMs) === 'longa') {
+    gravacaoLonga.value = true
+    navigator.vibrate?.(30)
+  }
 }
 
-async function iniciarGravacao(evento) {
-  if (micModo.value === 'send' || gravando.value) return
-  evento.preventDefault?.()
-  gravando.value = true
-  recordStart = Date.now()
+function iniciarCronometro() {
+  relogioGravacao.iniciar()
   cronometro.value = '0:00'
-  cronometroInterval = setInterval(() => {
-    cronometro.value = formatarDecorrido(Date.now() - recordStart)
-  }, 100)
+  gravacaoLonga.value = false
+  gravacaoPausada.value = false
+  clearInterval(cronometroInterval)
+  cronometroInterval = setInterval(tickCronometro, 200)
+}
+
+// pausa/retoma no modo travado (docs/adr/0021) - o cronômetro só conta tempo
+// ativo; o áudio final continua contínuo, sem o trecho pausado.
+function alternarPausa() {
+  if (micEstado.value !== 'travado') return
+  if (gravacaoPausada.value) {
+    gravador.retomar()
+    relogioGravacao.retomar()
+    gravacaoPausada.value = false
+    clearInterval(cronometroInterval)
+    cronometroInterval = setInterval(tickCronometro, 200)
+  } else {
+    gravador.pausar()
+    relogioGravacao.pausar()
+    gravacaoPausada.value = true
+    clearInterval(cronometroInterval)
+    tickCronometro()
+  }
+}
+
+async function iniciarGravacao() {
   try {
     await gravador.iniciar()
   } catch (_err) {
-    gravando.value = false
-    clearInterval(cronometroInterval)
+    encerrarGravacao({ salvar: false })
     showToast('Não foi possível acessar o microfone.', 'warning')
   }
 }
 
-async function pararGravacao() {
-  if (!gravando.value) return
-  gravando.value = false
+// Fecha o ciclo: para o cronômetro, volta ao estado idle e - se `salvar` -
+// persiste o áudio como entrada. `salvar: false` apenas descarta.
+async function encerrarGravacao({ salvar }) {
+  if (micEstado.value === 'idle') return
+  const decorridoMs = relogioGravacao.decorridoMs()
+  micEstado.value = 'idle'
   clearInterval(cronometroInterval)
-  const elapsedMs = Date.now() - recordStart
+  gravacaoLonga.value = false
+  gravacaoPausada.value = false
+  travarProgresso.value = 0
+  gestoPointerId = null
+
+  if (!salvar) {
+    gravador.cancelar()
+    return
+  }
   const resultado = await gravador.parar()
   const registro = registroEmAndamento.value
-  if (!resultado || elapsedMs < 400 || !registro) return
+  if (!resultado || decorridoMs < DURACAO_MINIMA_MS || !registro) return
   const ordem = proximaOrdem(registro.entradas)
   try {
     await salvarAudioLocal(registro.id, ordem, resultado.blob)
     registro.entradas.push({
       ordem,
       tipo: 'audio',
-      duracaoSegundos: Math.round(elapsedMs / 1000),
+      duracaoSegundos: Math.round(decorridoMs / 1000),
       audioUrl: URL.createObjectURL(resultado.blob)
     })
     await syncQueue.salvarLocal(registro)
@@ -435,9 +492,88 @@ async function pararGravacao() {
   }
 }
 
-function onMicClick() {
-  if (micModo.value === 'send') adicionarTexto()
+// pointerdown no microfone: começa a gravar. Mouse já entra travado (segurar
+// o botão do mouse pra gravar é estranho no desktop); toque entra em
+// "segurando" e o gesto de arraste decide se trava.
+function onMicPointerdown(evento) {
+  if (micModo.value === 'send' || micEstado.value !== 'idle') return
+  evento.preventDefault()
+  gestoPointerId = evento.pointerId
+  gestoOrigemY = evento.clientY
+  travarProgresso.value = 0
+  try {
+    evento.currentTarget.setPointerCapture?.(evento.pointerId)
+  } catch (_e) { /* sem captura: segue mesmo assim */ }
+  micEstado.value = evento.pointerType === 'mouse' ? 'travado' : 'segurando'
+  // engole o clique-fantasma que o próprio pointerdown/up gera (senão, no
+  // mouse, o mesmo clique que começa já dispararia "enviar").
+  suprimirCliqueAte = Date.now() + 600
+  iniciarCronometro()
+  iniciarGravacao()
 }
+
+function onMicPointermove(evento) {
+  if (micEstado.value !== 'segurando' || evento.pointerId !== gestoPointerId) return
+  const dy = evento.clientY - gestoOrigemY
+  travarProgresso.value = progressoTravar(dy)
+  if (resolverGesto({ dy }) === 'travar') {
+    micEstado.value = 'travado'
+    travarProgresso.value = 1
+    suprimirCliqueAte = Date.now() + 600
+    try {
+      evento.currentTarget.releasePointerCapture?.(evento.pointerId)
+    } catch (_e) { /* noop */ }
+  }
+}
+
+function onMicPointerup(evento) {
+  if (evento.pointerId !== gestoPointerId) return
+  try {
+    evento.currentTarget.releasePointerCapture?.(evento.pointerId)
+  } catch (_e) { /* noop */ }
+  // soltou ainda em "segurando" => envia. Já travado, soltar não faz nada.
+  if (micEstado.value === 'segurando') encerrarGravacao({ salvar: true })
+}
+
+// teclado: não dá pra "segurar" uma tecla de forma útil - Enter/Espaço
+// inicia já travado (encerra pelos botões lixeira / enviar).
+function onMicKeydown(evento) {
+  if (micModo.value === 'send') return
+  if (evento.key !== 'Enter' && evento.key !== ' ' && evento.key !== 'Spacebar') return
+  evento.preventDefault()
+  if (micEstado.value !== 'idle') return
+  micEstado.value = 'travado'
+  iniciarCronometro()
+  iniciarGravacao()
+}
+
+function onMicClick() {
+  if (micModo.value === 'send' && micEstado.value === 'idle') adicionarTexto()
+}
+
+// engole o clique-fantasma que segue "soltar o dedo" logo depois de travar
+// pelo arraste, pra não disparar "enviar" sem querer.
+function onComposerClickCapture(evento) {
+  if (Date.now() < suprimirCliqueAte) {
+    evento.stopPropagation()
+    evento.preventDefault()
+    suprimirCliqueAte = 0
+  }
+}
+
+const dicaGravacao = computed(() => {
+  if (micEstado.value === 'idle') return ''
+  if (gravacaoPausada.value) return 'Gravação pausada — toque em retomar'
+  if (gravacaoLonga.value) return 'Gravação longa (3 min)'
+  if (micEstado.value === 'travado') return 'Gravando — toque em enviar para encerrar'
+  return 'Ouvindo… solte para enviar, arraste ↑ para travar'
+})
+
+const botaoMicLabel = computed(() => {
+  if (micEstado.value === 'travado') return 'Enviar áudio'
+  if (micModo.value === 'send') return 'Enviar texto'
+  return 'Gravar áudio: segure para gravar, arraste para cima para travar'
+})
 
 async function finalizarRegistro() {
   const registro = registroEmAndamento.value
@@ -472,7 +608,11 @@ async function descartar() {
   }
   discardConfirmando.value = false
   gravador.cancelar()
-  gravando.value = false
+  clearInterval(cronometroInterval)
+  micEstado.value = 'idle'
+  gravacaoLonga.value = false
+  gravacaoPausada.value = false
+  travarProgresso.value = 0
   const registro = registroEmAndamento.value
   if (registro) {
     revogarAudioUrls(registro.entradas)
@@ -660,8 +800,8 @@ async function descartar() {
             <div v-if="!registroEmAndamento.entradas.length" class="entries-empty">
               {{
                 registroEmAndamento.tipo === 'avaliacao_fisica'
-                  ? 'Toque e segure o microfone e dite as medidas, ou digite abaixo.'
-                  : 'Toque e segure o microfone para gravar, ou digite um texto abaixo.'
+                  ? 'Segure o microfone e dite as medidas — arraste ↑ para travar —, ou digite abaixo.'
+                  : 'Segure o microfone para gravar — arraste ↑ para travar —, ou digite um texto abaixo.'
               }}
             </div>
             <div v-for="(entrada, indice) in registroEmAndamento.entradas" :key="entrada.ordem" class="entry-bubble" :class="entrada.tipo">
@@ -676,34 +816,81 @@ async function descartar() {
             </div>
           </div>
 
-          <div class="composer-row">
-            <div class="composer-input-wrap">
-              <input
-                v-show="!gravando"
-                v-model="composerTexto"
-                class="composer-input"
-                :placeholder="registroEmAndamento.tipo === 'avaliacao_fisica' ? 'Dite ou digite as medidas…' : 'Adicionar texto ao registro…'"
-                aria-label="Adicionar texto ao registro"
-                @keydown.enter.prevent="adicionarTexto"
-              />
-              <div class="composer-recording" :class="{ active: gravando }">
-                <span class="composer-recording-text">Ouvindo… solte para enviar</span>
+          <div class="composer-row" :class="'mic-' + micEstado" @click.capture="onComposerClickCapture">
+            <!-- trilho do cadeado: aparece enquanto segura, antes de travar (docs/adr/0021) -->
+            <div v-if="micEstado === 'segurando'" class="lock-track" :style="{ '--prog': travarProgresso }" aria-hidden="true">
+              <svg viewBox="0 0 24 24" class="lock-chevron"><path d="m7 14 5-5 5 5" /></svg>
+              <svg v-if="travarProgresso < 1" viewBox="0 0 24 24" class="lock-ic">
+                <rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 7.5-2" />
+              </svg>
+              <svg v-else viewBox="0 0 24 24" class="lock-ic locked">
+                <rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" />
+              </svg>
+            </div>
+
+            <template v-if="micEstado === 'idle'">
+              <div class="composer-input-wrap">
+                <input
+                  v-model="composerTexto"
+                  class="composer-input"
+                  :placeholder="registroEmAndamento.tipo === 'avaliacao_fisica' ? 'Dite ou digite as medidas…' : 'Adicionar texto ao registro…'"
+                  aria-label="Adicionar texto ao registro"
+                  @keydown.enter.prevent="adicionarTexto"
+                />
+              </div>
+            </template>
+
+            <template v-else>
+              <button
+                v-if="micEstado === 'travado'"
+                class="rec-trash"
+                type="button"
+                aria-label="Descartar gravação"
+                @click="encerrarGravacao({ salvar: false })"
+              >
+                <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>
+              </button>
+              <div class="composer-recording active" :class="{ longa: gravacaoLonga, travado: micEstado === 'travado', pausada: gravacaoPausada }">
+                <span class="rec-dot" aria-hidden="true"></span>
+                <span v-if="gravacaoPausada" class="composer-recording-text">Pausado</span>
+                <span v-else-if="micEstado === 'travado'" class="rec-wave" aria-hidden="true"><i v-for="n in 15" :key="n"></i></span>
+                <span v-else class="composer-recording-text">{{ gravacaoLonga ? 'Gravação longa (3 min)' : 'Solte p/ enviar · arraste ↑ trava' }}</span>
                 <span class="composer-recording-timer">{{ cronometro }}</span>
               </div>
-            </div>
+              <button
+                v-if="micEstado === 'travado' && suportaPausa"
+                class="rec-pause"
+                type="button"
+                :aria-label="gravacaoPausada ? 'Retomar gravação' : 'Pausar gravação'"
+                @click="alternarPausa"
+              >
+                <svg v-if="gravacaoPausada" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                <svg v-else viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+              </button>
+            </template>
+
             <button
               class="mic-send-btn"
               type="button"
-              :class="{ recording: gravando }"
-              @pointerdown="iniciarGravacao"
-              @pointerup="pararGravacao"
-              @pointerleave="gravando && pararGravacao()"
-              @pointercancel="gravando && pararGravacao()"
+              :class="{ recording: micEstado === 'segurando', 'is-send': micEstado === 'travado' || micModo === 'send' }"
+              :aria-label="botaoMicLabel"
+              @pointerdown="onMicPointerdown"
+              @pointermove="onMicPointermove"
+              @pointerup="onMicPointerup"
+              @pointercancel="onMicPointerup"
               @contextmenu.prevent
-              @click="onMicClick"
+              @click="micEstado === 'travado' ? encerrarGravacao({ salvar: true }) : onMicClick()"
+              @keydown="onMicKeydown"
             >
-              {{ micModo === 'send' ? '➤' : '🎙️' }}
+              <svg v-if="micEstado === 'travado' || micModo === 'send'" viewBox="0 0 24 24" class="ic-send">
+                <path d="M3 11.5 20 4l-6 17-2.6-7.4L3 11.5Z" />
+              </svg>
+              <svg v-else viewBox="0 0 24 24" class="ic-mic">
+                <rect x="9" y="3" width="6" height="11" rx="3" /><path d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6" />
+              </svg>
             </button>
+
+            <p class="visually-hidden" aria-live="polite">{{ dicaGravacao }}</p>
           </div>
 
           <div class="composer-actions">

@@ -44,5 +44,14 @@ export function criarGravador() {
     stream?.getTracks().forEach((track) => track.stop())
   }
 
-  return { iniciar, parar, cancelar }
+  // Pausa/retoma a mesma gravação - o Blob final continua contínuo, sem o
+  // trecho pausado (docs/adr/0021). Sem efeito se o estado não permitir.
+  function pausar() {
+    if (mediaRecorder?.state === 'recording') mediaRecorder.pause()
+  }
+  function retomar() {
+    if (mediaRecorder?.state === 'paused') mediaRecorder.resume()
+  }
+
+  return { iniciar, parar, cancelar, pausar, retomar }
 }

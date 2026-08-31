@@ -76,16 +76,25 @@ export async function removerRegistroLocal(id) {
   await tx.done
 }
 
-// ---- blobs de áudio brutos (nunca transcritos no dispositivo) ----
+// ---- áudio bruto (nunca transcrito no dispositivo) ----
+// Guardado como ArrayBuffer + mimeType, NUNCA como Blob: o Safari do iOS
+// tem um bug recorrente ao gravar Blob no IndexedDB (a escrita falha com
+// UnknownError ou a transação nunca completa). ArrayBuffer serializa de
+// forma confiável em todas as versões. O Blob é remontado na leitura.
 export async function salvarAudioLocal(registroId, ordem, blob) {
   const db = await getDb()
-  await db.put('audios', { registroId, ordem, blob })
+  const buffer = await blob.arrayBuffer()
+  await db.put('audios', { registroId, ordem, buffer, mimeType: blob.type || 'audio/webm' })
 }
 
 export async function obterAudioLocal(registroId, ordem) {
   const db = await getDb()
   const registro = await db.get('audios', [registroId, ordem])
-  return registro?.blob ?? null
+  if (!registro) return null
+  // Registros gravados antes desta mudança guardam o Blob direto.
+  if (registro.blob) return registro.blob
+  if (!registro.buffer) return null
+  return new Blob([registro.buffer], { type: registro.mimeType || 'audio/webm' })
 }
 
 // Remove um único áudio (ex.: entrada apagada de um Registro ainda em

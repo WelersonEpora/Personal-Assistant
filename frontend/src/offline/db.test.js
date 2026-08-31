@@ -63,6 +63,24 @@ test('removerRegistroLocal remove também os áudios associados (nunca deixa ór
   assert.equal(await obterAudioLocal('r-audio', 0), null)
 })
 
+test('salvarAudioLocal guarda ArrayBuffer (não Blob) e obterAudioLocal remonta o Blob', async () => {
+  await salvarAudioLocal('r-buf', 0, new Blob(['som-mp4'], { type: 'audio/mp4' }))
+
+  const blob = await obterAudioLocal('r-buf', 0)
+  assert.ok(blob instanceof Blob)
+  assert.equal(blob.type, 'audio/mp4')
+  assert.equal(await blob.text(), 'som-mp4')
+})
+
+test('obterAudioLocal ainda lê registros no formato antigo (Blob cru salvo antes da mudança)', async () => {
+  const { openDB } = await import('idb')
+  const db = await openDB('personal-assistant', 1)
+  await db.put('audios', { registroId: 'r-legado', ordem: 0, blob: new Blob(['antigo'], { type: 'audio/webm' }) })
+
+  const blob = await obterAudioLocal('r-legado', 0)
+  assert.equal(await blob.text(), 'antigo')
+})
+
 // docs/adr/0012-registros-em-andamento-simultaneos.md: remover uma entrada
 // de um Registro ainda em andamento não pode afetar os áudios das outras
 // entradas do mesmo Registro.

@@ -1,5 +1,12 @@
 import http from './http.js'
 
+// mimeType do MediaRecorder -> extensão de arquivo. iOS grava audio/mp4;
+// Chrome/Firefox, audio/webm. Fallback conservador para .webm.
+function extensaoDeAudio(mimeType) {
+  const base = (mimeType || '').split(';')[0].trim()
+  return { 'audio/mp4': '.m4a', 'audio/webm': '.webm', 'audio/ogg': '.ogg', 'audio/mpeg': '.mp3', 'audio/wav': '.wav' }[base] || '.webm'
+}
+
 // Filtros opcionais (docs/adr/0020): `de`/`ate` (janela por data_atendimento),
 // `alunoId` e `tipo`. O Histórico usa para não baixar todos os confirmados de
 // uma vez; a fila de revisão e o badge continuam chamando só com `status`.
@@ -56,7 +63,9 @@ async function sincronizar(registro) {
   formData.append('metadata', JSON.stringify(metadata))
   registro.entradas.forEach((entrada) => {
     if (entrada.tipo === 'audio' && entrada.audioBlob) {
-      formData.append(`audio_${entrada.ordem}`, entrada.audioBlob, `${entrada.ordem}.webm`)
+      // Extensão coerente com o formato real: iOS grava audio/mp4, não webm.
+      // (O backend usa o mimetype do multipart; o nome é só p/ log/storage.)
+      formData.append(`audio_${entrada.ordem}`, entrada.audioBlob, `${entrada.ordem}${extensaoDeAudio(entrada.audioBlob.type)}`)
     }
   })
 

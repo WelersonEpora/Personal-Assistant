@@ -40,6 +40,16 @@ const syncQueue = useSyncQueueStore()
 const { toasts, showToast } = useToasts()
 const gravador = criarGravador()
 
+// Os erros de captura/gravação vêm do IndexedDB e do MediaRecorder e variam
+// muito por navegador (o Safari do iOS é o caso mais problemático). Sem
+// dispositivo em mãos para depurar, o `err.name` no console + no toast é a
+// única pista. `contexto` identifica de onde veio.
+function relatarErro(contexto, err) {
+  const nome = err?.name || 'Erro'
+  console.error(`[captura:${contexto}]`, nome, err?.message || err, err)
+  return nome
+}
+
 const alunos = ref([])
 const alunoAtualId = ref(null)
 const sheetAberto = ref(false)
@@ -363,7 +373,8 @@ async function iniciarRegistro() {
   registroTituloInput.value = ''
   try {
     await syncQueue.salvarLocal(registro)
-  } catch (_err) {
+  } catch (err) {
+    relatarErro('iniciar-registro', err)
     showToast('Não foi possível iniciar o registro. Tente novamente.', 'warning')
   }
 }
@@ -377,7 +388,8 @@ async function definirDataAtendimento(ymd) {
   registro.dataAtendimento = ymd
   try {
     await syncQueue.salvarLocal(registro)
-  } catch (_err) {
+  } catch (err) {
+    relatarErro('data-atendimento', err)
     showToast('Não foi possível alterar a data. Tente novamente.', 'warning')
   }
 }
@@ -390,7 +402,8 @@ async function adicionarTexto() {
   composerTexto.value = ''
   try {
     await syncQueue.salvarLocal(registro)
-  } catch (_err) {
+  } catch (err) {
+    relatarErro('salvar-texto', err)
     showToast('Não foi possível salvar o texto. Tente novamente.', 'warning')
   }
 }
@@ -405,7 +418,8 @@ async function removerEntrada(indice) {
       await removerAudioLocal(registro.id, removida.ordem)
     }
     await syncQueue.salvarLocal(registro)
-  } catch (_err) {
+  } catch (err) {
+    relatarErro('remover-entrada', err)
     showToast('Não foi possível remover a entrada. Tente novamente.', 'warning')
   }
 }
@@ -452,9 +466,10 @@ function alternarPausa() {
 async function iniciarGravacao() {
   try {
     await gravador.iniciar()
-  } catch (_err) {
+  } catch (err) {
+    const nome = relatarErro('microfone', err)
     encerrarGravacao({ salvar: false })
-    showToast('Não foi possível acessar o microfone.', 'warning')
+    showToast(`Não foi possível acessar o microfone (${nome}).`, 'warning')
   }
 }
 
@@ -487,8 +502,9 @@ async function encerrarGravacao({ salvar }) {
       audioUrl: URL.createObjectURL(resultado.blob)
     })
     await syncQueue.salvarLocal(registro)
-  } catch (_err) {
-    showToast('Não foi possível salvar o áudio. Tente novamente.', 'warning')
+  } catch (err) {
+    const nome = relatarErro('salvar-audio', err)
+    showToast(`Não foi possível salvar o áudio (${nome}).`, 'warning')
   }
 }
 

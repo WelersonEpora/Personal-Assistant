@@ -106,6 +106,18 @@ function nomesAlunos(ids) {
   return Aluno.findAll({ where: { id: ids }, attributes: ["id", "nome", "deletado_em"], raw: true });
 }
 
+// docs/adr/0020 (adendo) - todos os personais (membros) da equipe, para o
+// seletor da tela. Independe dos filtros e do período. Escopo por equipe -
+// qualquer membro pode ver (não usa o endpoint owner-only /api/v1/membros).
+async function membrosDaEquipe(equipeId) {
+  const membros = await Membro.findAll({
+    where: { equipe_id: equipeId },
+    include: [{ model: Usuario, as: "usuario", attributes: ["nome"] }],
+    order: [[{ model: Usuario, as: "usuario" }, "nome", "ASC"]]
+  });
+  return membros.map((m) => ({ membro_id: m.id, nome: m.usuario.nome, ativo: m.ativo }));
+}
+
 // docs/adr/0020 (adendo) - uma linha por personal (usuario_id do Registro)
 // com atividade no período. Mesmo par de métricas do `porAluno`. Sem JOIN:
 // os nomes vêm de `nomesMembros`. Respeita todos os filtros ativos (inclusive
@@ -183,6 +195,7 @@ module.exports = {
   porBucket,
   porAluno,
   nomesAlunos,
+  membrosDaEquipe,
   porMembro,
   nomesMembros,
   porDiaSemana,

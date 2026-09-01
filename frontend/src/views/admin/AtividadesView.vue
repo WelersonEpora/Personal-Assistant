@@ -2,7 +2,6 @@
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import atividadesService from '../../services/atividades.service.js'
 import alunosService from '../../services/alunos.service.js'
-import membrosService from '../../services/membros.service.js'
 import { rotuloMesAno, PALETA_SERIES } from '../../utils/avaliacaoFisica.js'
 import { formatarDataAtendimento } from '../../utils/registroStatus.js'
 import SeletorPeriodo from '../../components/SeletorPeriodo.vue'
@@ -34,7 +33,9 @@ const filtros = reactive({
 const periodo = ref({ de: null, ate: null })
 
 const alunos = ref([])
-const membros = ref([])
+// Lista de personais da equipe: vem no payload de /atividades (não do endpoint
+// owner-only /membros), então funciona para qualquer membro.
+const personais = ref([])
 const dados = ref(null)
 const carregando = ref(true)
 const erro = ref('')
@@ -53,6 +54,8 @@ async function carregar() {
       tipo: filtros.tipo || undefined,
       somenteConfirmados: filtros.somenteConfirmados
     })
+    // Estável entre requisições - a lista de personais não depende dos filtros.
+    if (dados.value?.personais) personais.value = dados.value.personais
   } catch (e) {
     erro.value = e?.response?.data?.error?.message || 'Não foi possível carregar o relatório.'
     dados.value = null
@@ -67,13 +70,15 @@ function aoMudarPeriodo(intervalo) {
 }
 
 onMounted(async () => {
-  const [resAlunos, resMembros] = await Promise.allSettled([alunosService.listar(), membrosService.listar()])
-  alunos.value = resAlunos.status === 'fulfilled' ? resAlunos.value : []
-  membros.value = resMembros.status === 'fulfilled' ? resMembros.value : []
+  try {
+    alunos.value = await alunosService.listar()
+  } catch (_e) {
+    alunos.value = []
+  }
 })
 
 // A equipe solo (1 membro) não precisa do filtro nem do bloco "Por personal".
-const equipeTemVariosPersonais = computed(() => membros.value.length > 1)
+const equipeTemVariosPersonais = computed(() => personais.value.length > 1)
 
 watch(() => [filtros.alunoId, filtros.membroId, filtros.tipo, filtros.somenteConfirmados], () => carregar())
 
@@ -199,7 +204,7 @@ const temResultado = computed(
           <label>Personal <span class="atv-label-hint">(quem registrou)</span></label>
           <select v-model="filtros.membroId">
             <option value="">Todos os personais</option>
-            <option v-for="m in membros" :key="m.id" :value="m.id">{{ m.usuario.nome }}</option>
+            <option v-for="m in personais" :key="m.membro_id" :value="m.membro_id">{{ m.nome }}</option>
           </select>
         </div>
 

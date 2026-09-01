@@ -179,13 +179,14 @@ async function obterAtividades(equipeId, query) {
   const filtros = await normalizarFiltros(equipeId, query);
   const granularidade = escolherGranularidade(filtros.amplitude);
 
-  const [resumoRaw, serieRaw, alunoRaw, membroRaw, diaSemanaRaw, mesRaw] = await Promise.all([
+  const [resumoRaw, serieRaw, alunoRaw, membroRaw, diaSemanaRaw, mesRaw, personais] = await Promise.all([
     atividadesRepository.resumo(filtros),
     atividadesRepository.porBucket(filtros, granularidade),
     atividadesRepository.porAluno(filtros),
     atividadesRepository.porMembro(filtros),
     atividadesRepository.porDiaSemana(filtros),
-    atividadesRepository.porMes(filtros)
+    atividadesRepository.porMes(filtros),
+    atividadesRepository.membrosDaEquipe(equipeId)
   ]);
 
   const ids = alunoRaw.map((linha) => linha.aluno_id);
@@ -206,6 +207,7 @@ async function obterAtividades(equipeId, query) {
       tipo: filtros.tipo,
       somente_confirmados: filtros.somenteConfirmados
     },
+    personais,
     resumo: { ...resumoRaw, media_por_aluno: mediaPorAluno },
     serie_temporal: montarSerieTemporal(serieRaw, filtros.de, filtros.ate, granularidade),
     por_aluno: montarPorAluno(alunoRaw, alunos),

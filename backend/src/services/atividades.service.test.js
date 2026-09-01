@@ -182,6 +182,9 @@ test("aluno excluído continua no por_aluno (histórico de trabalho não some)",
 
 test("por_membro: separa por personal (quem registrou) e traz os dois pares de métrica", async () => {
   const equipeId = await novaEquipe();
+  await Membro.create({ equipe_id: equipeId, usuario_id: usuario.id, papel: "owner" }).then((m) =>
+    criados.membros.push(m.id)
+  );
   const { usuario: p2 } = await criarMembro(equipeId, { nome: "Segundo Personal" });
   const a1 = await criarAluno(equipeId);
   const a2 = await criarAluno(equipeId);
@@ -191,6 +194,9 @@ test("por_membro: separa por personal (quem registrou) e traz os dois pares de m
   await criarRegistro({ aluno: a2, dataAtendimento: "2026-09-10", tipo: "avaliacao_fisica", usuarioId: p2.id });
 
   const r = await atividadesService.obterAtividades(equipeId, { de: "2026-09-01", ate: "2026-09-30" });
+  // `personais` = lista para o seletor da tela (independe do período/filtros).
+  assert.equal(r.personais.length, 2);
+  assert.ok(r.personais.every((p) => p.membro_id && p.nome));
   assert.equal(r.por_membro.length, 2);
   const base = r.por_membro.find((l) => l.usuario_id === usuario.id);
   const segundo = r.por_membro.find((l) => l.usuario_id === p2.id);

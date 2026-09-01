@@ -320,8 +320,14 @@ todo o trabalho da equipe sem forma de olhar um personal específico.
 - **Novo bloco `por_membro`** na resposta (mesmo par de métricas do `por_aluno`
   + `alunos_distintos`), ordenado por atendimentos desc. `personal_na_equipe`
   marca quem já saiu — o Registro e o trabalho feito continuam contando.
+- **Novo campo `personais`** na resposta (`membro_id` + `nome` + `ativo` de
+  todos os membros da equipe, ordenado por nome) — é a fonte do seletor da
+  tela. Vem do `atividades.repository` (escopo por equipe), **não** do endpoint
+  `/api/v1/membros` (owner-only, ADR-0011): qualquer membro precisa conseguir
+  usar o filtro. Independe do período e dos filtros ativos.
 - **Frontend:** seletor "Personal (quem registrou)" na barra de filtros e a
-  seção "Atendimentos por personal" (ranking + tabela) só aparecem quando a
-  equipe tem mais de um membro / mais de um personal com atividade no período.
+  seção "Atendimentos por personal" (ranking + tabela) só aparecem quando
+  `personais` tem mais de um item (`por_membro` para a seção). Equipe solo não
+  vê nem o filtro nem a seção.
 - Sem tabela nova, sem escrita, ADR-0007 intacta. `GET /api/v1/registros` (e o
   Histórico) **não** ganham o filtro nesta rodada.

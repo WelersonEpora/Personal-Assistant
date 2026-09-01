@@ -394,7 +394,8 @@ MVP completo e verificado de ponta a ponta:
   (dia/semana/mês) escolhida no servidor pelo tamanho do período; resposta com
   `resumo` (KPIs), `serie_temporal` (buckets preenchidos), `por_aluno`
   (Registros × dias distintos), `por_membro` (por personal, `registro.usuario_id`),
-  `por_dia_semana` e `por_mes`. Atendimento e
+  `personais` (membros da equipe para o seletor — vem daqui, não do endpoint
+  owner-only `/membros`), `por_dia_semana` e `por_mes`. Atendimento e
   avaliação física contados em trilhas separadas. Cadência média ficou de fora
   desta 1ª versão (o payload já traz `primeiro`/`ultimo`/`dias_distintos`).
   Na mesma ADR-0020, `GET /api/v1/registros` ganhou filtros opcionais

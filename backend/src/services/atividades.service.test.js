@@ -9,11 +9,25 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const { randomUUID } = require("node:crypto");
 
-const { Usuario, Equipe, Aluno, Registro } = require("../models");
+const { Usuario, Equipe, Membro, Aluno, Registro } = require("../models");
 const atividadesService = require("./atividades.service");
 
 let usuario;
-const criados = { equipes: [], alunos: [], registros: [] };
+const criados = { equipes: [], alunos: [], registros: [], usuarios: [], membros: [] };
+
+// Cria um usuário + membro numa equipe (personal adicional para os testes de
+// filtro por personal / bloco por_membro).
+async function criarMembro(equipeId, { papel = "colaborador", nome } = {}) {
+  const u = await Usuario.create({
+    nome: nome || `Personal ${randomUUID().slice(0, 8)}`,
+    email: `membro-${randomUUID()}@ex.com`,
+    senha_hash: "h"
+  });
+  const m = await Membro.create({ equipe_id: equipeId, usuario_id: u.id, papel });
+  criados.usuarios.push(u.id);
+  criados.membros.push(m.id);
+  return { usuario: u, membro: m };
+}
 
 async function novaEquipe() {
   const equipe = await Equipe.create({ nome: `Equipe Atividades ${randomUUID()}` });
@@ -27,10 +41,10 @@ async function criarAluno(equipeId, props = {}) {
   return aluno;
 }
 
-async function criarRegistro({ aluno, dataAtendimento, tipo = "atendimento", status = "confirmado" }) {
+async function criarRegistro({ aluno, dataAtendimento, tipo = "atendimento", status = "confirmado", usuarioId }) {
   const registro = await Registro.create({
     id: randomUUID(),
-    usuario_id: usuario.id,
+    usuario_id: usuarioId || usuario.id,
     equipe_id: aluno.equipe_id,
     aluno_id: aluno.id,
     iniciado_em: new Date(`${dataAtendimento}T12:00:00Z`),
@@ -48,9 +62,10 @@ before(async () => {
 
 after(async () => {
   await Registro.destroy({ where: { id: criados.registros } });
+  await Membro.destroy({ where: { id: criados.membros } });
   await Aluno.destroy({ where: { id: criados.alunos } });
   await Equipe.destroy({ where: { id: criados.equipes } });
-  await Usuario.destroy({ where: { id: usuario.id } });
+  await Usuario.destroy({ where: { id: [usuario.id, ...criados.usuarios] } });
 });
 
 test("resumo: conta atendimento e avaliação física em trilhas separadas", async () => {
@@ -163,6 +178,56 @@ test("aluno excluído continua no por_aluno (histórico de trabalho não some)",
   assert.ok(linha);
   assert.equal(linha.nome, "Excluido Depois");
   assert.equal(linha.aluno_removido, true);
+});
+
+test("por_membro: separa por personal (quem registrou) e traz os dois pares de métrica", async () => {
+  const equipeId = await novaEquipe();
+  const { usuario: p2 } = await criarMembro(equipeId, { nome: "Segundo Personal" });
+  const a1 = await criarAluno(equipeId);
+  const a2 = await criarAluno(equipeId);
+  await criarRegistro({ aluno: a1, dataAtendimento: "2026-09-02" }); // usuário base
+  await criarRegistro({ aluno: a1, dataAtendimento: "2026-09-04" }); // usuário base
+  await criarRegistro({ aluno: a2, dataAtendimento: "2026-09-03", usuarioId: p2.id });
+  await criarRegistro({ aluno: a2, dataAtendimento: "2026-09-10", tipo: "avaliacao_fisica", usuarioId: p2.id });
+
+  const r = await atividadesService.obterAtividades(equipeId, { de: "2026-09-01", ate: "2026-09-30" });
+  assert.equal(r.por_membro.length, 2);
+  const base = r.por_membro.find((l) => l.usuario_id === usuario.id);
+  const segundo = r.por_membro.find((l) => l.usuario_id === p2.id);
+  assert.equal(base.atendimentos, 2);
+  assert.equal(base.dias_distintos, 2);
+  assert.equal(base.alunos_distintos, 1);
+  assert.equal(segundo.atendimentos, 1);
+  assert.equal(segundo.avaliacoes_fisicas, 1);
+  assert.equal(segundo.personal_na_equipe, true);
+});
+
+test("filtro membro_id restringe todas as agregações a um personal", async () => {
+  const equipeId = await novaEquipe();
+  const { membro: m2, usuario: p2 } = await criarMembro(equipeId);
+  const aluno = await criarAluno(equipeId);
+  await criarRegistro({ aluno, dataAtendimento: "2026-10-05" }); // usuário base
+  await criarRegistro({ aluno, dataAtendimento: "2026-10-06", usuarioId: p2.id });
+
+  const r = await atividadesService.obterAtividades(equipeId, {
+    de: "2026-10-01",
+    ate: "2026-10-31",
+    membro_id: m2.id
+  });
+  assert.equal(r.filtros.membro_id, m2.id);
+  assert.equal(r.resumo.atendimentos, 1);
+  assert.equal(r.por_membro.length, 1);
+  assert.equal(r.por_membro[0].usuario_id, p2.id);
+});
+
+test("membro_id de outra equipe é rejeitado (isolamento)", async () => {
+  const equipeA = await novaEquipe();
+  const equipeB = await novaEquipe();
+  const { membro: mB } = await criarMembro(equipeB);
+  await assert.rejects(
+    () => atividadesService.obterAtividades(equipeA, { de: "2026-01-01", ate: "2026-01-31", membro_id: mB.id }),
+    /não pertence/
+  );
 });
 
 test("isolamento: relatório de uma equipe não enxerga outra", async () => {

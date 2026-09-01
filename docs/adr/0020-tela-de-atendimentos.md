@@ -301,3 +301,27 @@ Nesta ADR ele passa a usar o mesmo eixo:
 - Novo lugar natural para o personal responder "o que eu fiz" sem planilha;
   ponto de partida para exportação e comparação de períodos quando houver
   demanda.
+
+## Adendo (2026-09-01): filtro e recorte por personal
+
+Contexto: uma equipe (ADR-0011) pode ter mais de um `membro`. A tela agregava
+todo o trabalho da equipe sem forma de olhar um personal específico.
+
+- **Eixo:** `registro.usuario_id` — "quem capturou o Registro" (auditoria,
+  ADR-0011). Na prática (captura offline no login do próprio personal) equivale
+  a "quem atendeu". É uma **lente de leitura, não controle de acesso** — o
+  enforcement por papel continua fora de escopo (ADR-0011). Usa `usuario_id` do
+  Registro (não `validacao.usuario_id`): a pergunta é "quem atendeu", e o filtro
+  precisa valer também para Registros ainda não confirmados.
+- **`GET /api/v1/atividades` ganha `membro_id` opcional** (o cliente fala a
+  língua de equipe; o service resolve `membro → usuario_id` e valida que o
+  membro é da equipe do token — `400` se não for). Retrocompatível.
+  `construirWhere` aplica `usuario_id` a **todas** as agregações.
+- **Novo bloco `por_membro`** na resposta (mesmo par de métricas do `por_aluno`
+  + `alunos_distintos`), ordenado por atendimentos desc. `personal_na_equipe`
+  marca quem já saiu — o Registro e o trabalho feito continuam contando.
+- **Frontend:** seletor "Personal (quem registrou)" na barra de filtros e a
+  seção "Atendimentos por personal" (ranking + tabela) só aparecem quando a
+  equipe tem mais de um membro / mais de um personal com atividade no período.
+- Sem tabela nova, sem escrita, ADR-0007 intacta. `GET /api/v1/registros` (e o
+  Histórico) **não** ganham o filtro nesta rodada.

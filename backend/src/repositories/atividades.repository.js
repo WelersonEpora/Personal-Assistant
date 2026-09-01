@@ -11,17 +11,20 @@
 // (`tipo = atendimento` e `tipo = avaliacao_fisica`) são contadas separadas
 // em toda consulta - avaliação física não é "aula".
 const { Op, literal } = require("sequelize");
-const { Registro, Aluno } = require("../models");
+const { Registro, Aluno, Usuario, Membro } = require("../models");
 
 // Filtro base: sempre escopo de equipe + soft-delete + janela de data. `de` e
 // `ate` são "AAAA-MM-DD" (inclusive nos dois extremos).
-function construirWhere({ equipeId, de, ate, alunoId, tipo, somenteConfirmados }) {
+function construirWhere({ equipeId, de, ate, alunoId, usuarioId, tipo, somenteConfirmados }) {
   const where = {
     equipe_id: equipeId,
     deletado_em: null,
     data_atendimento: { [Op.between]: [de, ate] }
   };
   if (alunoId) where.aluno_id = alunoId;
+  // docs/adr/0020 (adendo): `usuario_id` = "quem capturou o Registro"
+  // (auditoria, docs/adr/0011) - lente por personal, não controle de acesso.
+  if (usuarioId) where.usuario_id = usuarioId;
   if (tipo) where.tipo = tipo;
   if (somenteConfirmados) where.status = Registro.STATUS.CONFIRMADO;
   return where;
@@ -103,6 +106,47 @@ function nomesAlunos(ids) {
   return Aluno.findAll({ where: { id: ids }, attributes: ["id", "nome", "deletado_em"], raw: true });
 }
 
+// docs/adr/0020 (adendo) - uma linha por personal (usuario_id do Registro)
+// com atividade no período. Mesmo par de métricas do `porAluno`. Sem JOIN:
+// os nomes vêm de `nomesMembros`. Respeita todos os filtros ativos (inclusive
+// `membro_id`, caso em que a lista tem no máximo uma linha).
+function porMembro(filtros) {
+  return Registro.findAll({
+    attributes: [
+      "usuario_id",
+      [literal(CONTA_ATENDIMENTO), "atendimentos"],
+      [literal(CONTA_AVALIACAO), "avaliacoes_fisicas"],
+      [literal("COUNT(DISTINCT data_atendimento) FILTER (WHERE tipo = 'atendimento')"), "dias_distintos"],
+      [literal("COUNT(DISTINCT aluno_id) FILTER (WHERE tipo = 'atendimento')"), "alunos_distintos"],
+      [literal("to_char(MIN(data_atendimento), 'YYYY-MM-DD')"), "primeiro"],
+      [literal("to_char(MAX(data_atendimento), 'YYYY-MM-DD')"), "ultimo"]
+    ],
+    where: construirWhere(filtros),
+    group: ["usuario_id"],
+    raw: true
+  });
+}
+
+// Nomes dos personais das linhas de `porMembro`. Um Registro antigo pode ter
+// `usuario_id` de alguém que já saiu da equipe - o nome ainda aparece (o
+// trabalho feito não some); a UI marca quando não há mais `membro` ativo.
+async function nomesMembros(ids, equipeId) {
+  const [usuarios, membros] = await Promise.all([
+    Usuario.findAll({ where: { id: ids }, attributes: ["id", "nome"], raw: true }),
+    Membro.findAll({
+      where: { usuario_id: ids, equipe_id: equipeId },
+      attributes: ["usuario_id", "ativo"],
+      raw: true
+    })
+  ]);
+  const ativoPorUsuario = new Map(membros.map((m) => [m.usuario_id, m.ativo]));
+  return usuarios.map((u) => ({
+    id: u.id,
+    nome: u.nome,
+    na_equipe: ativoPorUsuario.get(u.id) === true
+  }));
+}
+
 // Distribuição por dia da semana (EXTRACT(DOW): 0 = domingo … 6 = sábado).
 // Só a trilha de atendimento.
 function porDiaSemana(filtros) {
@@ -139,6 +183,8 @@ module.exports = {
   porBucket,
   porAluno,
   nomesAlunos,
+  porMembro,
+  nomesMembros,
   porDiaSemana,
   porMes
 };

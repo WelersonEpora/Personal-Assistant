@@ -7,6 +7,7 @@
 // `data_atendimento` (docs/adr/0019). NÃO altera a ADR-0015 (bucketing do
 // ciclo mensal segue por `confirmado_em`) nem a ADR-0017 (feed por `created_at`).
 const atividadesRepository = require("../repositories/atividades.repository");
+const membroRepository = require("../repositories/membro.repository");
 const { ValidationError } = require("../shared/errors");
 const { validarDataIso } = require("../shared/utils/periodo");
 
@@ -33,7 +34,7 @@ function escolherGranularidade(amplitudeDias) {
   return "mes";
 }
 
-function normalizarFiltros(equipeId, query = {}) {
+async function normalizarFiltros(equipeId, query = {}) {
   const de = query.de ? validarDataIso(String(query.de), "de") : primeiroDiaDoMesIso();
   const ate = query.ate ? validarDataIso(String(query.ate), "ate") : hojeIso();
   if (de > ate) {
@@ -52,7 +53,20 @@ function normalizarFiltros(equipeId, query = {}) {
   const alunoId = query.aluno_id ? String(query.aluno_id) : null;
   const somenteConfirmados = query.somente_confirmados === "true" || query.somente_confirmados === true;
 
-  return { equipeId, de, ate, alunoId, tipo, somenteConfirmados, amplitude };
+  // docs/adr/0020 (adendo): filtro opcional por personal. O cliente manda o
+  // `membro.id` (conceito de equipe); o Registro guarda `usuario_id`. Resolve
+  // aqui e valida que o membro é da equipe do token (isolamento).
+  const membroId = query.membro_id ? String(query.membro_id) : null;
+  let usuarioId = null;
+  if (membroId) {
+    const membro = await membroRepository.findByIdAndEquipe(membroId, equipeId);
+    if (!membro) {
+      throw new ValidationError('"membro_id" não pertence a esta equipe.');
+    }
+    usuarioId = membro.usuario_id;
+  }
+
+  return { equipeId, de, ate, alunoId, membroId, usuarioId, tipo, somenteConfirmados, amplitude };
 }
 
 function isoDia(timestamp) {
@@ -129,6 +143,29 @@ function montarPorAluno(linhas, alunos) {
     .sort((a, b) => b.atendimentos - a.atendimentos || a.nome.localeCompare(b.nome, "pt-BR"));
 }
 
+// docs/adr/0020 (adendo) - ranking/tabela por personal. `nome` vem de
+// `nomesMembros`; `personal_na_equipe = false` marca quem já saiu (o Registro
+// e o trabalho feito continuam contando).
+function montarPorMembro(linhas, membros) {
+  const membroPorId = new Map(membros.map((m) => [m.id, m]));
+  return linhas
+    .map((linha) => {
+      const membro = membroPorId.get(linha.usuario_id);
+      return {
+        usuario_id: linha.usuario_id,
+        nome: membro?.nome || "Personal removido",
+        personal_na_equipe: Boolean(membro?.na_equipe),
+        atendimentos: Number(linha.atendimentos),
+        avaliacoes_fisicas: Number(linha.avaliacoes_fisicas),
+        dias_distintos: Number(linha.dias_distintos),
+        alunos_distintos: Number(linha.alunos_distintos),
+        primeiro: linha.primeiro || null,
+        ultimo: linha.ultimo || null
+      };
+    })
+    .sort((a, b) => b.atendimentos - a.atendimentos || a.nome.localeCompare(b.nome, "pt-BR"));
+}
+
 function montarPorMes(linhas) {
   return linhas.map((linha) => ({
     mes: linha.mes,
@@ -139,19 +176,23 @@ function montarPorMes(linhas) {
 }
 
 async function obterAtividades(equipeId, query) {
-  const filtros = normalizarFiltros(equipeId, query);
+  const filtros = await normalizarFiltros(equipeId, query);
   const granularidade = escolherGranularidade(filtros.amplitude);
 
-  const [resumoRaw, serieRaw, alunoRaw, diaSemanaRaw, mesRaw] = await Promise.all([
+  const [resumoRaw, serieRaw, alunoRaw, membroRaw, diaSemanaRaw, mesRaw] = await Promise.all([
     atividadesRepository.resumo(filtros),
     atividadesRepository.porBucket(filtros, granularidade),
     atividadesRepository.porAluno(filtros),
+    atividadesRepository.porMembro(filtros),
     atividadesRepository.porDiaSemana(filtros),
     atividadesRepository.porMes(filtros)
   ]);
 
   const ids = alunoRaw.map((linha) => linha.aluno_id);
   const alunos = ids.length ? await atividadesRepository.nomesAlunos(ids) : [];
+
+  const membroIds = membroRaw.map((linha) => linha.usuario_id);
+  const membros = membroIds.length ? await atividadesRepository.nomesMembros(membroIds, equipeId) : [];
 
   const mediaPorAluno = resumoRaw.alunos_atendidos
     ? Math.round((resumoRaw.atendimentos / resumoRaw.alunos_atendidos) * 10) / 10
@@ -161,12 +202,14 @@ async function obterAtividades(equipeId, query) {
     periodo: { de: filtros.de, ate: filtros.ate, granularidade },
     filtros: {
       aluno_id: filtros.alunoId,
+      membro_id: filtros.membroId,
       tipo: filtros.tipo,
       somente_confirmados: filtros.somenteConfirmados
     },
     resumo: { ...resumoRaw, media_por_aluno: mediaPorAluno },
     serie_temporal: montarSerieTemporal(serieRaw, filtros.de, filtros.ate, granularidade),
     por_aluno: montarPorAluno(alunoRaw, alunos),
+    por_membro: montarPorMembro(membroRaw, membros),
     por_dia_semana: montarDiaSemana(diaSemanaRaw),
     por_mes: montarPorMes(mesRaw)
   };

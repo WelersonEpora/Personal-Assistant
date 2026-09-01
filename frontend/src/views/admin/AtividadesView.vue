@@ -2,6 +2,7 @@
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import atividadesService from '../../services/atividades.service.js'
 import alunosService from '../../services/alunos.service.js'
+import membrosService from '../../services/membros.service.js'
 import { rotuloMesAno, PALETA_SERIES } from '../../utils/avaliacaoFisica.js'
 import { formatarDataAtendimento } from '../../utils/registroStatus.js'
 import SeletorPeriodo from '../../components/SeletorPeriodo.vue'
@@ -21,6 +22,9 @@ const PRESETS_ATIVIDADES = ['mes_atual', 'mes_passado', 'ultimos_30', 'ultimos_9
 
 const filtros = reactive({
   alunoId: '',
+  // docs/adr/0020 (adendo): lente por personal (quem registrou). Só aparece
+  // quando a equipe tem mais de um membro.
+  membroId: '',
   tipo: '',
   // docs/adr/0020: a tela começa com o número "fechado" (só relatos revisados);
   // o personal desmarca para incluir o backlog ainda em revisão. O endpoint
@@ -30,6 +34,7 @@ const filtros = reactive({
 const periodo = ref({ de: null, ate: null })
 
 const alunos = ref([])
+const membros = ref([])
 const dados = ref(null)
 const carregando = ref(true)
 const erro = ref('')
@@ -44,6 +49,7 @@ async function carregar() {
       de: periodo.value.de,
       ate: periodo.value.ate,
       alunoId: filtros.alunoId || undefined,
+      membroId: filtros.membroId || undefined,
       tipo: filtros.tipo || undefined,
       somenteConfirmados: filtros.somenteConfirmados
     })
@@ -61,14 +67,15 @@ function aoMudarPeriodo(intervalo) {
 }
 
 onMounted(async () => {
-  try {
-    alunos.value = await alunosService.listar()
-  } catch (_e) {
-    alunos.value = []
-  }
+  const [resAlunos, resMembros] = await Promise.allSettled([alunosService.listar(), membrosService.listar()])
+  alunos.value = resAlunos.status === 'fulfilled' ? resAlunos.value : []
+  membros.value = resMembros.status === 'fulfilled' ? resMembros.value : []
 })
 
-watch(() => [filtros.alunoId, filtros.tipo, filtros.somenteConfirmados], () => carregar())
+// A equipe solo (1 membro) não precisa do filtro nem do bloco "Por personal".
+const equipeTemVariosPersonais = computed(() => membros.value.length > 1)
+
+watch(() => [filtros.alunoId, filtros.membroId, filtros.tipo, filtros.somenteConfirmados], () => carregar())
 
 // --- rótulo do bucket conforme a granularidade escolhida pelo servidor -----
 function rotuloBucket(bucket, granularidade) {
@@ -109,6 +116,15 @@ const ranking = computed(() => {
 })
 const rankingTemMais = computed(
   () => (dados.value?.por_aluno || []).filter((l) => l.atendimentos > 0).length > TOP_RANKING
+)
+
+// docs/adr/0020 (adendo) - "Por personal": só faz sentido com mais de um
+// personal com atividade no período (some quando há filtro por 1 personal).
+const mostrarPorMembro = computed(() => (dados.value?.por_membro || []).length > 1)
+const rankingMembros = computed(() =>
+  (dados.value?.por_membro || [])
+    .filter((l) => l.atendimentos > 0)
+    .map((l) => ({ rotulo: l.nome, valor: l.atendimentos }))
 )
 
 const diaSemana = computed(() => {
@@ -176,6 +192,14 @@ const temResultado = computed(
           <select v-model="filtros.alunoId">
             <option value="">Todos os alunos</option>
             <option v-for="a in alunos" :key="a.id" :value="a.id">{{ a.nome }}</option>
+          </select>
+        </div>
+
+        <div v-if="equipeTemVariosPersonais" class="field-group">
+          <label>Personal <span class="atv-label-hint">(quem registrou)</span></label>
+          <select v-model="filtros.membroId">
+            <option value="">Todos os personais</option>
+            <option v-for="m in membros" :key="m.id" :value="m.id">{{ m.usuario.nome }}</option>
           </select>
         </div>
 
@@ -281,6 +305,51 @@ const temResultado = computed(
           </div>
         </div>
 
+        <!-- Por personal (equipe com mais de um membro) -->
+        <template v-if="mostrarPorMembro">
+          <div class="card card-pad atv-bloco">
+            <div class="atv-bloco-cab">
+              <h2>Atendimentos por personal</h2>
+              <span class="atv-bloco-sub">por quem registrou</span>
+            </div>
+            <BarChart
+              modo="ranking"
+              :itens="rankingMembros"
+              :cor="COR_ATENDIMENTO"
+              :altura="`${Math.max(140, rankingMembros.length * 34)}px`"
+              vazio="Nenhum atendimento por personal no período."
+            />
+          </div>
+
+          <div class="card table-wrap atv-bloco">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Personal</th>
+                  <th class="atv-num">Atend.</th>
+                  <th class="atv-num">Dias</th>
+                  <th class="atv-num">Alunos</th>
+                  <th class="atv-num">Aval. físicas</th>
+                  <th class="atv-num">Último</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="linha in dados.por_membro" :key="linha.usuario_id">
+                  <td>
+                    {{ linha.nome }}
+                    <span v-if="!linha.personal_na_equipe" class="atv-removido">· fora da equipe</span>
+                  </td>
+                  <td class="atv-num">{{ linha.atendimentos }}</td>
+                  <td class="atv-num">{{ linha.dias_distintos }}</td>
+                  <td class="atv-num">{{ linha.alunos_distintos }}</td>
+                  <td class="atv-num">{{ linha.avaliacoes_fisicas || '—' }}</td>
+                  <td class="atv-num">{{ linha.ultimo ? formatarDataAtendimento(linha.ultimo) : '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
+
         <!-- Tabela por aluno -->
         <h2 class="atv-tabela-titulo">Por aluno</h2>
         <div class="card table-wrap">
@@ -351,6 +420,7 @@ const temResultado = computed(
 .atv-campos .field-group { min-width: 180px; }
 .atv-campos select { width: 100%; }
 .atv-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; white-space: nowrap; padding-bottom: 8px; }
+.atv-label-hint { color: var(--color-text-faint); font-weight: 400; }
 
 .atv-kpis { grid-template-columns: repeat(5, 1fr); }
 

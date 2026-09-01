@@ -286,7 +286,9 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
   `GET /api/v1/atividades`, `/admin/atendimentos`) agrega a `registro` por
   `data_atendimento` — somente leitura, sem tabela nova, sem tocar
   `resultado_ia`/`validacao`; atendimento e avaliação física em trilhas
-  separadas.
+  separadas. Adendo (2026-09-01): filtro opcional `membro_id` + bloco
+  `por_membro` — recorte por personal (`registro.usuario_id`, "quem
+  registrou"), lente de leitura, não controle de acesso.
 - Toda decisão arquitetural relevante e difícil de reverter vira ADR em
   `docs/adr/`, numerada sequencialmente, com Contexto/Decisão/Alternativas
   consideradas/Consequências. Decisões operacionais ou de baixa relevância
@@ -387,10 +389,12 @@ MVP completo e verificado de ponta a ponta:
   (`atividades.{controller,service,repository}`) — agregação somente leitura
   sobre `registro` por `data_atendimento`, escopo por `equipe_id` +
   `deletado_em IS NULL`, sem tabela nova. Filtros de período (presets +
-  personalizado), aluno, tipo e "somente confirmados"; granularidade do gráfico
+  personalizado), aluno, `membro_id` (personal — adendo 2026-09-01), tipo e
+  "somente confirmados"; granularidade do gráfico
   (dia/semana/mês) escolhida no servidor pelo tamanho do período; resposta com
   `resumo` (KPIs), `serie_temporal` (buckets preenchidos), `por_aluno`
-  (Registros × dias distintos), `por_dia_semana` e `por_mes`. Atendimento e
+  (Registros × dias distintos), `por_membro` (por personal, `registro.usuario_id`),
+  `por_dia_semana` e `por_mes`. Atendimento e
   avaliação física contados em trilhas separadas. Cadência média ficou de fora
   desta 1ª versão (o payload já traz `primeiro`/`ultimo`/`dias_distintos`).
   Na mesma ADR-0020, `GET /api/v1/registros` ganhou filtros opcionais
@@ -398,7 +402,7 @@ MVP completo e verificado de ponta a ponta:
   (retrocompatível — sem parâmetro, comportamento antigo); o Histórico usa isso,
   abrindo em "Últimos 90 dias" e só com `tipo = atendimento` (avaliação física
   saiu do Histórico). Validação de data em `shared/utils/periodo.js`.
-  281 testes automatizados (`node --test`, unitários +
+  284 testes automatizados (`node --test`, unitários +
   integração contra banco de teste dedicado).
 - **Frontend**: app Vue 3 + Vite + PWA único (`/captura` mobile-first
   offline, `/admin` gestão/validação), IndexedDB + fila de sincronização
@@ -445,9 +449,11 @@ MVP completo e verificado de ponta a ponta:
   sem `<input type=date>` nativo).
   Tela de Atendimentos (docs/adr/0020): `views/admin/AtividadesView.vue`
   (`/admin/atendimentos`, menu REGISTROS abaixo de Histórico), consome
-  `services/atividades.service.js`. Filtros (período/aluno/tipo/só confirmados),
+  `services/atividades.service.js`. Filtros (período/aluno/personal/tipo/só
+  confirmados — o seletor de personal e a seção "por personal" só aparecem em
+  equipe com mais de um membro),
   KPIs, gráfico temporal empilhado, ranking por aluno, distribuição por dia da
-  semana e tabelas por aluno/mês. Gráficos de barra em
+  semana e tabelas por aluno/mês/personal. Gráficos de barra em
   `components/charts/BarChart.vue` + `utils/echarts-bar-option-builder.js`
   (mesmo padrão testável do `LineChart`), no chunk `vendor-echarts` lazy.
   Seletor de período compartilhado (`components/SeletorPeriodo.vue` +

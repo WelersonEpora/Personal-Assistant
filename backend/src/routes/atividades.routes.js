@@ -9,7 +9,7 @@ const router = Router();
 router.use(autenticar);
 
 // Relatório de atividade por período (docs/adr/0020) - somente leitura,
-// escopado pela equipe do token. Params: de, ate, aluno_id, tipo,
+// escopado pela equipe do token. Params: de, ate, aluno_id, membro_id, tipo,
 // somente_confirmados (ver atividades.service.js).
 router.get("/", atividadesController.obter);
 

@@ -19,13 +19,15 @@ import ToastStack from '../../components/ToastStack.vue'
 const { toasts, showToast } = useToasts()
 const { confirmar } = useConfirm()
 
+// Esta tela é a caixa de entrada do pipeline: só Registros ainda não
+// confirmados (docs/adr/0020, adendo). Confirmado virou dado oficial e passa
+// a viver só no Histórico - não há filtro "Confirmados" aqui de propósito.
 const FILTROS = [
   { status: 'todos', label: 'Todos' },
   { status: 'recebido', label: 'Recebidos' },
   { status: 'transcrevendo', label: 'Transcrevendo' },
   { status: 'interpretando', label: 'Interpretando' },
   { status: 'aguardando_revisao', label: 'Aguardando revisão' },
-  { status: 'confirmado', label: 'Confirmados' },
   { status: 'erro_transcricao', label: 'Com erro' }
 ]
 
@@ -39,7 +41,7 @@ let intervalId = null
 async function carregar() {
   carregando.value = true
   try {
-    registros.value = await registrosService.listar({})
+    registros.value = await registrosService.listar({ status: 'abertos' })
   } finally {
     carregando.value = false
   }
@@ -159,7 +161,10 @@ async function reprocessarRegistro(registro) {
     <div class="view-header">
       <div>
         <h1>Relatos</h1>
-        <p>Registros recebidos do celular — cada um agrupa os áudios e textos capturados até o personal finalizar.</p>
+        <p>
+          Registros recebidos do celular ainda em processamento ou aguardando revisão.
+          Depois de confirmados, ficam no <router-link :to="{ name: 'admin-historico' }">Histórico</router-link>.
+        </p>
       </div>
       <div class="sync-pill" :class="{ 'state-pending': pendentesProcessamento > 0 }">
         <span class="sync-pill-dot"></span><span>{{ filaTexto }}</span>
@@ -249,7 +254,10 @@ async function reprocessarRegistro(registro) {
         </button>
       </div>
 
-      <div v-if="!carregando && !listaFiltrada.length" class="empty-state">Nenhum registro encontrado.</div>
+      <div v-if="!carregando && !listaFiltrada.length" class="empty-state">
+        <p>Nada pendente por aqui.</p>
+        <router-link :to="{ name: 'admin-historico' }">Ver registros confirmados no Histórico →</router-link>
+      </div>
     </div>
 
     <ToastStack :toasts="toasts" />

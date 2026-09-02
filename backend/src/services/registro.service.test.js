@@ -190,3 +190,18 @@ test("listar: sem filtro de data mantém o comportamento antigo (todos os status
   const lista = await registroService.listar(equipe.id, { status: "confirmado" });
   assert.ok(lista.some((r) => r.id === antigo.id));
 });
+
+// docs/adr/0020 (adendo): a tela de Relatos é a caixa de entrada do pipeline -
+// mostra tudo que ainda não virou dado oficial; confirmado sai dali e vive só
+// no Histórico.
+test('listar: status "abertos" traz os não confirmados e exclui os confirmados', async (t) => {
+  const emRevisao = await criarRegistro(Registro.STATUS.AGUARDANDO_REVISAO);
+  const comErro = await criarRegistro(Registro.STATUS.ERRO_INTERPRETACAO);
+  const confirmado = await criarRegistro(Registro.STATUS.CONFIRMADO);
+  t.after(() => Registro.destroy({ where: { id: [emRevisao.id, comErro.id, confirmado.id] } }));
+
+  const ids = (await registroService.listar(equipe.id, { status: "abertos" })).map((r) => r.id);
+  assert.ok(ids.includes(emRevisao.id));
+  assert.ok(ids.includes(comErro.id));
+  assert.ok(!ids.includes(confirmado.id));
+});

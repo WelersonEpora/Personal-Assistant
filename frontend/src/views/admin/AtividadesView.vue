@@ -327,7 +327,7 @@ const temResultado = computed(
           </div>
 
           <div class="card table-wrap atv-bloco">
-            <table class="data-table">
+            <table class="data-table stack">
               <thead>
                 <tr>
                   <th>Personal</th>
@@ -344,11 +344,11 @@ const temResultado = computed(
                     {{ linha.nome }}
                     <span v-if="!linha.personal_na_equipe" class="atv-removido">· fora da equipe</span>
                   </td>
-                  <td class="atv-num">{{ linha.atendimentos }}</td>
-                  <td class="atv-num">{{ linha.dias_distintos }}</td>
-                  <td class="atv-num">{{ linha.alunos_distintos }}</td>
-                  <td class="atv-num">{{ linha.avaliacoes_fisicas || '—' }}</td>
-                  <td class="atv-num">{{ linha.ultimo ? formatarDataAtendimento(linha.ultimo) : '—' }}</td>
+                  <td class="atv-num" data-label="Atend.">{{ linha.atendimentos }}</td>
+                  <td class="atv-num" data-label="Dias">{{ linha.dias_distintos }}</td>
+                  <td class="atv-num" data-label="Alunos">{{ linha.alunos_distintos }}</td>
+                  <td class="atv-num" data-label="Aval. físicas">{{ linha.avaliacoes_fisicas || '—' }}</td>
+                  <td class="atv-num" data-label="Último">{{ linha.ultimo ? formatarDataAtendimento(linha.ultimo) : '—' }}</td>
                 </tr>
               </tbody>
             </table>
@@ -358,7 +358,7 @@ const temResultado = computed(
         <!-- Tabela por aluno -->
         <h2 class="atv-tabela-titulo">Por aluno</h2>
         <div class="card table-wrap">
-          <table class="data-table">
+          <table class="data-table stack">
             <thead>
               <tr>
                 <th class="atv-th-clic" @click="ordenarPor('nome')">Aluno{{ setaOrd('nome') }}</th>
@@ -379,11 +379,11 @@ const temResultado = computed(
                   >{{ linha.nome }}</router-link>
                   <span v-else class="atv-removido">{{ linha.nome }}</span>
                 </td>
-                <td class="atv-num">{{ linha.atendimentos }}</td>
-                <td class="atv-num">{{ linha.dias_distintos }}</td>
-                <td class="atv-num">{{ linha.avaliacoes_fisicas || '—' }}</td>
-                <td class="atv-num">{{ linha.primeiro ? formatarDataAtendimento(linha.primeiro) : '—' }}</td>
-                <td class="atv-num">{{ linha.ultimo ? formatarDataAtendimento(linha.ultimo) : '—' }}</td>
+                <td class="atv-num" data-label="Atend.">{{ linha.atendimentos }}</td>
+                <td class="atv-num" data-label="Dias">{{ linha.dias_distintos }}</td>
+                <td class="atv-num" data-label="Aval. físicas">{{ linha.avaliacoes_fisicas || '—' }}</td>
+                <td class="atv-num" data-label="1º atend.">{{ linha.primeiro ? formatarDataAtendimento(linha.primeiro) : '—' }}</td>
+                <td class="atv-num" data-label="Último">{{ linha.ultimo ? formatarDataAtendimento(linha.ultimo) : '—' }}</td>
               </tr>
             </tbody>
           </table>
@@ -392,7 +392,7 @@ const temResultado = computed(
         <!-- Tabela por mês -->
         <h2 class="atv-tabela-titulo">Por mês</h2>
         <div class="card table-wrap">
-          <table class="data-table">
+          <table class="data-table stack">
             <thead>
               <tr>
                 <th>Mês</th>
@@ -404,9 +404,9 @@ const temResultado = computed(
             <tbody>
               <tr v-for="linha in dados.por_mes" :key="linha.mes">
                 <td>{{ rotuloMesAno(`${linha.mes}-01`) }}</td>
-                <td class="atv-num">{{ linha.atendimentos }}</td>
-                <td class="atv-num">{{ linha.alunos_distintos }}</td>
-                <td class="atv-num">{{ linha.avaliacoes_fisicas }}</td>
+                <td class="atv-num" data-label="Atendimentos">{{ linha.atendimentos }}</td>
+                <td class="atv-num" data-label="Alunos distintos">{{ linha.alunos_distintos }}</td>
+                <td class="atv-num" data-label="Avaliações físicas">{{ linha.avaliacoes_fisicas }}</td>
               </tr>
               <tr v-if="!dados.por_mes.length">
                 <td colspan="4" class="atv-vazio">Nenhum mês com atividade.</td>
@@ -446,5 +446,13 @@ const temResultado = computed(
 
 @media (max-width: 1100px) {
   .atv-kpis { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 760px) {
+  .atv-campos { flex-direction: column; align-items: stretch; gap: 12px; }
+  .atv-campos .field-group { min-width: 0; }
+  .atv-toggle { padding-bottom: 0; }
+  .atv-bloco-cab { flex-wrap: wrap; }
+  .atv-tabela-titulo { font-size: 14px; }
 }
 </style>

@@ -256,4 +256,11 @@ async function descartar() {
 }
 .af-rev-alerta.danger { color: var(--color-danger); background: var(--color-danger-light); }
 .af-rev-form :deep(.view-header) { display: none; }
+
+@media (max-width: 760px) {
+  .revisao-card { padding: 16px 14px; }
+  .af-rev-conferencia { padding: 12px 12px; }
+  .af-rev-conf-linha { flex-direction: column; gap: 2px; }
+  .af-rev-conf-rot { min-width: 0; }
+}
 </style>

@@ -331,3 +331,33 @@ todo o trabalho da equipe sem forma de olhar um personal específico.
   vê nem o filtro nem a seção.
 - Sem tabela nova, sem escrita, ADR-0007 intacta. `GET /api/v1/registros` (e o
   Histórico) **não** ganham o filtro nesta rodada.
+
+## Adendo (2026-09-02): a tela "Relatos" para no `confirmado`
+
+Contexto: o mesmo "saco sem fundo" que o Histórico tinha (§ "Filtro do
+Histórico") sobrava na tela **Relatos** (`/admin/registros`,
+`RegistrosView.vue`), que fazia `listar({})` — todos os Registros da equipe, de
+sempre — e ainda re-baixava tudo a cada 20 s de *polling*.
+
+Em vez de replicar o filtro de período, a tela **muda de propósito**: passa a
+ser a **caixa de entrada do pipeline** — só Registros que ainda não viraram
+dado oficial. Isso é coerente com o ciclo de vida do Registro (ADR-0002): ao
+confirmar, ele já virou `validacao` e seu lugar é o Histórico.
+
+- **`GET /api/v1/registros` aceita `status = "abertos"`** → `status <> 'confirmado'`
+  (traduzido no `registro.service`, `Op.ne`). Qualquer outro valor continua
+  sendo filtro por status exato; sem `status`, comportamento de antes.
+  Retrocompatível.
+- **`RegistrosView.vue`** chama `listar({ status: 'abertos' })`. Isso também
+  limita o payload do *polling* (para de trazer todo confirmado histórico). O
+  filtro "Confirmados" sai da barra de abas; "Com erro" fica (estado aberto que
+  pede ação). *Empty state* e cabeçalho apontam para o Histórico.
+- Sem janela de tempo aqui: a fila de pipeline é naturalmente limitada e um
+  `data_atendimento` retroativo (ADR-0019) não pode esconder um Registro
+  `aguardando_revisao`. Se a lista cresce, é sinal de backlog de revisão — que é
+  o que a tela existe para mostrar.
+- `AcompanhamentoAluno.vue` (linha do tempo do aluno) e o badge de navegação
+  (`AdminShell.vue`, `status = 'aguardando_revisao'`) não mudam.
+- Sem tabela nova, sem escrita, ADR-0007 intacta. Teste novo em
+  `registro.service.test.js` (`status = "abertos"` traz não confirmados, exclui
+  confirmados).

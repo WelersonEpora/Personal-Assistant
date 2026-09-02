@@ -46,13 +46,22 @@ export function temAlgumValor(series) {
   return (series || []).some((s) => (s.dados || []).some((v) => Number(v) > 0))
 }
 
-export function construirOpcaoBarras({ categorias = [], series = [], cores, paleta = [], empilhar = true }) {
+export function construirOpcaoBarras({
+  categorias = [],
+  series = [],
+  cores,
+  paleta = [],
+  empilhar = true,
+  compacto = false
+}) {
   const temLegenda = series.length > 1
   const empilhamento = empilhar && series.length > 1 ? 'total' : undefined
+  const alturaLegenda = compacto ? 28 : 32
+  const gridTop = temLegenda ? alturaLegenda : 10
 
   return {
     color: paleta,
-    grid: { left: 6, right: 12, top: temLegenda ? 32 : 10, bottom: 6, containLabel: true },
+    grid: { left: 6, right: 12, top: gridTop, bottom: 6, containLabel: true },
     legend: temLegenda
       ? {
           top: 0,
@@ -60,8 +69,8 @@ export function construirOpcaoBarras({ categorias = [], series = [], cores, pale
           icon: 'roundRect',
           itemWidth: 12,
           itemHeight: 10,
-          itemGap: 16,
-          textStyle: { color: cores.textoMuted, fontSize: 12 }
+          itemGap: compacto ? 10 : 16,
+          textStyle: { color: cores.textoMuted, fontSize: compacto ? 11 : 12 }
         }
       : undefined,
     xAxis: {
@@ -114,7 +123,7 @@ export function construirOpcaoBarras({ categorias = [], series = [], cores, pale
 // Ranking horizontal - `itens` já ordenado (o maior primeiro). O ECharts
 // desenha o eixo Y de baixo pra cima, então invertemos para o maior ficar no
 // topo.
-export function construirOpcaoBarrasHorizontais({ itens = [], cor, cores }) {
+export function construirOpcaoBarrasHorizontais({ itens = [], cor, cores, compacto = false }) {
   const ordenados = [...itens].reverse()
   return {
     grid: { left: 6, right: 28, top: 6, bottom: 6, containLabel: true },
@@ -130,7 +139,12 @@ export function construirOpcaoBarrasHorizontais({ itens = [], cor, cores }) {
       data: ordenados.map((i) => i.rotulo),
       ...eixoBase(cores),
       axisLine: { show: false },
-      axisLabel: { color: cores.texto, fontSize: 12, width: 130, overflow: 'truncate' }
+      axisLabel: {
+        color: cores.texto,
+        fontSize: compacto ? 11 : 12,
+        width: compacto ? 88 : 130,
+        overflow: 'truncate'
+      }
     },
     tooltip: {
       trigger: 'item',

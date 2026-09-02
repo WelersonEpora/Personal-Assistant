@@ -102,3 +102,20 @@ test('construirOpcaoBarrasHorizontais: tooltip por item', () => {
   assert.equal(o.tooltip.trigger, 'item')
   assert.ok(o.tooltip.formatter({ name: 'Ana', value: 4 }).includes('Ana'))
 })
+
+test('compacto: ranking trunca o rótulo mais cedo; padrão mantém 130', () => {
+  const base = { itens: [{ rotulo: 'Ana', valor: 4 }], cor: '#2a78d6', cores: CORES }
+  assert.equal(construirOpcaoBarrasHorizontais(base).yAxis.axisLabel.width, 130)
+  assert.equal(construirOpcaoBarrasHorizontais({ ...base, compacto: true }).yAxis.axisLabel.width, 88)
+})
+
+test('compacto: barras verticais reduzem o espaçamento da legenda', () => {
+  const base = {
+    categorias: ['jan'],
+    series: [{ nome: 'A', dados: [1] }, { nome: 'B', dados: [2] }],
+    cores: CORES,
+    paleta: PALETA
+  }
+  assert.equal(construirOpcaoBarras(base).legend.itemGap, 16)
+  assert.equal(construirOpcaoBarras({ ...base, compacto: true }).legend.itemGap, 10)
+})

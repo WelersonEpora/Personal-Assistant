@@ -43,6 +43,11 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 
+// Navegação em drawer no mobile (desktop mantém a sidebar fixa) — fecha ao
+// trocar de rota e ao tocar no overlay.
+const menuAberto = ref(false)
+watch(() => route.fullPath, () => { menuAberto.value = false })
+
 const pendentesRevisao = ref(0)
 let intervalId = null
 
@@ -90,14 +95,16 @@ function sair() {
 </script>
 
 <template>
-  <div class="app-shell">
-    <aside class="sidebar">
+  <div class="app-shell" :class="{ 'menu-aberto': menuAberto }">
+    <div class="drawer-overlay" @click="menuAberto = false"></div>
+    <aside class="sidebar" :class="{ open: menuAberto }">
       <div class="sidebar-brand">
         <div class="sidebar-brand-mark">🏋️</div>
         <div>
           <div class="sidebar-brand-name">Personal Assistant</div>
           <div class="sidebar-brand-sub">Painel de gestão</div>
         </div>
+        <button class="sidebar-close" type="button" aria-label="Fechar menu" @click="menuAberto = false">✕</button>
       </div>
 
       <nav>
@@ -128,6 +135,7 @@ function sair() {
 
     <div class="main-col">
       <header class="topbar">
+        <button class="topbar-menu-btn" type="button" aria-label="Abrir menu" @click="menuAberto = true">☰</button>
         <div class="topbar-title">{{ route.meta.titulo || '' }}</div>
         <div class="topbar-right">
           <img v-if="fotoUrl" :src="fotoUrl" class="avatar sz-sm" alt="" />

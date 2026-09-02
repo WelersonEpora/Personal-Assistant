@@ -424,7 +424,11 @@ MVP completo e verificado de ponta a ponta:
   (retrocompatível — sem parâmetro, comportamento antigo); o Histórico usa isso,
   abrindo em "Últimos 90 dias" e só com `tipo = atendimento` (avaliação física
   saiu do Histórico). Validação de data em `shared/utils/periodo.js`.
-  284 testes automatizados (`node --test`, unitários +
+  Adendo 2026-09-02: `status = "abertos"` (→ `status <> 'confirmado'`) — a tela
+  **Relatos** (`/admin/registros`) virou a caixa de entrada do pipeline (só não
+  confirmados; confirmado vive só no Histórico), sem filtro de tempo e sem a aba
+  "Confirmados".
+  308 testes automatizados (`node --test`, unitários +
   integração contra banco de teste dedicado).
 - **Frontend**: app Vue 3 + Vite + PWA único (`/captura` mobile-first
   offline, `/admin` gestão/validação), IndexedDB + fila de sincronização

@@ -488,4 +488,12 @@ async function salvar() {
 .af-chips { display: flex; flex-wrap: wrap; gap: 10px; }
 .af-chips label { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
 .af-postural-titulo { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+
+@media (max-width: 760px) {
+  /* os field-row deste form têm larguras fixas em px inline - só !important vence */
+  .field-row { grid-template-columns: 1fr !important; }
+  .af-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .af-metodo-linha select { min-width: 0; flex: 1 1 100%; }
+  .af-metodo-linha input[type='number'] { max-width: none; flex: 1 1 auto; }
+}
 </style>

@@ -30,6 +30,14 @@ html, body { height: 100%; }
 }
 .sidebar-brand-name { font-size: 14.5px; font-weight: 700; line-height: 1.2; }
 .sidebar-brand-sub { font-size: 11px; color: #7d8093; }
+/* botão de fechar do drawer - só aparece no mobile (ver media query) */
+.sidebar-close {
+  display: none; margin-left: auto; flex: none;
+  width: 30px; height: 30px; border-radius: var(--radius-sm);
+  align-items: center; justify-content: center;
+  font-size: 13px; color: #7d8093;
+}
+.sidebar-close:hover { color: #fff; background: #1e2030; }
 
 .nav-group-label {
   font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
@@ -70,6 +78,9 @@ html, body { height: 100%; }
 /* ------------------------------------------------------------------ main */
 .main-col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 
+/* overlay do drawer de navegação - inerte no desktop, ativado na media query */
+.drawer-overlay { display: none; }
+
 .topbar {
   height: 62px; flex: none;
   background: var(--color-surface);
@@ -77,7 +88,15 @@ html, body { height: 100%; }
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 28px;
 }
-.topbar-title { font-size: 16px; font-weight: 700; }
+.topbar-title { font-size: 16px; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* botão de menu (hambúrguer) - só aparece no mobile (ver media query) */
+.topbar-menu-btn {
+  display: none; flex: none;
+  width: 40px; height: 40px; border-radius: var(--radius-md);
+  align-items: center; justify-content: center;
+  font-size: 20px; color: var(--color-text-secondary);
+}
+.topbar-menu-btn:hover { background: var(--color-surface-alt); }
 .topbar-right { display: flex; align-items: center; gap: 14px; }
 .topbar-right .avatar.sz-sm { width: 36px; height: 36px; font-size: 13px; }
 .sync-pill {
@@ -359,10 +378,102 @@ table.data-table tbody tr:last-child td { border-bottom: none; }
 }
 
 @media (max-width: 760px) {
-  .app-shell { flex-direction: column; height: auto; min-height: 100vh; overflow: visible; }
-  .sidebar { width: 100%; flex-direction: row; align-items: center; overflow-x: auto; }
-  .sidebar-brand, .sidebar-footer { display: none; }
-  .nav-group-label { display: none; }
-  nav { display: flex; gap: 4px; }
-  .content { padding: 18px; }
+  .app-shell { flex-direction: column; height: 100dvh; }
+  /* flexbox: sem min-height:0 a .main-col cresce até o conteúdo e o
+     overflow-y:auto da .content nunca ativa (topbar fixa, conteúdo rola). */
+  .main-col { min-height: 0; }
+
+  /* --- sidebar vira drawer deslizante da esquerda --- */
+  .sidebar {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    width: 82vw; max-width: 300px;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform .22s cubic-bezier(.2, .8, .2, 1);
+    overflow-y: auto;
+  }
+  .sidebar.open { transform: translateX(0); box-shadow: var(--shadow-lg); }
+  .sidebar-brand { padding-bottom: 14px; }
+  .sidebar-close { display: flex; }
+
+  .drawer-overlay {
+    display: block;
+    position: fixed; inset: 0;
+    background: rgba(15, 17, 25, .42);
+    opacity: 0; pointer-events: none;
+    transition: opacity .18s ease;
+    z-index: 45;
+  }
+  .app-shell.menu-aberto .drawer-overlay { opacity: 1; pointer-events: auto; }
+
+  /* --- topbar com botão de menu --- */
+  .topbar { padding: 0 12px; gap: 10px; }
+  .topbar-menu-btn { display: flex; }
+  .topbar-title { font-size: 15px; }
+  .content { min-height: 0; padding: 16px 14px 40px; }
+
+  /* --- grids de largura fixa colapsam --- */
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .dashboard-grid, .revisao-grid { grid-template-columns: 1fr; }
+  .field-row { grid-template-columns: 1fr; }
+  .form-grid { grid-template-columns: 1fr; max-width: none; }
+
+  /* modais centrados (.card dentro de .sheet-overlay) cabem na tela */
+  .sheet-overlay > .card {
+    max-width: calc(100vw - 24px);
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
+  }
+
+  .revisao-actions { flex-wrap: wrap; }
+  .revisao-actions .btn { flex: 1 1 auto; }
+  .revisao-actions .btn-danger-ghost { margin-left: 0 !important; }
+
+  /* --- tabelas: 1ª coluna fixa + rolagem horizontal do resto --- */
+  .table-wrap { -webkit-overflow-scrolling: touch; }
+  table.data-table { font-size: 12.5px; }
+  table.data-table th { padding: 10px 12px; }
+  table.data-table td { padding: 10px 12px; }
+  table.data-table th:first-child,
+  table.data-table td:first-child {
+    position: sticky; left: 0;
+    background: var(--color-surface);
+    box-shadow: 1px 0 0 var(--color-border);
+  }
+  table.data-table tbody tr:hover td:first-child { background: var(--color-surface-alt); }
+
+  /* --- tabelas com .stack: viram cartões empilhados (rótulo: valor) --- */
+  table.data-table.stack,
+  table.data-table.stack tbody,
+  table.data-table.stack tr,
+  table.data-table.stack td { display: block; }
+  table.data-table.stack thead { display: none; }
+  .table-wrap:has(> table.data-table.stack) { overflow-x: visible; }
+  table.data-table.stack tr {
+    padding: 12px 4px;
+    border-bottom: 1px solid var(--color-border);
+  }
+  table.data-table.stack tbody tr:last-child { border-bottom: none; }
+  table.data-table.stack td {
+    position: static; box-shadow: none;
+    padding: 3px 0;
+    text-align: left;
+    white-space: normal;
+    display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+  }
+  table.data-table.stack td::before {
+    content: attr(data-label);
+    flex: none;
+    font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+    color: var(--color-text-faint);
+  }
+  table.data-table.stack td:first-child {
+    display: block;
+    font-size: 14px; font-weight: 700;
+    margin-bottom: 4px;
+  }
+  table.data-table.stack td:first-child::before { display: none; }
+  table.data-table.stack tbody tr:hover { background: none; }
+  table.data-table.stack tbody tr:hover td:first-child { background: none; }
 }

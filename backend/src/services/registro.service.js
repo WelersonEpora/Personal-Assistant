@@ -1,5 +1,6 @@
 "use strict";
 
+const { Op } = require("sequelize");
 const registroRepository = require("../repositories/registro.repository");
 const storageAudio = require("./storage-audio.service");
 const { enfileirarRegistro } = require("../jobs/processador-fila-ia");
@@ -12,6 +13,17 @@ const STATUS_REPROCESSAVEIS = new Set([Registro.STATUS.ERRO_TRANSCRICAO, Registr
 // Filtros opcionais (docs/adr/0019 - janela por `data_atendimento`). O Histórico
 // abre com "Últimos 90 dias" e passa `tipo = atendimento`; sem filtro, mantém o
 // comportamento antigo (usado pela fila de revisão e pelo badge da navegação).
+//
+// `status = "abertos"` (docs/adr/0020, adendo): a tela de Relatos é a caixa de
+// entrada do pipeline - mostra tudo que ainda não virou dado oficial. Um
+// Registro confirmado sai dali e passa a viver só no Histórico. Qualquer outro
+// valor continua sendo filtro por status exato.
+function resolverStatus(status) {
+  if (!status) return undefined;
+  if (status === "abertos") return { [Op.ne]: Registro.STATUS.CONFIRMADO };
+  return status;
+}
+
 async function listar(equipeId, { status, de, ate, alunoId, tipo } = {}) {
   const deValido = de ? validarDataIso(String(de), "de") : null;
   const ateValido = ate ? validarDataIso(String(ate), "ate") : null;
@@ -23,7 +35,7 @@ async function listar(equipeId, { status, de, ate, alunoId, tipo } = {}) {
   }
   return registroRepository.listarPorEquipe({
     equipeId,
-    status,
+    status: resolverStatus(status),
     de: deValido,
     ate: ateValido,
     alunoId: alunoId || null,

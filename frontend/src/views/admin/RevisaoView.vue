@@ -298,7 +298,7 @@ async function excluirRegistro() {
       </div>
     </div>
 
-    <div>
+    <div class="revisao-lateral">
       <div class="card" style="margin-bottom: 16px;">
         <div class="card-header"><h3>Fila de revisão</h3></div>
         <div v-if="!fila.length" class="empty-state" style="padding: 24px;">Fila vazia 🎉</div>
@@ -320,7 +320,7 @@ async function excluirRegistro() {
           </span>
         </button>
       </div>
-      <div class="card">
+      <div class="card revisao-dicas">
         <div class="card-header"><h3>Dicas</h3></div>
         <div class="card-pad" style="font-size: 12.5px; color: var(--color-text-secondary); line-height: 1.6;">
           Corrija números e nomes de exercícios antes de confirmar — isso ajuda a manter o histórico do aluno preciso.
@@ -336,4 +336,17 @@ async function excluirRegistro() {
 /* docs/adr/0019 - "Atendimento em" (fato do mundo) vs "registrado em" (fato do sistema) */
 .detail-header-faint { color: var(--color-text-faint); font-weight: 400; }
 .field-hint { display: block; margin-top: 4px; font-size: 11.5px; color: var(--color-text-faint); }
+
+/* No mobile a coluna única fica: fila primeiro (pra escolher o relato),
+   depois o detalhe; as "Dicas" saem de cena. */
+@media (max-width: 760px) {
+  .revisao-grid { display: flex; flex-direction: column; gap: 14px; }
+  .revisao-lateral { order: -1; }
+  .revisao-lateral .card { margin-bottom: 0 !important; }
+  .revisao-dicas { display: none; }
+  .revisao-card { padding: 16px 14px; }
+  .revisao-source { flex-wrap: wrap; }
+  .revisao-source-toggle { margin-left: 0; }
+  .detail-header { gap: 12px; }
+}
 </style>

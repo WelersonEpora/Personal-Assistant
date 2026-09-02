@@ -15,6 +15,7 @@ import {
 import { useToasts } from '../../composables/useToasts.js'
 import { useConfirm } from '../../composables/useConfirm.js'
 import ToastStack from '../../components/ToastStack.vue'
+import FiltroSegmentado from '../../components/FiltroSegmentado.vue'
 
 const { toasts, showToast } = useToasts()
 const { confirmar } = useConfirm()
@@ -23,12 +24,12 @@ const { confirmar } = useConfirm()
 // confirmados (docs/adr/0020, adendo). Confirmado virou dado oficial e passa
 // a viver só no Histórico - não há filtro "Confirmados" aqui de propósito.
 const FILTROS = [
-  { status: 'todos', label: 'Todos' },
-  { status: 'recebido', label: 'Recebidos' },
-  { status: 'transcrevendo', label: 'Transcrevendo' },
-  { status: 'interpretando', label: 'Interpretando' },
-  { status: 'aguardando_revisao', label: 'Aguardando revisão' },
-  { status: 'erro_transcricao', label: 'Com erro' }
+  { valor: 'todos', rotulo: 'Todos' },
+  { valor: 'recebido', rotulo: 'Recebidos' },
+  { valor: 'transcrevendo', rotulo: 'Transcrevendo' },
+  { valor: 'interpretando', rotulo: 'Interpretando' },
+  { valor: 'aguardando_revisao', rotulo: 'Aguardando revisão' },
+  { valor: 'erro_transcricao', rotulo: 'Com erro' }
 ]
 
 const router = useRouter()
@@ -173,17 +174,7 @@ async function reprocessarRegistro(registro) {
 
     <div class="card" style="margin-bottom: 16px;">
       <div class="table-toolbar">
-        <div class="filter-tabs">
-          <span
-            v-for="filtro in FILTROS"
-            :key="filtro.status"
-            class="filter-tab"
-            :class="{ active: filtroAtivo === filtro.status }"
-            @click="filtroAtivo = filtro.status"
-          >
-            {{ filtro.label }}
-          </span>
-        </div>
+        <FiltroSegmentado v-model="filtroAtivo" :opcoes="FILTROS" rotulo="Status" />
         <input v-model="busca" class="search-input" placeholder="Buscar por aluno…" />
       </div>
     </div>

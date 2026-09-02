@@ -485,6 +485,11 @@ MVP completo e verificado de ponta a ponta:
   Seletor de período compartilhado (`components/SeletorPeriodo.vue` +
   `utils/periodos.js`) usado também pelo filtro do Histórico
   (`HistoricoView.vue` — período + aluno, default "Últimos 90 dias").
+  Filtro de opção compartilhado `components/FiltroSegmentado.vue`
+  (ADR-0020 adendo 2026-09-02): régua de chips `.filter-tab` no desktop, botão
+  único + dropdown em `≤ 760px`; prop `multiple` (array, vazio = "todos"). Em
+  `RegistrosView` (status), `SeletorPeriodo` (presets), `ExerciciosView`
+  (origem) e `RadarView` (assunto, `multiple`).
   59 testes automatizados (`node --test` + `fake-indexeddb`; +
   `echarts-option-builder.test.js`, `echarts-bar-option-builder.test.js`,
   `periodos.test.js`, `avaliacaoFisica.test.js`, `gravacaoVoz.test.js` e

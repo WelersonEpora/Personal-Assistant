@@ -5,6 +5,7 @@ import { tipoMeta, dataInformada, agruparPorMes } from '../../utils/radar.js'
 import { useToasts } from '../../composables/useToasts.js'
 import ToastStack from '../../components/ToastStack.vue'
 import SeletorPeriodo from '../../components/SeletorPeriodo.vue'
+import FiltroSegmentado from '../../components/FiltroSegmentado.vue'
 
 // docs/adr/0022 - Radar ("fofoqueira científica"). Feed global de ponteiros
 // para publicações. NÃO é fonte de conhecimento: a IA aponta, o personal
@@ -21,6 +22,7 @@ const gruposDisponiveis = ref([]) // [{ chave, nome }] - vem da API
 const gruposSelecionados = ref([]) // chaves ativas no filtro
 
 const meses = computed(() => agruparPorMes(itens.value))
+const opcoesAssunto = computed(() => gruposDisponiveis.value.map((g) => ({ valor: g.chave, rotulo: g.nome })))
 
 async function carregar() {
   if (!periodo.value) return
@@ -46,10 +48,8 @@ function aoMudarPeriodo(intervalo) {
   carregar()
 }
 
-function alternarGrupo(chave) {
-  const i = gruposSelecionados.value.indexOf(chave)
-  if (i === -1) gruposSelecionados.value.push(chave)
-  else gruposSelecionados.value.splice(i, 1)
+function aoMudarAssunto(chaves) {
+  gruposSelecionados.value = chaves
   carregar()
 }
 </script>
@@ -83,26 +83,13 @@ function alternarGrupo(chave) {
       />
       <div v-if="gruposDisponiveis.length" class="radar-filtro-grupos">
         <span class="radar-filtro-label">Assunto</span>
-        <div class="filter-tabs">
-          <button
-            type="button"
-            class="filter-tab"
-            :class="{ active: !gruposSelecionados.length }"
-            @click="gruposSelecionados = []; carregar()"
-          >
-            Todos
-          </button>
-          <button
-            v-for="g in gruposDisponiveis"
-            :key="g.chave"
-            type="button"
-            class="filter-tab"
-            :class="{ active: gruposSelecionados.includes(g.chave) }"
-            @click="alternarGrupo(g.chave)"
-          >
-            {{ g.nome }}
-          </button>
-        </div>
+        <FiltroSegmentado
+          :model-value="gruposSelecionados"
+          :opcoes="opcoesAssunto"
+          rotulo="Assunto"
+          multiple
+          @update:model-value="aoMudarAssunto"
+        />
       </div>
     </div>
 
@@ -186,7 +173,7 @@ function alternarGrupo(chave) {
 .radar-filtro { padding: 14px 16px; margin-bottom: 24px; display: flex; flex-direction: column; gap: 12px; }
 .radar-filtro-grupos {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
   flex-wrap: wrap;
   border-top: 1px solid var(--color-border);
@@ -199,6 +186,10 @@ function alternarGrupo(chave) {
   text-transform: uppercase;
   color: var(--color-text-faint);
   flex: none;
+}
+/* no mobile o próprio botão do FiltroSegmentado já rotula ("Assunto: …") */
+@media (max-width: 760px) {
+  .radar-filtro-label { display: none; }
 }
 
 .radar-feed { display: flex; flex-direction: column; gap: 28px; }

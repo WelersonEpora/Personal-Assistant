@@ -6,6 +6,13 @@ import { useToasts } from '../../composables/useToasts.js'
 import { useConfirm } from '../../composables/useConfirm.js'
 import ToastStack from '../../components/ToastStack.vue'
 import ExercicioMidia from '../../components/ExercicioMidia.vue'
+import FiltroSegmentado from '../../components/FiltroSegmentado.vue'
+
+const OPCOES_ORIGEM = [
+  { valor: 'todos', rotulo: 'Todos' },
+  { valor: 'globais', rotulo: 'Globais' },
+  { valor: 'proprios', rotulo: 'Da minha equipe' }
+]
 
 const DIFICULDADES = [
   { valor: 'iniciante', label: 'Iniciante' },
@@ -232,11 +239,7 @@ function rotuloDificuldade(valor) {
 
     <div class="card" style="margin-bottom: 20px;">
       <div class="table-toolbar">
-        <div class="filter-tabs">
-          <button type="button" class="filter-tab" :class="{ active: filtroOrigem === 'todos' }" @click="filtroOrigem = 'todos'">Todos</button>
-          <button type="button" class="filter-tab" :class="{ active: filtroOrigem === 'globais' }" @click="filtroOrigem = 'globais'">Globais</button>
-          <button type="button" class="filter-tab" :class="{ active: filtroOrigem === 'proprios' }" @click="filtroOrigem = 'proprios'">Da minha equipe</button>
-        </div>
+        <FiltroSegmentado v-model="filtroOrigem" :opcoes="OPCOES_ORIGEM" rotulo="Origem" />
         <input v-model="busca" type="search" class="search-input" placeholder="Buscar por nome, grupo ou equipamento..." />
       </div>
 

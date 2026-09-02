@@ -361,3 +361,23 @@ confirmar, ele já virou `validacao` e seu lugar é o Histórico.
 - Sem tabela nova, sem escrita, ADR-0007 intacta. Teste novo em
   `registro.service.test.js` (`status = "abertos"` traz não confirmados, exclui
   confirmados).
+
+## Adendo (2026-09-02): `FiltroSegmentado` — chips no desktop, dropdown no mobile
+
+Puro UI, sem contrato. As réguas de chips de filtro de opção única
+(`.filter-tab`) empilhavam em 2-3 linhas no mobile (viewing `/admin` no celular),
+ocupando altura e escondendo qual estava ativo.
+
+`components/FiltroSegmentado.vue` (`v-model` + `opcoes: [{ valor, rotulo }]` +
+`rotulo` da dimensão): no desktop, a mesma régua de chips de antes; em
+`≤ 760px` (breakpoint do `/admin`), um único botão com o estilo do chip ativo
++ chevron que abre a lista (mesmo padrão do menu "⋯" de `AlunoDetalheView` —
+`click`-fora / `Escape` para fechar). Prop `multiple`: seleção múltipla
+(`modelValue` é array; vazio = "todos"; rendera a opção "Todos"/`rotuloTodos`
+que limpa; o menu não fecha ao marcar). Trocado em 4 telas: `RegistrosView`
+(status), `SeletorPeriodo` (presets, usado por Histórico + Atendimentos),
+`ExerciciosView` (origem) e `RadarView` (assunto, `multiple` — a régua de
+`gruposSelecionados` do ADR-0022; a caption "ASSUNTO" some no mobile, o botão já
+rotula). `AvaliacaoFisicaComparar` (seleção de métricas do gráfico) fica de
+fora. Não vira ADR própria — é refinamento visual do mesmo assunto de filtros
+desta ADR.

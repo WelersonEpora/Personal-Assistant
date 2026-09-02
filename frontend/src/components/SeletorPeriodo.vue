@@ -6,6 +6,7 @@
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { PRESETS_PERIODO, resolverPeriodo, periodoPronto } from '../utils/periodos.js'
 import CampoData from './CampoData.vue'
+import FiltroSegmentado from './FiltroSegmentado.vue'
 
 const props = defineProps({
   // chaves de PRESETS_PERIODO a exibir, na ordem dada
@@ -21,6 +22,7 @@ const opcoes = computed(() =>
   props.presets
     .map((chave) => PRESETS_PERIODO.find((p) => p.chave === chave))
     .filter(Boolean)
+    .map((p) => ({ valor: p.chave, rotulo: p.rotulo }))
 )
 
 function emitir() {
@@ -34,18 +36,7 @@ onMounted(emitir)
 
 <template>
   <div class="seletor-periodo">
-    <div class="filter-tabs">
-      <button
-        v-for="opcao in opcoes"
-        :key="opcao.chave"
-        type="button"
-        class="filter-tab"
-        :class="{ active: preset === opcao.chave }"
-        @click="preset = opcao.chave"
-      >
-        {{ opcao.rotulo }}
-      </button>
-    </div>
+    <FiltroSegmentado v-model="preset" :opcoes="opcoes" rotulo="Período" />
 
     <div v-if="preset === 'personalizado'" class="seletor-periodo-datas">
       <div class="field-group">

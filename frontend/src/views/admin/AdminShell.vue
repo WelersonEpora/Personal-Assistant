@@ -26,6 +26,10 @@ const NAV_ITEMS = [
     ]
   },
   {
+    grupo: 'Radar',
+    itens: [{ nome: 'admin-radar', icone: '📡', label: 'Radar' }]
+  },
+  {
     grupo: 'Sistema',
     itens: [
       { nome: 'admin-equipe', icone: '🏢', label: 'Equipe', somenteOwner: true },

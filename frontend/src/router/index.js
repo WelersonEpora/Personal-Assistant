@@ -54,6 +54,9 @@ const routes = [
       },
       { path: 'historico', name: 'admin-historico', component: () => import('../views/admin/HistoricoView.vue'), meta: { titulo: 'Histórico' } },
       { path: 'atendimentos', name: 'admin-atendimentos', component: () => import('../views/admin/AtividadesView.vue'), meta: { titulo: 'Atendimentos' } },
+      // docs/adr/0022 - Radar ("fofoqueira científica"). Feed global, visível
+      // para todo usuário autenticado (não é somenteOwner).
+      { path: 'radar', name: 'admin-radar', component: () => import('../views/admin/RadarView.vue'), meta: { titulo: 'Radar' } },
       {
         path: 'equipe',
         name: 'admin-equipe',

@@ -289,6 +289,26 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
   separadas. Adendo (2026-09-01): filtro opcional `membro_id` + bloco
   `por_membro` — recorte por personal (`registro.usuario_id`, "quem
   registrou"), lente de leitura, não controle de acesso.
+- **O Radar (ADR-0022) é uma ilha.** A IA publica os itens sem revisão humana
+  (exceção deliberada e restrita — item do Radar nunca é conhecimento oficial,
+  só um ponteiro para a fonte que o personal confere). O job (`radar-fofoqueira.js`,
+  Gemini + Google Search grounding, semanal, `RADAR_JOB_ATIVO`) e a tela
+  (`/admin/radar`, feed **global**, não escopado por equipe) não leem nem
+  escrevem `resultado_ia`, `validacao`, `avaliacao_fisica*` ou os prompts do
+  acompanhamento. Tabelas próprias: `radar_execucao`, `radar_item`.
+  Fontes (incl. brasileiras: SciELO, MS, CBCE, CONFEF, SBMEE) e grupos de
+  assunto em `backend/src/config/radar.js` (commit, não tela); o ciclo faz
+  **uma busca por grupo** (`gruposAssunto`), janela 30 dias, modelo
+  `RADAR_MODEL` (default `gemini-pro-latest`, separado do Flash do pipeline).
+  A API tem **só** `GET /api/v1/radar` (leitura, qualquer usuário; filtros
+  `de`/`ate` por `created_at` e `grupos=<chaves>`) — como o feed é global,
+  rodar a busca e curar são de **operador do sistema**, via script (`npm run
+  radar:rodar` / `radar:ocultar` / `radar:execucoes`), não endpoint nem papel
+  de equipe. Sem feedback do usuário (tabela `radar_feedback` removida) — a
+  qualidade fica no operador via `radar:execucoes`. Dedup: DOI da URL →
+  assinatura do título → Jaccard ≥ 0,90 → lista "já no Radar" no prompt.
+  `normalizarItem` encaixa os assuntos da IA no vocabulário fixo dos grupos.
+  (Adendos 2026-09-02.)
 - Toda decisão arquitetural relevante e difícil de reverter vira ADR em
   `docs/adr/`, numerada sequencialmente, com Contexto/Decisão/Alternativas
   consideradas/Consequências. Decisões operacionais ou de baixa relevância
@@ -334,6 +354,7 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
 | 0019 | Data do atendimento separada das datas do sistema |
 | 0020 | Tela de Atendimentos (relatório de atividade por período) |
 | 0021 | Interação de gravação de voz (segurar + travar, estilo WhatsApp) |
+| 0022 | Radar — atualização profissional ("fofoqueira científica") |
 
 ## Estado atual
 

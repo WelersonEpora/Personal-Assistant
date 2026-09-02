@@ -566,15 +566,126 @@ async function interpretarAvaliacaoFisica({ contextoConsolidado, catalogo }) {
   };
 }
 
+// docs/adr/0022-radar-atualizacao-profissional.md: a "fofoqueira científica".
+// UMA chamada com Google Search grounding - a IA vigia as fontes da allowlist
+// e avisa quando acha algo que pode interessar a um personal. NÃO usa
+// responseSchema (incompatível com googleSearch no Gemini): o prompt pede um
+// array JSON e o parse é tolerante (descarta o malformado depois, no service).
+// A IA aqui NÃO é autoridade - ela aponta, o personal vai à fonte.
+const INSTRUCAO_RADAR = `Você vigia um conjunto FIXO de fontes científicas confiáveis e avisa um PERSONAL TRAINER quando aparece uma publicação que pode merecer a atenção dele.
+
+Você NÃO é autoridade científica. Seu papel é APONTAR, não concluir. O personal sempre vai abrir a fonte original e tirar as próprias conclusões.
+
+Regras obrigatórias:
+- Use APENAS as fontes listadas abaixo. Se a publicação não vier de uma delas, NÃO inclua.
+- Considere apenas o período informado (janela de busca). Publicações fora da janela não entram.
+- Faça várias buscas nas fontes permitidas para cobrir bem os assuntos. Devolva TODAS as publicações realmente relevantes da janela, até o limite de {MAX_ITENS}. Se de fato não houver nada relevante, devolva [] - mas antes de desistir, tente outras buscas.
+- "url": link DIRETO para a fonte primária (a página do artigo/documento no domínio da fonte, ou um doi.org). Nunca um blog, agregador ou release de imprensa. Se não tiver certeza de que o link é real e direto, NÃO inclua o item.
+- "resumo": o que o documento diz, segundo o abstract ou a própria página. NÃO interprete além disso, não extrapole, não dê números fora de contexto.
+- "motivo_relevancia": por que isso pode interessar a um personal. SEM superlativo ("é uma revisão sistemática sobre frequência de treino", nunca "estudo que muda tudo").
+- NUNCA invente publicação, autor, periódico ou data.
+- NÃO pare no PubMed: faça buscas específicas nas fontes brasileiras da lista (SciELO, CBCE, SBMEE, Ministério da Saúde) e verifique mudanças regulatórias do CONFEF/CREF. Traga o que for relevante delas, mesmo que a maior parte dos resultados venha de fontes internacionais.
+- Se a publicação que você encontrou JÁ ESTÁ na lista "JÁ NO RADAR" abaixo, NÃO a inclua - nem com o título reescrito, nem com outra URL (doi.org vs pubmed etc.). Confira por assunto/autores, não só pelo texto exato do título.
+
+Devolva SOMENTE um array JSON (sem texto em volta), cada item com:
+- "titulo": título claro em português do Brasil (pode traduzir o original).
+- "fonte": nome da fonte/veículo (ex.: "British Journal of Sports Medicine").
+- "url": link direto (ver regra acima).
+- "tipo": um de "diretriz", "position_stand", "revisao_sistematica", "meta_analise", "estudo_primario", "consenso", "outro".
+- "data_informada": data de publicação como você a encontrou (texto livre, ""  se não souber).
+- "resumo": 2 a 4 frases (ver regra acima).
+- "motivo_relevancia": 1 a 2 frases (ver regra acima).
+- "assuntos": lista com 1 a 3 dos assuntos de interesse abaixo aos quais o item se encaixa.`;
+
+function montarPromptRadar({ assuntos, fontes, janela, criterios, maxItens, jaPublicados = [], foco = null }) {
+  const blocoFontes = fontes.map((f) => `- ${f.nome} (${f.dominio})`).join("\n");
+  const blocoAssuntos = assuntos.map((a) => `- ${a}`).join("\n");
+  const blocoCriterios = criterios.map((c) => `- ${c}`).join("\n");
+  const partes = [
+    INSTRUCAO_RADAR.replace("{MAX_ITENS}", String(maxItens)),
+    "",
+    foco ? `FOCO DESTA BUSCA: ${foco}` : null,
+    `JANELA DE BUSCA: de ${janela.de} a ${janela.ate} (datas AAAA-MM-DD).`,
+    "",
+    "FONTES PERMITIDAS (use apenas estas):",
+    blocoFontes,
+    "",
+    "ASSUNTOS DE INTERESSE:",
+    blocoAssuntos,
+    "",
+    "CRITÉRIOS DE RELEVÂNCIA:",
+    blocoCriterios
+  ];
+  if (jaPublicados.length) {
+    partes.push(
+      "",
+      "JÁ NO RADAR (NÃO devolva nenhuma destas publicações de novo):",
+      jaPublicados.map((p) => `- ${p.titulo} (${p.url})`).join("\n")
+    );
+  }
+  return partes.filter((p) => p !== null).join("\n");
+}
+
+// Extrai o primeiro array JSON de um texto - tolera bloco cercado ```json,
+// texto em volta e "quase-JSON" no entorno. Retorna null se nada parsear.
+function extrairPrimeiroArrayJson(texto) {
+  if (!texto || typeof texto !== "string") return null;
+  const candidatos = [];
+  const cercado = texto.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (cercado) candidatos.push(cercado[1]);
+  candidatos.push(texto);
+  for (const candidato of candidatos) {
+    const inicio = candidato.indexOf("[");
+    const fim = candidato.lastIndexOf("]");
+    if (inicio === -1 || fim === -1 || fim < inicio) continue;
+    try {
+      const parsed = JSON.parse(candidato.slice(inicio, fim + 1));
+      if (Array.isArray(parsed)) return parsed;
+    } catch (_err) {
+      // tenta o próximo candidato
+    }
+  }
+  return null;
+}
+
+// Teto por chamada - Pro + Google Search grounding é lento (dezenas de
+// segundos a minutos). Estoura -> AbortError, não transitório, o service
+// pula esse grupo (docs/adr/0022, adendo 5). Um ciclo com 4 grupos pode
+// levar minutos; o job roda unref'd, ninguém espera.
+const RADAR_TIMEOUT_MS = 4 * 60 * 1000;
+
+async function buscarRadar({ assuntos, fontes, janela, criterios, maxItens, jaPublicados = [], foco = null }) {
+  const modelo = env.radar.model || env.gemini.model;
+  const prompt = montarPromptRadar({ assuntos, fontes, janela, criterios, maxItens, jaPublicados, foco });
+
+  const resposta = await gerarConteudo({
+    model: modelo,
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    config: { tools: [{ googleSearch: {} }], abortSignal: AbortSignal.timeout(RADAR_TIMEOUT_MS) }
+  });
+
+  const respostaCrua = resposta.text || "";
+  const bruto = extrairPrimeiroArrayJson(respostaCrua);
+  return {
+    itens: Array.isArray(bruto) ? bruto : [],
+    promptUsado: prompt,
+    respostaCrua,
+    modelo
+  };
+}
+
 module.exports = {
   transcreverAudio,
   interpretarRegistro,
   interpretarAvaliacaoFisica,
   gerarAvaliacaoMensal,
   gerarAnaliseSobDemanda,
+  buscarRadar,
   GeminiConfigError,
   // exportados para teste
   comRetry,
   ehTransitorio,
-  montarCatalogoParaPrompt
+  montarCatalogoParaPrompt,
+  montarPromptRadar,
+  extrairPrimeiroArrayJson
 };

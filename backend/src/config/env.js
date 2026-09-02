@@ -36,6 +36,17 @@ module.exports = {
     apiKey: process.env.GEMINI_API_KEY || null,
     model: process.env.GEMINI_MODEL || "gemini-flash-latest"
   },
+  // docs/adr/0022-radar-atualizacao-profissional.md - o Radar ("fofoqueira
+  // científica"). `jobAtivo` liga/desliga só o agendador semanal. `model` é
+  // configurável à parte do pipeline de Registro (que usa Flash, barato,
+  // roda a cada áudio): a busca do Radar - web search + julgar tipo de
+  // documento + seguir muitas restrições - precisa de um modelo mais forte, e
+  // roda só ~1x/semana, então o custo do Pro é irrelevante aqui. Se o id
+  // "gemini-pro-latest" mudar de nome, ajustar RADAR_MODEL no .env.
+  radar: {
+    jobAtivo: process.env.RADAR_JOB_ATIVO !== "false",
+    model: process.env.RADAR_MODEL || "gemini-pro-latest"
+  },
   // docs/adr/0010-armazenamento-arquivos-audio.md - caminho relativo a
   // backend/ em dev; em producao e o ponto de montagem do volume Docker.
   audioStorageDir: process.env.AUDIO_STORAGE_DIR || "storage/audio",

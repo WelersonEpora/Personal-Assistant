@@ -25,6 +25,8 @@ db.AvaliacaoPersonal = require("./avaliacaoPersonal")(sequelize);
 db.MetricaAvaliacaoFisica = require("./metricaAvaliacaoFisica")(sequelize);
 db.AvaliacaoFisica = require("./avaliacaoFisica")(sequelize);
 db.AvaliacaoFisicaMedida = require("./avaliacaoFisicaMedida")(sequelize);
+db.RadarExecucao = require("./radarExecucao")(sequelize);
+db.RadarItem = require("./radarItem")(sequelize);
 
 Object.values(db).forEach((model) => {
   if (model.associate) {

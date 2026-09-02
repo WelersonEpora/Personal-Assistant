@@ -5,6 +5,7 @@ const env = require("./config/env");
 const logger = require("./shared/logger");
 const { reenfileirarRegistrosPendentes } = require("./jobs/processador-fila-ia");
 const { iniciarAgendador: iniciarAgendadorAvaliacaoMensal } = require("./jobs/gerador-avaliacao-mensal");
+const { iniciarAgendadorRadar } = require("./jobs/radar-fofoqueira");
 
 app.listen(env.appPort, () => {
   logger.info(`Personal Assistant backend rodando na porta ${env.appPort}`);
@@ -19,4 +20,9 @@ app.listen(env.appPort, () => {
   // docs/adr/0015: lote mensal das avaliações do mês anterior. Idempotente
   // e com falha isolada por aluno - roda no boot e a cada 6h.
   iniciarAgendadorAvaliacaoMensal();
+
+  // docs/adr/0022: Radar ("fofoqueira científica"). Busca semanal nas fontes
+  // da allowlist; idempotente (não repete a semana) e falha isolada.
+  // RADAR_JOB_ATIVO=false desliga só este agendador.
+  iniciarAgendadorRadar();
 });

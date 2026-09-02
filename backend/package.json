@@ -14,6 +14,9 @@
     "criar-usuario": "node scripts/criar-usuario.js",
     "importar-bodymove": "node scripts/importar-avaliacoes-bodymove.js",
     "recalcular-derivadas-af": "node scripts/recalcular-derivadas-avaliacao-fisica.js",
+    "radar:rodar": "node scripts/radar-rodar.js",
+    "radar:ocultar": "node scripts/radar-ocultar.js",
+    "radar:execucoes": "node scripts/radar-execucoes.js",
     "test": "cross-env NODE_ENV=test node --test"
   },
   "dependencies": {

@@ -56,23 +56,26 @@ module.exports = {
   ],
 
   // nome + domínio. O domínio ajuda o prompt a preferir a fonte primária.
+  // `curto` é o rótulo enxuto que a tela do Radar mostra na linha de fontes
+  // (a resposta de GET /api/v1/radar serializa `fontes` a partir daqui -
+  // mesma "fonte única da verdade" dos grupos de assunto).
   // Fontes brasileiras entram junto - o prompt tem instrução explícita de
   // não parar no PubMed (senão a busca gravita toda para lá).
   fontes: [
-    { nome: "PubMed", dominio: "pubmed.ncbi.nlm.nih.gov" },
-    { nome: "British Journal of Sports Medicine", dominio: "bjsm.bmj.com" },
-    { nome: "American College of Sports Medicine (ACSM)", dominio: "acsm.org" },
-    { nome: "National Strength and Conditioning Association (NSCA)", dominio: "nsca.com" },
-    { nome: "Journal of the International Society of Sports Nutrition", dominio: "jissn.biomedcentral.com" },
-    { nome: "Sports Medicine (Springer)", dominio: "link.springer.com" },
-    { nome: "Organização Mundial da Saúde (OMS/WHO)", dominio: "who.int" },
-    { nome: "PEDro - Physiotherapy Evidence Database", dominio: "pedro.org.au" },
+    { nome: "PubMed", curto: "PubMed", dominio: "pubmed.ncbi.nlm.nih.gov" },
+    { nome: "British Journal of Sports Medicine", curto: "BJSM", dominio: "bjsm.bmj.com" },
+    { nome: "American College of Sports Medicine (ACSM)", curto: "ACSM", dominio: "acsm.org" },
+    { nome: "National Strength and Conditioning Association (NSCA)", curto: "NSCA", dominio: "nsca.com" },
+    { nome: "Journal of the International Society of Sports Nutrition", curto: "JISSN", dominio: "jissn.biomedcentral.com" },
+    { nome: "Sports Medicine (Springer)", curto: "Sports Medicine", dominio: "link.springer.com" },
+    { nome: "Organização Mundial da Saúde (OMS/WHO)", curto: "OMS", dominio: "who.int" },
+    { nome: "PEDro - Physiotherapy Evidence Database", curto: "PEDro", dominio: "pedro.org.au" },
     // --- Brasil ---
-    { nome: "SciELO Brasil (revistas científicas brasileiras)", dominio: "scielo.br" },
-    { nome: "Ministério da Saúde do Brasil - guias e diretrizes", dominio: "gov.br" },
-    { nome: "Colégio Brasileiro de Ciências do Esporte (CBCE)", dominio: "cbce.org.br" },
-    { nome: "CONFEF / CREF - conselho da profissão", dominio: "confef.org.br" },
-    { nome: "Sociedade Brasileira de Medicina do Exercício e do Esporte (SBMEE)", dominio: "sbmee.org.br" }
+    { nome: "SciELO Brasil (revistas científicas brasileiras)", curto: "SciELO Brasil", dominio: "scielo.br" },
+    { nome: "Ministério da Saúde do Brasil - guias e diretrizes", curto: "Ministério da Saúde", dominio: "gov.br" },
+    { nome: "Colégio Brasileiro de Ciências do Esporte (CBCE)", curto: "CBCE", dominio: "cbce.org.br" },
+    { nome: "CONFEF / CREF - conselho da profissão", curto: "CONFEF/CREF", dominio: "confef.org.br" },
+    { nome: "Sociedade Brasileira de Medicina do Exercício e do Esporte (SBMEE)", curto: "SBMEE", dominio: "sbmee.org.br" }
   ],
 
   criteriosRelevancia: [

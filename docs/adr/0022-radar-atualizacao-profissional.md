@@ -547,3 +547,15 @@ do `FiltroSegmentado`, e que só aparece no card expandido).
 - **Caveat:** termo que casa só no `resumo` mostra o card colapsado sem o
   trecho à vista (expande pra ver) — comportamento de busca de e-mail, aceito.
 - Sem endpoint novo, sem tabela, sem `ILIKE` no banco (nada de `unaccent`).
+
+### 10. linha de fontes na tela
+
+Logo abaixo do aviso "cada item é um ponto de partida", uma linha lista as
+**fontes priorizadas** e reforça que a varredura é **semanal** — o personal
+precisa saber de onde vem (e de onde não vem) o que está lendo.
+
+- `GET /api/v1/radar` passa a devolver `fontes` (`{ nome, dominio }`, o `nome`
+  é um rótulo `curto` novo em `config/radar.js`) — mesma "fonte única da
+  verdade" que já vale para `grupos` (§7). A tela só junta os nomes com `·`.
+- Sem card, sem contrato de escrita; `config/radar.js` continua sendo o único
+  lugar de curadoria de fontes (commit, não tela).

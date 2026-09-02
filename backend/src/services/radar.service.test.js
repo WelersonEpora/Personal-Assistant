@@ -217,6 +217,9 @@ test("listar: filtra por grupo de assunto; chave inválida é ignorada; resposta
   const todos = await radarService.listar({ grupos: "xpto" }); // chave inexistente -> ignorada
   assert.equal(todos.total, 2);
   assert.ok(todos.grupos.some((g) => g.chave === "forca" && g.nome));
+  // a resposta também traz a allowlist de fontes (linha informativa da tela)
+  assert.ok(todos.fontes.some((f) => f.nome === "PubMed" && f.dominio));
+  assert.ok(todos.fontes.some((f) => f.nome === "SciELO Brasil"));
 });
 
 test("snapAssunto: encaixa no vocabulário (exato, reformulado) e descarta o desconhecido", () => {

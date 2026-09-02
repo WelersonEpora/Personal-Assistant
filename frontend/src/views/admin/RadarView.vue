@@ -20,6 +20,7 @@ const carregando = ref(true)
 const periodo = ref(null) // { de, ate } - definido pelo SeletorPeriodo na montagem
 const gruposDisponiveis = ref([]) // [{ chave, nome }] - vem da API
 const gruposSelecionados = ref([]) // chaves ativas no filtro
+const fontes = ref([]) // [{ nome, dominio }] - allowlist de config/radar.js, via API
 
 // Card colapsado por padrão (triagem): tipo + título + fonte + data. Expande
 // pro resumo/motivo/tags e o link da fonte. Um aberto por vez, igual Relatos.
@@ -46,6 +47,7 @@ async function carregar() {
     })
     itens.value = dados.itens || []
     if (dados.grupos) gruposDisponiveis.value = dados.grupos
+    if (dados.fontes) fontes.value = dados.fontes
   } catch (_err) {
     // rede/servidor fora - mostra o aviso e mantém a lista anterior
     showToast('Não foi possível carregar o Radar.', 'warning')
@@ -86,14 +88,15 @@ function aoMudarAssunto(chaves) {
       </span>
     </div>
 
+    <p v-if="fontes.length" class="radar-fontes">
+      <span class="radar-howto-icon" aria-hidden="true">🔎</span>
+      <span>
+        <strong>Fontes priorizadas na busca</strong> (uma varredura por semana):
+        {{ fontes.map((f) => f.nome).join(' · ') }}.
+      </span>
+    </p>
+
     <div class="card radar-filtro">
-      <input
-        v-model="busca"
-        type="search"
-        class="search-input radar-busca"
-        placeholder="Buscar por título, resumo ou assunto…"
-        aria-label="Buscar por título, resumo ou assunto"
-      />
       <SeletorPeriodo
         :presets="['ultimos_30', 'ultimos_90', 'ano_atual', 'tudo', 'personalizado']"
         inicial="ultimos_90"
@@ -109,6 +112,13 @@ function aoMudarAssunto(chaves) {
           @update:model-value="aoMudarAssunto"
         />
       </div>
+      <input
+        v-model="busca"
+        type="search"
+        class="search-input radar-busca"
+        placeholder="Buscar por título, resumo ou assunto…"
+        aria-label="Buscar por título, resumo ou assunto"
+      />
     </div>
 
     <div v-if="carregando" class="empty-state">Carregando…</div>
@@ -150,7 +160,7 @@ function aoMudarAssunto(chaves) {
                 >⚠ link não verificado</span>
               </div>
             </div>
-            <span class="radar-chevron" :class="{ aberto: expandidoId === item.id }" aria-hidden="true">▾</span>
+            <span class="radar-chevron" :class="{ aberto: expandidoId === item.id }" aria-hidden="true">▼</span>
           </div>
 
           <div v-if="expandidoId === item.id" class="radar-item-corpo" @click.stop>
@@ -201,6 +211,18 @@ function aoMudarAssunto(chaves) {
 }
 .radar-howto-icon { color: var(--color-primary); font-weight: 700; flex: none; }
 .radar-howto strong { color: var(--color-text); font-weight: 700; }
+
+/* linha de fontes: logo abaixo do aviso, mais leve (sem caixa) */
+.radar-fontes {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  margin: -6px 2px 18px;
+  font-size: 12px;
+  color: var(--color-text-faint);
+  line-height: 1.55;
+}
+.radar-fontes strong { color: var(--color-text-secondary); font-weight: 700; }
 
 .radar-filtro { padding: 14px 16px; margin-bottom: 24px; display: flex; flex-direction: column; gap: 12px; }
 .radar-busca { width: 100%; }
@@ -260,12 +282,30 @@ function aoMudarAssunto(chaves) {
 }
 .radar-chevron {
   flex: none;
-  margin-top: 2px;
-  font-size: 11px;
-  color: var(--color-text-faint);
-  transition: transform 0.15s ease;
+  margin-top: 1px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
-.radar-chevron.aberto { transform: rotate(180deg); }
+.radar-item:hover .radar-chevron {
+  background: var(--color-surface-alt);
+  border-color: var(--color-border-strong);
+  color: var(--color-primary);
+}
+.radar-chevron.aberto {
+  transform: rotate(180deg);
+  color: var(--color-primary);
+  border-color: var(--color-primary-light);
+  background: var(--color-primary-light);
+}
 
 /* spine: o TIPO de documento, a espinha da triagem (+ aviso de link) */
 .radar-spine {

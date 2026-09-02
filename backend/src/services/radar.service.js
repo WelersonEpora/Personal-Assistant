@@ -326,7 +326,8 @@ function normalizarGrupos(valor) {
 
 // Filtros opcionais: janela por `created_at` (de/ate - mesma validação de
 // Atendimentos/Histórico) e grupos de assunto (chaves de config/radar.js).
-// A resposta traz `grupos` (chave + nome) para a tela montar os chips.
+// A resposta traz `grupos` (chave + nome) para a tela montar os chips e
+// `fontes` (nome curto + domínio) para a linha informativa de fontes.
 async function listar({ pagina, porPagina, de, ate, grupos } = {}) {
   const p = Math.max(1, Number.parseInt(pagina, 10) || 1);
   const pp = Math.min(MAX_POR_PAGINA, Math.max(1, Number.parseInt(porPagina, 10) || PADRAO_POR_PAGINA));
@@ -350,7 +351,8 @@ async function listar({ pagina, porPagina, de, ate, grupos } = {}) {
     total: count,
     pagina: p,
     por_pagina: pp,
-    grupos: RADAR.gruposAssunto.map((g) => ({ chave: g.chave, nome: g.nome }))
+    grupos: RADAR.gruposAssunto.map((g) => ({ chave: g.chave, nome: g.nome })),
+    fontes: RADAR.fontes.map((f) => ({ nome: f.curto || f.nome, dominio: f.dominio }))
   };
 }
 

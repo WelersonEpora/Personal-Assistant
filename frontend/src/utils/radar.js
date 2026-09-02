@@ -27,6 +27,27 @@ export function dataInformada(valor) {
   return limpo || null
 }
 
+// minúsculas + sem acento, para a busca textual da tela casar "analise" com
+// "análise". Entrada não-string vira "". A faixa ̀-ͯ são as marcas
+// diacríticas combinantes que o normalize('NFD') separa das letras.
+export function normalizar(texto) {
+  if (typeof texto !== 'string') return ''
+  return texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+}
+
+// Filtra o feed por um termo livre no título, no resumo e nos assuntos
+// (docs/adr/0022 §9) - os assuntos são a categoria fina do item, mais
+// específica que os 4 grandes grupos do filtro de cima. Termo vazio devolve
+// a lista inteira.
+export function filtrarPorBusca(itens, termo) {
+  const alvo = normalizar(termo).trim()
+  if (!alvo) return itens
+  return itens.filter((item) => {
+    const assuntos = Array.isArray(item.assuntos) ? item.assuntos.join(' ') : ''
+    return normalizar(`${item.titulo || ''} ${item.resumo || ''} ${assuntos}`).includes(alvo)
+  })
+}
+
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'

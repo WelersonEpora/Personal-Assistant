@@ -8,26 +8,26 @@ import { iniciais, corParaId } from '../../utils/registroStatus.js'
 import ConfirmDialog from '../../components/ConfirmDialog.vue'
 
 const NAV_ITEMS = [
-  { grupo: 'Visão geral', itens: [{ nome: 'admin-dashboard', icone: '📊', label: 'Dashboard' }] },
   {
+    // "olhar" - panoramas de leitura: o meu dia, a minha atividade, a área
+    grupo: 'Visão geral',
+    itens: [
+      { nome: 'admin-dashboard', icone: '📊', label: 'Dashboard' },
+      { nome: 'admin-atendimentos', icone: '📈', label: 'Atendimentos' },
+      { nome: 'admin-radar', icone: '📡', label: 'Radar' }
+    ]
+  },
+  {
+    // "fazer" - o pipeline do dia a dia, na ordem do fluxo:
+    // Relatos (entra) -> Revisão (confirma) -> Histórico (arquivo)
     grupo: 'Operação',
     itens: [
       { nome: 'admin-alunos', icone: '👥', label: 'Alunos' },
       { nome: 'admin-exercicios', icone: '🏋️', label: 'Exercícios' },
       { nome: 'admin-registros', icone: '🎙️', label: 'Relatos' },
-      { nome: 'admin-revisao', icone: '✅', label: 'Revisão', badge: true }
+      { nome: 'admin-revisao', icone: '✅', label: 'Revisão', badge: true },
+      { nome: 'admin-historico', icone: '🕒', label: 'Histórico' }
     ]
-  },
-  {
-    grupo: 'Registros',
-    itens: [
-      { nome: 'admin-historico', icone: '🕒', label: 'Histórico' },
-      { nome: 'admin-atendimentos', icone: '📈', label: 'Atendimentos' }
-    ]
-  },
-  {
-    grupo: 'Radar',
-    itens: [{ nome: 'admin-radar', icone: '📡', label: 'Radar' }]
   },
   {
     grupo: 'Sistema',

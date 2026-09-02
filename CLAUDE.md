@@ -474,7 +474,7 @@ MVP completo e verificado de ponta a ponta:
   "item 0" do formulário de "Editar", num `CampoData.vue` (calendário próprio,
   sem `<input type=date>` nativo).
   Tela de Atendimentos (docs/adr/0020): `views/admin/AtividadesView.vue`
-  (`/admin/atendimentos`, menu REGISTROS abaixo de Histórico), consome
+  (`/admin/atendimentos`), consome
   `services/atividades.service.js`. Filtros (período/aluno/personal/tipo/só
   confirmados — o seletor de personal e a seção "por personal" só aparecem em
   equipe com mais de um membro),

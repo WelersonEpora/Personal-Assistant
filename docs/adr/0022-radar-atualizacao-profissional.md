@@ -199,6 +199,9 @@ Nenhuma escrita fora das 3 tabelas do Radar. ADR-0007 intacta.
   Visível para todos os usuários autenticados (não é `somenteOwner`).
 - **Menu:** grupo **próprio**, logo antes de "Sistema" no menu do `/admin`
   (ícone de antena/radar) — separado de REGISTROS, que é dado de aluno.
+  *(Revisto em 2026-09-02: Radar foi para o grupo "Visão geral", abaixo de
+  Dashboard e Atendimentos — panorama de leitura, não pipeline. Ver adendo
+  "reorganização do menu" na ADR-0020.)*
 - **Serviço:** `services/radar.service.js` (usa `http.js`): `listar()`,
   `enviarFeedback(id, valor)`, `rodarAgora()` (owner), `listarExecucoes()`
   (owner). Sem Pinia, sem estado offline — tela de leitura do `/admin`,
@@ -503,3 +506,44 @@ Do 1º ciclo, 11 de 12 vieram do PubMed. A busca gravita para lá (maior
 Se mesmo assim o volume/qualidade não convencer, o próximo passo é o
 *retrieval* determinístico (PubMed E-utilities + RSS das sociedades) — aí a
 IA só tria, não busca.
+
+### 8. card colapsável (triagem primeiro)
+
+O card despejava tudo — `resumo`, `motivo_relevancia`, tags, botão — e o feed
+virava uma parede pra rolar. Passa ao padrão das outras telas (Relatos,
+Histórico, timeline do aluno): **colapsado por padrão, expande no clique**.
+
+- **Colapsado:** três linhas — `titulo`, depois `fonte · data_informada`,
+  depois o *badge* do `tipo` (+ aviso de link não verificado) — e o chevron à
+  direita. Card inteiro `row-clickable`, um aberto por vez (`expandidoId`).
+- **Expandido:** a caixa "Resumo da IA · não conferido" (`resumo`, aviso de
+  estudo isolado, "Por que apareceu"), as tags de `assuntos` e o botão
+  **"Abrir fonte ↗"**.
+- **O `titulo` deixa de ser link.** Antes o `<h2>` era a âncora pra fonte (§
+  "Card" da Decisão). Com o card clicável pra expandir, título-link + card-
+  expande no mesmo alvo eram dois gestos concorrentes. O link agora é só o
+  botão "Abrir fonte ↗" no corpo — ação deliberada, coerente com "sempre abra
+  o original de propósito". Puro front (`RadarView.vue`), sem contrato.
+
+### 9. busca textual na tela
+
+"Filtros, busca textual e ordenação na tela" estava fora de escopo (§
+"Fora do escopo") — mesmo walk-back deliberado do filtro de período (§4) e de
+assunto (§7): um campo livre que casa no `titulo`, no `resumo` e nos
+`assuntos` (a categoria fina do item — mais específica que os 4 grandes grupos
+do `FiltroSegmentado`, e que só aparece no card expandido).
+
+- **Client-side**, como as outras telas (Exercícios, Relatos, Histórico todos
+  filtram a lista já carregada). Helper `filtrarPorBusca` + `normalizar`
+  (minúsculas, sem acento — "analise" acha "análise", melhor que as outras
+  telas) em `utils/radar.js`, com teste. O agrupamento mensal roda sobre a
+  lista filtrada; *empty state* vira "Nada corresponde a …".
+- **Pré-requisito:** o feed precisa vir inteiro para a busca fazer sentido. O
+  endpoint paginava em 50/página e a tela não tem "carregar mais" — mostrava
+  no máximo 50 do período, silenciosamente. `PADRAO/MAX_POR_PAGINA` sobe para
+  **300** (feed curado, ~10-30 itens/semana após dedup; "Últimos 90 dias" cabe
+  com folga) e `radar.service.js` pede `por_pagina=300`. Se "Tudo" passar disso
+  um dia, aí entra paginação de verdade.
+- **Caveat:** termo que casa só no `resumo` mostra o card colapsado sem o
+  trecho à vista (expande pra ver) — comportamento de busca de e-mail, aceito.
+- Sem endpoint novo, sem tabela, sem `ILIKE` no banco (nada de `unaccent`).

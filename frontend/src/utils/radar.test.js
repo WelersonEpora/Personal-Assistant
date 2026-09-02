@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { tipoMeta, dataInformada, agruparPorMes, TIPO_META } from './radar.js'
+import { tipoMeta, dataInformada, agruparPorMes, filtrarPorBusca, normalizar, TIPO_META } from './radar.js'
 
 test('tipoMeta: tipo conhecido devolve rótulo/família; desconhecido cai em "outro"', () => {
   assert.equal(tipoMeta('meta_analise').rotulo, 'Meta-análise')
@@ -37,4 +37,24 @@ test('agruparPorMes: um grupo por mês, na ordem em que os itens chegam', () => 
 
 test('agruparPorMes: lista vazia -> nenhum grupo', () => {
   assert.deepEqual(agruparPorMes([]), [])
+})
+
+test('normalizar: minúsculas, sem acento, tolera não-string', () => {
+  assert.equal(normalizar('Análise da Força'), 'analise da forca')
+  assert.equal(normalizar('HIPERTROFIA'), 'hipertrofia')
+  assert.equal(normalizar(null), '')
+  assert.equal(normalizar(undefined), '')
+})
+
+test('filtrarPorBusca: casa título, resumo e assuntos sem acento; termo vazio devolve tudo', () => {
+  const itens = [
+    { id: 'a', titulo: 'Meta-análise de sprint', resumo: 'efeito no desempenho', assuntos: ['velocidade'] },
+    { id: 'b', titulo: 'Diretriz de força', resumo: 'recomendações para idosos', assuntos: ['forca', 'populacoes'] },
+    { id: 'c', titulo: 'Suplementação e desempenho', resumo: 'revisão guarda-chuva', assuntos: ['creatina'] }
+  ]
+  assert.deepEqual(filtrarPorBusca(itens, 'analise').map((i) => i.id), ['a'])
+  assert.deepEqual(filtrarPorBusca(itens, 'FORCA').map((i) => i.id), ['b'])
+  assert.deepEqual(filtrarPorBusca(itens, 'creatina').map((i) => i.id), ['c']) // só nos assuntos
+  assert.deepEqual(filtrarPorBusca(itens, '   ').map((i) => i.id), ['a', 'b', 'c'])
+  assert.deepEqual(filtrarPorBusca(itens, 'natação'), [])
 })

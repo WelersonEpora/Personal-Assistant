@@ -27,8 +27,11 @@ const TIPOS_VALIDOS = new Set([
   "consenso",
   "outro"
 ]);
-const PADRAO_POR_PAGINA = 50;
-const MAX_POR_PAGINA = 50;
+// A tela do Radar não pagina (feed curado, semanal, com busca textual
+// client-side - docs/adr/0022 §9); ela pede uma página grande e filtra em
+// memória. Se "Tudo" passar disso um dia, aí entra "carregar mais".
+const PADRAO_POR_PAGINA = 300;
+const MAX_POR_PAGINA = 300;
 const MS_DIA = 24 * 60 * 60 * 1000;
 
 function texto(valor, max) {

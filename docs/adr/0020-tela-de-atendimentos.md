@@ -176,6 +176,10 @@ bucket traz os dois valores (`atendimento`, `avaliacao_fisica`).
   "Atendimentos"`.
 - **Menu:** grupo **REGISTROS**, logo **abaixo de Histórico** (`🗂️`/ícone
   próprio). É a segunda entrada do grupo.
+  *(Revisto em 2026-09-02: o grupo REGISTROS foi dissolvido — Atendimentos e
+  Radar passaram a "Visão geral" (abaixo de Dashboard) e Histórico foi para
+  "Operação", logo abaixo de Revisão, seguindo o fluxo Relatos → Revisão →
+  Histórico. Ver adendo no fim desta ADR.)*
 - **Layout** (mesma linguagem visual de `DashboardView` — `card`, `kpi-grid`,
   `view-header`):
   1. **Cabeçalho** com uma frase que fixa o significado: *"Atendimentos e
@@ -381,3 +385,23 @@ que limpa; o menu não fecha ao marcar). Trocado em 4 telas: `RegistrosView`
 rotula). `AvaliacaoFisicaComparar` (seleção de métricas do gráfico) fica de
 fora. Não vira ADR própria — é refinamento visual do mesmo assunto de filtros
 desta ADR.
+
+## Adendo (2026-09-02): reorganização do menu do `/admin`
+
+Puro `NAV_ITEMS` em `AdminShell.vue`, sem rota nem tela nova. Os grupos
+"Registros" (Histórico + Atendimentos) e "Radar" (só Radar) eram pequenos
+demais e a posição de cada tela não seguia como ela é usada. Passa a dois
+grupos de trabalho + Sistema:
+
+- **Visão geral** (leitura / panorama): **Dashboard · Atendimentos · Radar**.
+  Atendimentos é relatório agregado somente-leitura ("o que eu fiz"),
+  Radar é acompanhamento da área — nenhum é pipeline. Ficam junto do Dashboard.
+- **Operação** (o pipeline, na ordem do fluxo): Alunos · Exercícios · **Relatos
+  → Revisão → Histórico**. Histórico sai do grupo "Registros" e vai para logo
+  abaixo de Revisão — o menu passa a ler na sequência real (entra em Relatos,
+  confirma em Revisão, arquiva em Histórico, ADR-0002).
+- **Sistema**: inalterado.
+
+Revoga a linha "grupo REGISTROS, abaixo de Histórico" desta ADR e "grupo
+próprio, antes de Sistema" da ADR-0022 — as duas eram escolhas fracas de
+posição, não decisões de arquitetura.

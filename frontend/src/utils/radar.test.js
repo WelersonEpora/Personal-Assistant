@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { tipoMeta, dataInformada, agruparPorMes, filtrarPorBusca, normalizar, TIPO_META } from './radar.js'
+import { tipoMeta, dataInformada, agruparPorMes, filtrarPorBusca, normalizar, TIPO_META, legendaTipos } from './radar.js'
 
 test('tipoMeta: tipo conhecido devolve rótulo/família; desconhecido cai em "outro"', () => {
   assert.equal(tipoMeta('meta_analise').rotulo, 'Meta-análise')
@@ -11,6 +11,19 @@ test('tipoMeta: tipo conhecido devolve rótulo/família; desconhecido cai em "ou
   assert.equal(tipoMeta('estudo_primario').familia, 'estudo')
   assert.equal(tipoMeta('xpto'), TIPO_META.outro)
   assert.equal(tipoMeta(undefined).rotulo, 'Publicação')
+})
+
+test('legendaTipos: 3 famílias na ordem fixa, cobrindo todos os tipos de TIPO_META', () => {
+  const legenda = legendaTipos()
+  assert.deepEqual(legenda.map((f) => f.chave), ['entidade', 'sintese', 'estudo'])
+
+  const tiposNaLegenda = legenda.flatMap((f) => f.tipos.map((t) => t.chave))
+  assert.deepEqual(tiposNaLegenda.sort(), Object.keys(TIPO_META).sort())
+
+  const meta = legenda.find((f) => f.chave === 'sintese').tipos.find((t) => t.chave === 'meta_analise')
+  assert.equal(meta.rotulo, 'Meta-análise')
+  assert.equal(meta.badge, 'info')
+  assert.match(meta.descricao, /efeito único/)
 })
 
 test('dataInformada: normaliza / trata vazio', () => {

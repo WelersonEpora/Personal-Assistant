@@ -301,9 +301,11 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
   **uma busca por grupo** (`gruposAssunto`), janela 30 dias, modelo
   `RADAR_MODEL` (default `gemini-pro-latest`, separado do Flash do pipeline).
   A API tem **só** `GET /api/v1/radar` (leitura, qualquer usuário; filtros
-  `de`/`ate` por `created_at` e `grupos=<chaves>`; a resposta traz `grupos` e
-  `fontes` de `config/radar.js` — a tela lista as fontes e tem busca textual
-  client-side em título/resumo/assuntos) — como o feed é global,
+  `de`/`ate` por `created_at` e `grupos=<chaves>`; a resposta traz `grupos`
+  (chave + nome + assuntos), `fontes` e `janela_dias` de `config/radar.js` — a
+  tela tem o painel "Fontes e assuntos priorizados na busca" (janela + fontes +
+  grupos/assuntos), a legenda "Como ler os selos" e busca textual client-side
+  em título/resumo/assuntos) — como o feed é global,
   rodar a busca e curar são de **operador do sistema**, via script (`npm run
   radar:rodar` / `radar:ocultar` / `radar:execucoes`), não endpoint nem papel
   de equipe. Sem feedback do usuário (tabela `radar_feedback` removida) — a

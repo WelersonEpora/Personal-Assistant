@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import radarService from '../../services/radar.service.js'
-import { tipoMeta, dataInformada, agruparPorMes, filtrarPorBusca } from '../../utils/radar.js'
+import { tipoMeta, dataInformada, agruparPorMes, filtrarPorBusca, legendaTipos } from '../../utils/radar.js'
 import { useToasts } from '../../composables/useToasts.js'
 import ToastStack from '../../components/ToastStack.vue'
 import SeletorPeriodo from '../../components/SeletorPeriodo.vue'
@@ -15,12 +15,17 @@ import FiltroSegmentado from '../../components/FiltroSegmentado.vue'
 // script - não há ação de manutenção nesta tela.
 const { toasts, showToast } = useToasts()
 
+// legenda "Como ler os selos" (docs/adr/0022) - conteúdo estático, derivado
+// de TIPO_META; fica num <details> colapsado acima do filtro.
+const legenda = legendaTipos()
+
 const itens = ref([])
 const carregando = ref(true)
 const periodo = ref(null) // { de, ate } - definido pelo SeletorPeriodo na montagem
-const gruposDisponiveis = ref([]) // [{ chave, nome }] - vem da API
+const gruposDisponiveis = ref([]) // [{ chave, nome, assuntos[] }] - vem da API
 const gruposSelecionados = ref([]) // chaves ativas no filtro
 const fontes = ref([]) // [{ nome, dominio }] - allowlist de config/radar.js, via API
+const janelaDias = ref(30) // janela da busca semanal (config/radar.js, via API)
 
 // Card colapsado por padrão (triagem): tipo + título + fonte + data. Expande
 // pro resumo/motivo/tags e o link da fonte. Um aberto por vez, igual Relatos.
@@ -48,6 +53,7 @@ async function carregar() {
     itens.value = dados.itens || []
     if (dados.grupos) gruposDisponiveis.value = dados.grupos
     if (dados.fontes) fontes.value = dados.fontes
+    if (dados.janela_dias) janelaDias.value = dados.janela_dias
   } catch (_err) {
     // rede/servidor fora - mostra o aviso e mantém a lista anterior
     showToast('Não foi possível carregar o Radar.', 'warning')
@@ -88,13 +94,72 @@ function aoMudarAssunto(chaves) {
       </span>
     </div>
 
-    <p v-if="fontes.length" class="radar-fontes">
-      <span class="radar-howto-icon" aria-hidden="true">🔎</span>
-      <span>
-        <strong>Fontes priorizadas na busca</strong> (uma varredura por semana):
-        {{ fontes.map((f) => f.nome).join(' · ') }}.
-      </span>
-    </p>
+    <div class="radar-ref-grupo">
+      <details v-if="fontes.length" class="radar-ref">
+        <summary>
+          <span class="radar-ref-icon" aria-hidden="true">🔎</span>
+          Fontes e assuntos priorizados na busca
+        </summary>
+        <div class="radar-ref-corpo">
+          <p class="radar-ref-intro">
+            Uma varredura por semana, só com publicações dos últimos {{ janelaDias }} dias.
+            Fora disso não entra no Radar.
+          </p>
+
+          <div class="radar-busca-secao">
+            <p class="radar-busca-rotulo">Fontes ({{ fontes.length }})</p>
+            <p class="radar-fontes-lista">{{ fontes.map((f) => f.nome).join(' · ') }}.</p>
+          </div>
+
+          <div v-if="gruposDisponiveis.length" class="radar-busca-secao">
+            <p class="radar-busca-rotulo">Assuntos, por grupo</p>
+            <div v-for="g in gruposDisponiveis" :key="g.chave" class="radar-busca-grupo">
+              <p class="radar-busca-grupo-nome">{{ g.nome }}</p>
+              <ul class="radar-busca-grupo-assuntos">
+                <li v-for="a in g.assuntos" :key="a">{{ a }}</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <details class="radar-ref">
+        <summary>
+          <span class="radar-ref-icon" aria-hidden="true">🏷️</span>
+          Como ler os selos
+        </summary>
+        <div class="radar-ref-corpo">
+          <div v-for="familia in legenda" :key="familia.chave" class="radar-legenda-familia">
+            <p class="radar-legenda-familia-titulo">
+              {{ familia.rotulo }}
+              <span class="radar-legenda-familia-obs">— {{ familia.descricao }}</span>
+            </p>
+            <div v-for="t in familia.tipos" :key="t.chave" class="radar-legenda-tipo">
+              <span class="badge" :class="'badge-' + t.badge">{{ t.rotulo }}</span>
+              <span class="radar-legenda-tipo-desc">{{ t.descricao }}</span>
+            </div>
+          </div>
+
+          <div class="radar-legenda-familia">
+            <p class="radar-legenda-familia-titulo">
+              Outros selos
+            </p>
+            <div class="radar-legenda-tipo">
+              <span class="radar-flag">⚠ link não confirmado</span>
+              <span class="radar-legenda-tipo-desc">
+                A checagem automática não recebeu resposta limpa do endereço (o site costuma
+                bloquear robôs). Não quer dizer link quebrado — em geral abre normal no navegador.
+              </span>
+            </div>
+          </div>
+
+          <p class="radar-legenda-nota">
+            O tipo é a classificação da IA, não um selo de qualidade — a cor agrupa por
+            categoria de documento, não por confiabilidade. Abra a fonte antes de concluir.
+          </p>
+        </div>
+      </details>
+    </div>
 
     <div class="card radar-filtro">
       <SeletorPeriodo
@@ -156,8 +221,8 @@ function aoMudarAssunto(chaves) {
                 <span
                   v-if="item.url_status === 'nao_verificado'"
                   class="radar-flag"
-                  title="A IA não conseguiu confirmar que este link abre — confira ao acessar"
-                >⚠ link não verificado</span>
+                  title="Nossa checagem automática não recebeu resposta limpa deste endereço (o site pode ter bloqueado o robô). Costuma abrir normal no navegador."
+                >⚠ link não confirmado</span>
               </div>
             </div>
             <span class="radar-chevron" :class="{ aberto: expandidoId === item.id }" aria-hidden="true">▼</span>
@@ -212,17 +277,92 @@ function aoMudarAssunto(chaves) {
 .radar-howto-icon { color: var(--color-primary); font-weight: 700; flex: none; }
 .radar-howto strong { color: var(--color-text); font-weight: 700; }
 
-/* linha de fontes: logo abaixo do aviso, mais leve (sem caixa) */
-.radar-fontes {
+/* painéis de referência colapsados (fontes + legenda dos selos): dois
+   <details> gêmeos entre o aviso e o filtro. Mais leves que o card do aviso -
+   informação de consulta, não a ressalva central. */
+.radar-ref-grupo {
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+.radar-ref {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-size: 12.5px;
+}
+.radar-ref > summary {
+  cursor: pointer;
+  padding: 9px 13px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  list-style-position: inside;
+}
+.radar-ref-icon { margin-right: 5px; }
+.radar-ref[open] > summary { border-bottom: 1px solid var(--color-border); }
+.radar-ref-corpo {
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.radar-ref-intro { margin: 0; color: var(--color-text-faint); line-height: 1.55; }
+.radar-busca-secao { display: flex; flex-direction: column; gap: 6px; }
+.radar-busca-rotulo {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+}
+.radar-fontes-lista {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+.radar-busca-grupo { margin-top: 2px; }
+.radar-busca-grupo-nome {
+  margin: 0 0 2px;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.5;
+}
+.radar-busca-grupo-assuntos {
+  margin: 0 0 8px;
+  padding-left: 18px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+.radar-busca-grupo-assuntos li { margin: 1px 0; }
+.radar-legenda-familia { display: flex; flex-direction: column; gap: 7px; }
+.radar-legenda-familia-titulo {
+  margin: 0;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.5;
+}
+.radar-legenda-familia-obs { font-weight: 400; color: var(--color-text-faint); }
+.radar-legenda-tipo {
+  display: flex;
+  align-items: baseline;
   gap: 9px;
-  align-items: flex-start;
-  margin: -6px 2px 18px;
-  font-size: 12px;
+  padding-left: 4px;
+}
+.radar-legenda-tipo .badge,
+.radar-legenda-tipo .radar-flag { flex: none; }
+.radar-legenda-tipo-desc { color: var(--color-text-secondary); line-height: 1.5; }
+.radar-legenda-nota {
+  margin: 2px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
   color: var(--color-text-faint);
   line-height: 1.55;
 }
-.radar-fontes strong { color: var(--color-text-secondary); font-weight: 700; }
+@media (max-width: 560px) {
+  .radar-legenda-tipo { flex-direction: column; gap: 3px; }
+}
 
 .radar-filtro { padding: 14px 16px; margin-bottom: 24px; display: flex; flex-direction: column; gap: 12px; }
 .radar-busca { width: 100%; }

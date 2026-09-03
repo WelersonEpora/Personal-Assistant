@@ -494,10 +494,16 @@ Do 1º ciclo, 11 de 12 vieram do PubMed. A busca gravita para lá (maior
   `gruposAssunto`). Filtro no repositório por `jsonb_exists_any(assuntos,
   ARRAY[...])` — a forma-função de `?|` (o `?` do operador confunde o
   Sequelize com bind param). Chave inválida é ignorada.
-- A resposta traz `grupos` (`chave` + `nome`) — a tela monta os chips a
-  partir daí (fonte única da verdade). Chips ficam abaixo do `SeletorPeriodo`
-  no mesmo card, com "Todos" + os 4 grupos (multi-seleção). O agrupamento
-  visual do feed continua por mês (não por assunto).
+- A resposta traz `grupos` (`chave` + `nome` + `assuntos[]`), `fontes` e
+  `janela_dias` — a tela monta os chips a partir de `chave`/`nome` (fonte
+  única da verdade). Chips ficam abaixo do `SeletorPeriodo` no mesmo card, com
+  "Todos" + os 4 grupos (multi-seleção). O agrupamento visual do feed continua
+  por mês (não por assunto).
+- Adendo (2026-09-03): o painel colapsado "Fontes priorizadas na busca" virou
+  **"Fontes e assuntos priorizados na busca"** — abre a janela (`janela_dias`),
+  a lista de fontes (como antes) e, na sequência, cada grupo com seus
+  `assuntos`. Objetivo: deixar explícito o escopo da varredura (por que algo
+  entrou ou não no Radar). Só leitura; nada de novo endpoint.
 - Para o filtro nunca quebrar: **`normalizarItem` encaixa cada assunto que a
   IA devolve no termo canônico do vocabulário** (`snapAssunto` — Jaccard de
   tokens ≥ 0,5 contra a lista) e descarta o que não reconhecer. No 1º ciclo
@@ -514,7 +520,8 @@ virava uma parede pra rolar. Passa ao padrão das outras telas (Relatos,
 Histórico, timeline do aluno): **colapsado por padrão, expande no clique**.
 
 - **Colapsado:** três linhas — `titulo`, depois `fonte · data_informada`,
-  depois o *badge* do `tipo` (+ aviso de link não verificado) — e o chevron à
+  depois o *badge* do `tipo` (+ aviso "link não confirmado" para
+  `url_status = nao_verificado`, explicado na legenda "Como ler os selos") — e o chevron à
   direita. Card inteiro `row-clickable`, um aberto por vez (`expandidoId`).
 - **Expandido:** a caixa "Resumo da IA · não conferido" (`resumo`, aviso de
   estudo isolado, "Por que apareceu"), as tags de `assuntos` e o botão

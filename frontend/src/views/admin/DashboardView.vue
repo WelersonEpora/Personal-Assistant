@@ -108,7 +108,7 @@ function descricaoEvento(ev) {
   }
   if (ev.tipo === 'avaliacao_fisica') return `Avaliação física de ${formatarDataAvaliacao(ev.dados.data)}`
   if (ev.tipo === 'ficha_treino') return ev.dados.ativo ? 'Nova ficha de treino' : 'Ficha de treino substituída'
-  if (ev.tipo === 'avaliacao_mensal') return `Acompanhamento de ${rotuloMesAno(`${ev.dados.ano_mes}-01`)}`
+  if (ev.tipo === 'avaliacao_mensal') return `Acompanhamento Individual de ${rotuloMesAno(`${ev.dados.ano_mes}-01`)}`
   return ''
 }
 </script>
@@ -212,7 +212,7 @@ function descricaoEvento(ev) {
           <div class="kpi-sub">Registros recebidos do celular</div>
         </div>
         <div class="card kpi-card">
-          <div class="kpi-label">Acompanhamento {{ cicloMesRotulo }}</div>
+          <div class="kpi-label">Acompanhamento Individual {{ cicloMesRotulo }}</div>
           <div class="kpi-value">{{ resumo.ciclo_mensal.gerados }}<span class="kpi-value-sub">/{{ resumo.ciclo_mensal.alunos_ativos }}</span></div>
           <div class="kpi-sub" :class="{ warn: resumo.ciclo_mensal.pendentes }">
             {{ resumo.ciclo_mensal.pendentes }} pendente(s) ·

@@ -197,11 +197,11 @@ test("panorama: aluno que não usa ficha de treino fica fora de 'sem ficha' e 'f
   assert.equal(painel.panorama.ficha_antiga.itens.length, 0);
 })
 
-test("panorama: ficha antiga (> 8 semanas) e avaliação física vencida (> 90 dias)", async () => {
+test("panorama: ficha antiga (> 8 semanas) e avaliação física vencida (> 180 dias)", async () => {
   const equipeId = await novaEquipe();
   const aluno = await criarAluno(equipeId, { nome: "Ficha Velha" });
   await criarFicha(aluno, { criadaEm: diasAtras(70) });
-  await criarAvaliacaoFisica(aluno, isoDia(diasAtras(120)));
+  await criarAvaliacaoFisica(aluno, isoDia(diasAtras(200)));
 
   const painel = await painelService.obterPainel(equipeId);
   assert.deepEqual(painel.panorama.ficha_antiga.itens.map((a) => a.nome), ["Ficha Velha"]);

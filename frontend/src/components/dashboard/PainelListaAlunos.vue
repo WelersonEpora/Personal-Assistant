@@ -7,6 +7,9 @@ import { corParaId, iniciais } from '../../utils/registroStatus.js'
 const props = defineProps({
   titulo: { type: String, required: true },
   icone: { type: String, default: '' },
+  // legenda curta sob o título: o critério do card (ex.: "sem avaliar há
+  // mais de 6 meses"). Vem dos limiares do payload (docs/adr/0017).
+  descricao: { type: String, default: '' },
   itens: { type: Array, default: () => [] },
   total: { type: Number, default: 0 },
   // (aluno) => string — texto auxiliar por linha (ex.: "há 34 dias").
@@ -30,7 +33,10 @@ function rota(aluno) {
 <template>
   <div class="card painel-lista">
     <div class="card-header">
-      <h3><span v-if="icone" class="painel-lista-icone">{{ icone }}</span>{{ titulo }}</h3>
+      <div class="painel-lista-titulo">
+        <h3><span v-if="icone" class="painel-lista-icone">{{ icone }}</span>{{ titulo }}</h3>
+        <span v-if="descricao" class="painel-lista-descricao">{{ descricao }}</span>
+      </div>
       <span v-if="total" class="badge badge-neutral">{{ total }}</span>
     </div>
 
@@ -55,6 +61,8 @@ function rota(aluno) {
 
 <style scoped>
 .painel-lista .card-header h3 { display: flex; align-items: center; gap: 7px; }
+.painel-lista-titulo { display: flex; flex-direction: column; gap: 2px; }
+.painel-lista-descricao { font-size: 11.5px; color: var(--color-text-faint); }
 .painel-lista-icone { font-size: 15px; }
 .painel-lista .list-row { text-decoration: none; color: inherit; }
 .painel-lista .list-row-body { display: flex; flex-direction: column; }

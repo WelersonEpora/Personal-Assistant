@@ -75,10 +75,11 @@ salvas e reaparecem se o personal reativar.
 ### Limiares como constantes
 
 `DIAS_SEM_RELATO = 21`, `SEMANAS_FICHA_ANTIGA = 8`,
-`DIAS_AVALIACAO_FISICA_VENCIDA = 90`, `JANELA_ANIVERSARIANTES_DIAS = 30` —
+`DIAS_AVALIACAO_FISICA_VENCIDA = 180`, `JANELA_ANIVERSARIANTES_DIAS = 30` —
 constantes no `painel.service.js`, como `MINIMO_RELATOS` na ADR-0015. Viram
 config por equipe se e quando houver demanda; hoje não há tela de config de
-equipe para isso.
+equipe para isso. Os valores vão no payload em `panorama.limiares` e a
+`DashboardView` os exibe como legenda de cada card do panorama.
 
 ### Frontend
 

@@ -15,7 +15,7 @@ const { mesReferenciaAnterior } = require("./avaliacao-mensal.service");
 // em avaliacao-mensal.service.js) - viram config por equipe se fizer sentido.
 const DIAS_SEM_RELATO = 21;
 const SEMANAS_FICHA_ANTIGA = 8;
-const DIAS_AVALIACAO_FISICA_VENCIDA = 90;
+const DIAS_AVALIACAO_FISICA_VENCIDA = 180;
 const JANELA_ANIVERSARIANTES_DIAS = 30;
 
 // Quantos itens cada lista do painel devolve (o resto fica com um "+N" e o

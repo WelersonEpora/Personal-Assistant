@@ -37,6 +37,20 @@ const resumo = computed(() => painel.value?.resumo)
 const acao = computed(() => painel.value?.acao_necessaria)
 const panorama = computed(() => painel.value?.panorama)
 
+// Legenda de cada card do panorama: o critério, vindo dos limiares do
+// payload (docs/adr/0017) pra nunca desencontrar do backend.
+const legendas = computed(() => {
+  const l = panorama.value?.limiares
+  if (!l) return {}
+  const meses = Math.round(l.dias_avaliacao_fisica_vencida / 30)
+  return {
+    semFicha: 'nenhuma ficha marcada como ativa',
+    fichaAntiga: `ativa há mais de ${l.semanas_ficha_antiga} semanas`,
+    avaliacaoVencida: `sem avaliar há mais de ${meses} ${meses === 1 ? 'mês' : 'meses'}`,
+    aniversariantes: `nos próximos ${l.janela_aniversariantes_dias} dias`
+  }
+})
+
 const cicloMesRotulo = computed(() => {
   const am = resumo.value?.ciclo_mensal?.ano_mes
   return am ? rotuloMesAno(`${am}-01`) : ''
@@ -214,6 +228,7 @@ function descricaoEvento(ev) {
             titulo="Sem ficha de treino ativa"
             icone="📋"
             aba="ficha"
+            :descricao="legendas.semFicha"
             :itens="panorama.sem_ficha_ativa.itens"
             :total="panorama.sem_ficha_ativa.total"
             vazio="Todos os alunos ativos têm ficha."
@@ -222,15 +237,17 @@ function descricaoEvento(ev) {
             titulo="Ficha de treino antiga"
             icone="🗓️"
             aba="ficha"
+            :descricao="legendas.fichaAntiga"
             :itens="panorama.ficha_antiga.itens"
             :total="panorama.ficha_antiga.total"
             :sub="(a) => `ativa há ${Math.floor(a.dias / 7)} semanas`"
-            vazio="Nenhuma ficha com mais de 8 semanas."
+            vazio="Nenhuma ficha antiga."
           />
           <PainelListaAlunos
             titulo="Avaliação física vencida"
             icone="🩺"
             aba="avaliacoes"
+            :descricao="legendas.avaliacaoVencida"
             :itens="panorama.avaliacao_fisica_vencida.itens"
             :total="panorama.avaliacao_fisica_vencida.total"
             :sub="textoAvaliacao"
@@ -239,6 +256,7 @@ function descricaoEvento(ev) {
           <PainelListaAlunos
             titulo="Aniversariantes"
             icone="🎂"
+            :descricao="legendas.aniversariantes"
             :itens="panorama.aniversariantes.itens"
             :total="panorama.aniversariantes.total"
             :sub="textoAniversario"

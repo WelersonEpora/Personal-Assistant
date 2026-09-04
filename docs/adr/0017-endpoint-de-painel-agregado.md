@@ -48,7 +48,7 @@ normais: `painel.controller` → `painel.service` → `painel.repository`.
 |---|---|
 | `acao_necessaria` | relatos aguardando revisão, relatos com erro (retomáveis), acompanhamentos mensais com `falha`, alunos ativos sem relato há > N dias, e — só quando > 0 — relatos em processamento pela IA (linha informativa) |
 | `resumo` | alunos ativos/total, relatos confirmados (7d — número principal — e 30d), relatos capturados 30d, em processamento, ciclo mensal (gerados / dados insuficientes / falha / pendentes) |
-| `panorama` | alunos ativos sem ficha ativa, com ficha antiga, com avaliação física vencida, aniversariantes dos próximos 30 dias |
+| `panorama` | alunos ativos sem ficha ativa, com ficha antiga, com avaliação física vencida, com acompanhamento mensal `dados_insuficientes` no mês de referência, aniversariantes dos próximos 30 dias |
 | `atividade_recente` | feed unificado (relato, avaliação física, ficha, acompanhamento) — só lançamentos dos últimos 30 dias (por `created_at`/`gerada_em`, não a data do evento), no máx. 4 por tipo, mesclados por timestamp, teto de 12 |
 | `catalogo` | nº de exercícios visíveis, nº de fichas ativas |
 | `pendentes_revisao` | atalho para o badge da navegação |
@@ -76,10 +76,28 @@ salvas e reaparecem se o personal reativar.
 
 `DIAS_SEM_RELATO = 21`, `SEMANAS_FICHA_ANTIGA = 8`,
 `DIAS_AVALIACAO_FISICA_VENCIDA = 180`, `JANELA_ANIVERSARIANTES_DIAS = 30` —
-constantes no `painel.service.js`, como `MINIMO_RELATOS` na ADR-0015. Viram
-config por equipe se e quando houver demanda; hoje não há tela de config de
-equipe para isso. Os valores vão no payload em `panorama.limiares` e a
+constantes no `painel.service.js`, como `MINIMO_RELATOS` na ADR-0015 (também
+exposta em `panorama.limiares.minimo_relatos_acompanhamento`). Viram config
+por equipe se e quando houver demanda; hoje não há tela de config de equipe
+para isso. Os valores vão no payload em `panorama.limiares` e a
 `DashboardView` os exibe como legenda de cada card do panorama.
+
+### Backlog do acompanhamento mensal (`dados_insuficientes`), por nome
+
+O KPI "Acompanhamento Individual {mês}" mostrava só a contagem agregada
+(`gerados/ativos`, "N pendente(s) · M sem dados") — o personal não tinha como
+descobrir **quais** alunos precisavam de ação. O job mensal
+(`gerador-avaliacao-mensal.js`) só reprocessa `falha` automaticamente; um
+ciclo `dados_insuficientes` fica parado até alguém agir, e o alvo do job
+("mês anterior a agora") rola junto com o calendário — depois que o mês
+vira, ele nunca mais volta a mirar aquele `ano_mes`. Por isso
+`panorama.acompanhamento_sem_dados` lista, por nome, os alunos com
+`avaliacao_mensal.status = dados_insuficientes` no mês de referência
+(`relatos_considerados` incluso), cada linha levando à aba Acompanhamento do
+aluno — mesmo padrão dos outros cards do panorama. `pendente` (ciclo ainda
+não processado pelo job) fica de fora dessa lista: é transitório (o job roda
+a cada 6h) e não pede ação do personal, só listar geraria ruído. `falha`
+continua só em `acao_necessaria` (problema técnico, não falta de relato).
 
 ### Frontend
 

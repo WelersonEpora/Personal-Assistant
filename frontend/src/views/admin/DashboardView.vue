@@ -47,7 +47,8 @@ const legendas = computed(() => {
     semFicha: 'nenhuma ficha marcada como ativa',
     fichaAntiga: `ativa há mais de ${l.semanas_ficha_antiga} semanas`,
     avaliacaoVencida: `sem avaliar há mais de ${meses} ${meses === 1 ? 'mês' : 'meses'}`,
-    aniversariantes: `nos próximos ${l.janela_aniversariantes_dias} dias`
+    aniversariantes: `nos próximos ${l.janela_aniversariantes_dias} dias`,
+    acompanhamentoSemDados: `menos de ${l.minimo_relatos_acompanhamento} relatos confirmados no mês`
   }
 })
 
@@ -87,6 +88,10 @@ function humanizarDias(dias) {
 function textoAvaliacao(aluno) {
   if (!aluno.ultima_avaliacao_fisica) return 'nunca avaliado'
   return `última ${formatarDataAvaliacao(aluno.ultima_avaliacao_fisica)} · ${humanizarDias(aluno.dias)}`
+}
+function textoSemDados(aluno) {
+  const minimo = panorama.value?.limiares?.minimo_relatos_acompanhamento
+  return `${aluno.relatos_considerados}/${minimo} relatos em ${cicloMesRotulo.value}`
 }
 function textoAniversario(aluno) {
   const ddmm = formatarDataAvaliacao(aluno.data_nascimento).slice(0, 5)
@@ -252,6 +257,15 @@ function descricaoEvento(ev) {
             :total="panorama.avaliacao_fisica_vencida.total"
             :sub="textoAvaliacao"
             vazio="Nenhuma avaliação vencida."
+          />
+          <PainelListaAlunos
+            titulo="Acompanhamento mensal sem dados"
+            icone="📊"
+            :descricao="legendas.acompanhamentoSemDados"
+            :itens="panorama.acompanhamento_sem_dados.itens"
+            :total="panorama.acompanhamento_sem_dados.total"
+            :sub="textoSemDados"
+            vazio="Nenhum acompanhamento pendente por falta de dados."
           />
           <PainelListaAlunos
             titulo="Aniversariantes"

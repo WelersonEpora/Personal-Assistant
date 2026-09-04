@@ -9,7 +9,7 @@
 //
 // Somente leitura. Não toca `resultado_ia` nem `validacao` (docs/adr/0007).
 const painelRepository = require("../repositories/painel.repository");
-const { mesReferenciaAnterior } = require("./avaliacao-mensal.service");
+const { mesReferenciaAnterior, MINIMO_RELATOS } = require("./avaliacao-mensal.service");
 
 // Limiares dos indicadores do painel. Constantes por ora (como MINIMO_RELATOS
 // em avaliacao-mensal.service.js) - viram config por equipe se fizer sentido.
@@ -192,6 +192,7 @@ async function obterPainel(equipeId) {
     alunosIndicadores,
     cicloPorStatus,
     cicloFalhas,
+    cicloSemDados,
     relatosFeed,
     avaliacoesFisicasFeed,
     fichasFeed,
@@ -208,6 +209,7 @@ async function obterPainel(equipeId) {
     painelRepository.listarAlunosAtivosComIndicadores(equipeId),
     painelRepository.resumoAvaliacoesMensaisDoMes(equipeId, anoMesCiclo),
     painelRepository.listarAvaliacoesMensaisComFalha(equipeId, anoMesCiclo),
+    painelRepository.listarAvaliacoesMensaisSemDados(equipeId, anoMesCiclo),
     painelRepository.relatosRecentes(equipeId, LIMITE_FEED_POR_FONTE, desdeFeed),
     painelRepository.avaliacoesFisicasRecentes(equipeId, LIMITE_FEED_POR_FONTE, desdeFeed),
     painelRepository.fichasRecentes(equipeId, LIMITE_FEED_POR_FONTE, desdeFeed),
@@ -217,6 +219,14 @@ async function obterPainel(equipeId) {
   const panorama = montarPanorama(alunosIndicadores, agora);
   const semRelato = panorama._sem_relato;
   delete panorama._sem_relato;
+
+  // Backlog acionável do ciclo mensal (docs/adr/0015): o job não retenta
+  // "dados_insuficientes" sozinho (só "falha"), então listar por nome é o
+  // que permite o personal agir - registrar relatos e "Regerar mês".
+  panorama.acompanhamento_sem_dados = recortar(
+    cicloSemDados.map((av) => ({ id: av.aluno.id, nome: av.aluno.nome, relatos_considerados: av.relatos_considerados }))
+  );
+  panorama.limiares.minimo_relatos_acompanhamento = MINIMO_RELATOS;
 
   const cicloProcessados = cicloPorStatus.gerada + cicloPorStatus.dados_insuficientes + cicloPorStatus.falha;
   const cicloPendentes = Math.max(0, alunosContagem.ativos - cicloProcessados);

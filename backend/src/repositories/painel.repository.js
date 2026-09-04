@@ -153,6 +153,19 @@ function listarAvaliacoesMensaisComFalha(equipeId, anoMes) {
   });
 }
 
+// Alunos cujo ciclo do mês ficou "dados_insuficientes" (< MINIMO_RELATOS
+// relatos confirmados) - o job não retenta sozinho (só "falha" é retentada),
+// então isso é backlog acionável do personal: registrar mais relatos e
+// clicar "Regerar mês" na tela do aluno.
+function listarAvaliacoesMensaisSemDados(equipeId, anoMes) {
+  return AvaliacaoMensal.findAll({
+    where: { equipe_id: equipeId, ano_mes: anoMes, status: AvaliacaoMensal.STATUS.DADOS_INSUFICIENTES },
+    attributes: ["id", "relatos_considerados"],
+    include: [{ model: Aluno, as: "aluno", attributes: ["id", "nome"] }],
+    order: [["relatos_considerados", "ASC"]]
+  });
+}
+
 // --------------------------------------------------------- atividade recente
 
 // Feed unificado: cada fonte devolve suas linhas recentes (inseridas a partir
@@ -210,6 +223,7 @@ module.exports = {
   listarAlunosAtivosComIndicadores,
   resumoAvaliacoesMensaisDoMes,
   listarAvaliacoesMensaisComFalha,
+  listarAvaliacoesMensaisSemDados,
   relatosRecentes,
   avaliacoesFisicasRecentes,
   fichasRecentes,

@@ -115,7 +115,7 @@ async function criarAvaliacaoFisica(aluno, data, { criadaEm = null } = {}) {
   return av;
 }
 
-async function criarAvaliacaoMensal(aluno, status, anoMes = anoMesCiclo) {
+async function criarAvaliacaoMensal(aluno, status, anoMes = anoMesCiclo, relatosConsiderados = 0) {
   const av = await AvaliacaoMensal.create({
     aluno_id: aluno.id,
     equipe_id: aluno.equipe_id,
@@ -123,6 +123,7 @@ async function criarAvaliacaoMensal(aluno, status, anoMes = anoMesCiclo) {
     periodo_inicio: `${anoMes}-01`,
     periodo_fim: `${anoMes}-28`,
     status,
+    relatos_considerados: relatosConsiderados,
     contexto_consolidado_json: {}
   });
   criados.avaliacoesMensais.push(av.id);
@@ -285,6 +286,20 @@ test("ciclo_mensal: distribui status e calcula pendentes = ativos - processados"
   assert.equal(ciclo.dados_insuficientes, 0);
   assert.equal(ciclo.pendentes, 1);
   assert.equal(painel.acao_necessaria.avaliacoes_mensais_falha.total, 1);
+});
+
+test("panorama: acompanhamento_sem_dados lista quem ficou 'dados_insuficientes' no mês, com relatos_considerados", async () => {
+  const equipeId = await novaEquipe();
+  const semDados = await criarAluno(equipeId, { nome: "Poucos Relatos" });
+  const gerado = await criarAluno(equipeId, { nome: "Em Dia" });
+  await criarAvaliacaoMensal(semDados, AvaliacaoMensal.STATUS.DADOS_INSUFICIENTES, anoMesCiclo, 2);
+  await criarAvaliacaoMensal(gerado, AvaliacaoMensal.STATUS.GERADA, anoMesCiclo, 6);
+
+  const painel = await painelService.obterPainel(equipeId);
+  assert.deepEqual(painel.panorama.acompanhamento_sem_dados.itens, [
+    { id: semDados.id, nome: "Poucos Relatos", relatos_considerados: 2 }
+  ]);
+  assert.equal(painel.panorama.limiares.minimo_relatos_acompanhamento, 5);
 });
 
 test("atividade_recente: mescla fontes e ordena por data desc", async () => {

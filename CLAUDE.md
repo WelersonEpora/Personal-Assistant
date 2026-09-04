@@ -457,8 +457,13 @@ MVP completo e verificado de ponta a ponta:
   avaliações importadas do BodyMove editáveis com `origem` preservada).
   Dashboard reorganizado (docs/adr/0017): seção "Ação necessária" (só aparece
   quando há pendência, com reprocessar inline), KPIs, "Panorama dos alunos"
-  (sem ficha ativa / ficha antiga / avaliação vencida / aniversariantes) e
-  feed de atividade recente unificado — consome `GET /api/v1/painel`.
+  (sem ficha ativa / ficha antiga / avaliação vencida / acompanhamento mensal
+  sem dados / aniversariantes) e feed de atividade recente unificado —
+  consome `GET /api/v1/painel`. Adendo 2026-09-04: `panorama.acompanhamento_
+  sem_dados` lista por nome os alunos com ciclo mensal `dados_insuficientes`
+  no mês de referência (o job não retenta esse status sozinho, só `falha`) —
+  o KPI "Acompanhamento Individual {mês}" antes só mostrava a contagem
+  agregada, sem dar pro personal descobrir quem precisava de ação.
   Switches "não usa ficha de treino" / "não faz avaliação física" no topo das
   seções do aluno (tiram do painel; não apagam dados).
   Captura de Avaliação Física por voz (docs/adr/0018): seletor de tipo

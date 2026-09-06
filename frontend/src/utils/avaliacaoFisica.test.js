@@ -1,11 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { propostaParaRascunho, DERIVADAS } from './avaliacaoFisica.js'
+import { propostaParaRascunho, confiancasDaProposta, DERIVADAS } from './avaliacaoFisica.js'
 
 // docs/adr/0018 - a proposta da IA vira o rascunho que o formulário de
 // avaliação física hidrata na tela de revisão.
 
-test('propostaParaRascunho: mapeia data_ouvida, observacoes e medidas', () => {
+test('propostaParaRascunho: sem dataFallback, usa data_ouvida; mapeia observacoes e medidas', () => {
   const r = propostaParaRascunho({
     data_ouvida: '2026-08-28',
     observacoes: 'aluno bem disposto',
@@ -53,8 +53,28 @@ test('propostaParaRascunho: metodo ausente vira "direto"', () => {
   assert.equal(r.medidas[0].metodo, 'direto')
 })
 
-test('propostaParaRascunho: sem data_ouvida usa a data do atendimento (docs/adr/0019)', () => {
+test('propostaParaRascunho: a data do atendimento do Registro sempre ganha de data_ouvida (docs/adr/0019)', () => {
   assert.equal(propostaParaRascunho({}, '2026-08-20').data, '2026-08-20')
-  // data_ouvida explícita ganha do fallback
-  assert.equal(propostaParaRascunho({ data_ouvida: '2026-08-18' }, '2026-08-20').data, '2026-08-18')
+  // mesmo com data_ouvida explícita, o dataFallback (data_atendimento) prevalece
+  assert.equal(propostaParaRascunho({ data_ouvida: '2026-08-18' }, '2026-08-20').data, '2026-08-20')
+  // sem dataFallback, cai para data_ouvida
+  assert.equal(propostaParaRascunho({ data_ouvida: '2026-08-18' }).data, '2026-08-18')
+})
+
+test('confiancasDaProposta: mapeia confiança/trecho por metrica_codigo', () => {
+  const mapa = confiancasDaProposta({
+    medidas: [
+      { metrica_codigo: 'peso', valor: 78.4, confianca: 'alta', trecho_origem: 'pesa setenta e oito quatro' },
+      { metrica_codigo: 'dobra_subescapular', valor: 12, confianca: 'baixa', trecho_origem: 'acho que uns doze' }
+    ]
+  })
+  assert.deepEqual(mapa, {
+    peso: { confianca: 'alta', trecho_origem: 'pesa setenta e oito quatro' },
+    dobra_subescapular: { confianca: 'baixa', trecho_origem: 'acho que uns doze' }
+  })
+})
+
+test('confiancasDaProposta: ignora medida sem metrica_codigo/confianca; payload vazio devolve mapa vazio', () => {
+  assert.deepEqual(confiancasDaProposta(), {})
+  assert.deepEqual(confiancasDaProposta({ medidas: [{ valor: 10 }, { metrica_codigo: 'altura', valor: 178 }] }), {})
 })

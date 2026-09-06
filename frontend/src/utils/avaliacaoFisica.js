@@ -169,12 +169,14 @@ export const DERIVADAS = ['imc', 'rcq', 'massa_gorda', 'massa_magra']
 // formato que o AvaliacaoFisicaForm hidrata (sem anamnese/postural - a
 // proposta não os produz). Métricas derivadas são descartadas (o service
 // recalcula). Só medidas com valor numérico positivo entram.
-// `dataFallback` (docs/adr/0019): a data do atendimento do Registro, usada
-// quando a IA não ouviu uma data explícita no áudio (data_ouvida vazia).
+// `dataFallback` (docs/adr/0019): a data do atendimento do Registro - é
+// sempre o valor pré-preenchido (o personal ajusta no formulário se precisar).
+// `payload.data_ouvida` (o que a IA entendeu ter sido dito no áudio) só entra
+// se por algum motivo o Registro não tiver `data_atendimento`.
 export function propostaParaRascunho(payload = {}, dataFallback = '') {
   const medidas = Array.isArray(payload.medidas) ? payload.medidas : []
   return {
-    data: payload.data_ouvida || dataFallback || '',
+    data: dataFallback || payload.data_ouvida || '',
     observacoes: payload.observacoes || '',
     medidas: medidas
       .filter((m) => m && !DERIVADAS.includes(m.metrica_codigo) && Number(m.valor) > 0)
@@ -185,6 +187,21 @@ export function propostaParaRascunho(payload = {}, dataFallback = '') {
         principal: Boolean(m.principal)
       }))
   }
+}
+
+// docs/adr/0018 - confiança/trecho de origem por medida, para o formulário
+// mostrar ao lado de cada campo pré-preenchido (em vez de uma lista solta
+// separada, como em Relatos - aqui os campos já têm seu próprio lugar no
+// formulário). Chave é o `metrica_codigo` só (não o método) - o áudio
+// normalmente cita cada medida uma vez.
+export function confiancasDaProposta(payload = {}) {
+  const medidas = Array.isArray(payload.medidas) ? payload.medidas : []
+  const mapa = {}
+  for (const m of medidas) {
+    if (!m?.metrica_codigo || !m.confianca) continue
+    mapa[m.metrica_codigo] = { confianca: m.confianca, trecho_origem: m.trecho_origem || '' }
+  }
+  return mapa
 }
 
 export const CATEGORIA_ROTULO = {

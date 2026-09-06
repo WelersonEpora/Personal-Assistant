@@ -2,8 +2,8 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import registrosService from '../../services/registros.service.js'
 import avaliacoesFisicasService from '../../services/avaliacoesFisicas.service.js'
-import { corParaId, iniciais, formatarData, formatarHora } from '../../utils/registroStatus.js'
-import { formatarDataAvaliacao, propostaParaRascunho } from '../../utils/avaliacaoFisica.js'
+import { corParaId, iniciais, formatarData, formatarHora, resumoEntradas } from '../../utils/registroStatus.js'
+import { propostaParaRascunho, confiancasDaProposta } from '../../utils/avaliacaoFisica.js'
 import { useToasts } from '../../composables/useToasts.js'
 import { useConfirm } from '../../composables/useConfirm.js'
 import AvaliacaoFisicaForm from '../avaliacaoFisica/AvaliacaoFisicaForm.vue'
@@ -29,14 +29,15 @@ const proposta = computed(() => props.registro.propostaAvaliacaoFisica || null)
 const payload = computed(() => proposta.value?.payload_json || {})
 const naoMapeado = computed(() => proposta.value?.avisos_json || [])
 
-const rotuloMetrica = (codigo) => metricas.value.find((m) => m.codigo === codigo)?.rotulo || codigo
-
 const medidas = computed(() => (Array.isArray(payload.value.medidas) ? payload.value.medidas : []))
 const medidasAtencao = computed(() => medidas.value.filter((m) => m.confianca === 'media' || m.confianca === 'baixa'))
 const semMedidas = computed(() => medidas.value.length === 0)
 
 // Rascunho para o formulário (sem anamnese/postural - a proposta não os produz).
 const rascunho = computed(() => propostaParaRascunho(payload.value, props.registro.data_atendimento))
+// Confiança/trecho por campo - mostrados dentro do formulário, ao lado de
+// cada medida pré-preenchida (em vez de uma lista solta separada).
+const confiancasCampos = computed(() => confiancasDaProposta(payload.value))
 
 onMounted(async () => {
   try {
@@ -139,21 +140,8 @@ async function descartar() {
     <!-- painel de conferência -->
     <div class="af-rev-conferencia">
       <div class="af-rev-conf-linha">
-        <span class="af-rev-conf-rot">Data ouvida</span>
-        <span v-if="payload.data_ouvida">{{ formatarDataAvaliacao(payload.data_ouvida) }}</span>
-        <span v-else class="af-rev-conf-vazio">não foi dita — confirme no formulário</span>
-      </div>
-      <div class="af-rev-conf-linha">
         <span class="af-rev-conf-rot">Medidas</span>
         <span>{{ medidas.length }} identificada(s)<template v-if="medidasAtencao.length">, {{ medidasAtencao.length }} para conferir</template></span>
-      </div>
-
-      <div v-if="medidasAtencao.length" class="af-rev-flags">
-        <div v-for="(m, i) in medidasAtencao" :key="i" class="af-rev-flag">
-          <span class="confidence-note" :class="m.confianca">● {{ m.confianca === 'baixa' ? 'Baixa confiança' : 'Revisar' }}</span>
-          <span class="af-rev-flag-metrica">{{ rotuloMetrica(m.metrica_codigo) }}: <b>{{ m.valor }}</b><template v-if="m.unidade_ouvida"> ({{ m.unidade_ouvida }})</template></span>
-          <span v-if="m.trecho_origem" class="af-rev-flag-trecho">“{{ m.trecho_origem }}”</span>
-        </div>
       </div>
 
       <div v-if="naoMapeado.length" class="af-rev-naomapeado">
@@ -164,9 +152,12 @@ async function descartar() {
         <p class="af-rev-nm-dica">Se for relevante, adicione manualmente no formulário ou anote em “Observações”.</p>
       </div>
 
-      <button class="revisao-source-toggle" type="button" style="margin: 4px 0 0;" @click="alternarEntradas">
-        {{ entradasAbertas ? 'Ocultar áudio original' : 'Ouvir áudio original' }}
-      </button>
+      <div class="revisao-source">
+        {{ resumoEntradas(registro.entradas || []) }} neste registro
+        <button class="revisao-source-toggle" type="button" @click="alternarEntradas">
+          {{ entradasAbertas ? 'Ocultar entradas originais' : 'Ver entradas originais' }}
+        </button>
+      </div>
       <div class="transcript-box" :class="{ open: entradasAbertas }">
         <div v-for="entrada in registro.entradas" :key="entrada.id" class="source-entry">
           <span class="source-entry-icon">{{ entrada.tipo === 'audio' ? '🎙️' : '⌨️' }}</span>
@@ -195,6 +186,7 @@ async function descartar() {
         :metricas="metricas"
         modo="revisao"
         :rascunho-inicial="rascunho"
+        :confiancas="confiancasCampos"
         :ocupado="confirmando"
         @confirmar="confirmar"
         @cancelar="descartar"
@@ -230,16 +222,6 @@ async function descartar() {
   font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em;
   color: var(--color-avaliacao-dark); flex: none; min-width: 96px;
 }
-.af-rev-conf-vazio { color: var(--color-warning); font-size: 12.5px; }
-.af-rev-flags { display: flex; flex-direction: column; gap: 8px; margin-top: 2px; }
-.af-rev-flag {
-  background: var(--color-surface);
-  border-radius: var(--radius-sm);
-  padding: 8px 10px;
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px;
-}
-.af-rev-flag-metrica { font-size: 13px; }
-.af-rev-flag-trecho { font-size: 12px; color: var(--color-text-faint); font-style: italic; }
 .af-rev-naomapeado {
   background: var(--color-surface);
   border-radius: var(--radius-sm);

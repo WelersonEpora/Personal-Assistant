@@ -253,7 +253,11 @@ table.data-table tbody tr:last-child td { border-bottom: none; }
 .detail-tags { display: flex; gap: 8px; margin-top: 8px; }
 
 /* --------------------------------------------------------- revisão (IA) */
-.revisao-grid { display: grid; grid-template-columns: 1fr 340px; gap: 20px; align-items: start; }
+/* Fila à esquerda (mais estreita), item selecionado à direita - ordem de
+   leitura natural (escanear a fila, focar no detalhe), igual a um inbox. A
+   ordem visual vem de `.revisao-lateral { order: -1 }` (RevisaoView.vue),
+   não da ordem no DOM. */
+.revisao-grid { display: grid; grid-template-columns: 340px 1fr; gap: 20px; align-items: start; }
 .revisao-card { padding: 22px 24px; margin-bottom: 16px; }
 .revisao-source {
   display: flex; align-items: center; gap: 10px; margin-bottom: 18px;

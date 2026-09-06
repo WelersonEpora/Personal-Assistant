@@ -27,6 +27,10 @@ const props = defineProps({
   // tela de revisão (endpoint /confirmar-avaliacao-fisica).
   modo: { type: String, default: null },
   rascunhoInicial: { type: Object, default: null },
+  // docs/adr/0018 - só em 'revisao': confiança + trecho de origem por
+  // metrica_codigo (ver utils/avaliacaoFisica.js#confiancasDaProposta),
+  // mostrados ao lado de cada campo pré-preenchido pela proposta da IA.
+  confiancas: { type: Object, default: () => ({}) },
   // 'revisao': o pai controla o estado de envio (a confirmação é dele).
   ocupado: { type: Boolean, default: false }
 })
@@ -64,6 +68,14 @@ const metricasSimples = computed(() => {
 function metricaPorCodigo(codigo) {
   return props.metricas.find((m) => m.codigo === codigo)
 }
+
+// docs/adr/0018 - trecho de origem por campo: fechado por padrão (não é raro
+// ter 20+ medidas numa avaliação), o ⓘ abre só quando o personal quer conferir.
+const trechosAbertos = reactive({})
+function alternarTrecho(codigo) {
+  trechosAbertos[codigo] = !trechosAbertos[codigo]
+}
+const ROTULO_CONFIANCA = { alta: 'alta', media: 'média', baixa: 'baixa' }
 
 // --- derivadas ao vivo (só exibição; o backend recalcula na gravação, ver
 // backend/src/services/avaliacao-fisica/metricas-derivadas.js) ---
@@ -338,8 +350,25 @@ async function salvar() {
       <div style="font-size: 15px; font-weight: 700; margin-bottom: 10px;">{{ grupo.rotulo }}</div>
       <div class="af-grid">
         <div v-for="m in grupo.metricas" :key="m.codigo" class="field-group">
-          <label>{{ m.rotulo }} <span class="af-unidade">({{ m.unidade }})</span></label>
+          <label>
+            {{ m.rotulo }} <span class="af-unidade">({{ m.unidade }})</span>
+            <template v-if="revisao && confiancas[m.codigo]">
+              <span class="confidence-note af-campo-confianca" :class="confiancas[m.codigo].confianca">
+                ● {{ ROTULO_CONFIANCA[confiancas[m.codigo].confianca] || confiancas[m.codigo].confianca }}
+              </span>
+              <button
+                v-if="confiancas[m.codigo].confianca !== 'alta' && confiancas[m.codigo].trecho_origem"
+                type="button"
+                class="af-trecho-toggle"
+                title="Ver trecho de origem"
+                @click="alternarTrecho(m.codigo)"
+              >ⓘ</button>
+            </template>
+          </label>
           <input v-model="valores[m.codigo]" type="number" step="any" min="0" inputmode="decimal" />
+          <p v-if="trechosAbertos[m.codigo] && confiancas[m.codigo]?.trecho_origem" class="af-trecho-texto">
+            ↳ “{{ confiancas[m.codigo].trecho_origem }}”
+          </p>
         </div>
       </div>
     </div>
@@ -481,6 +510,13 @@ async function salvar() {
 <style scoped>
 .af-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
 .af-unidade { font-weight: 400; color: var(--color-text-faint, #888); font-size: 12px; }
+.af-campo-confianca { display: inline-flex; margin-left: 6px; font-size: 10.5px; }
+.af-trecho-toggle {
+  background: none; border: none; cursor: pointer; color: var(--color-text-faint);
+  font-size: 12px; margin-left: 2px; padding: 0; line-height: 1;
+}
+.af-trecho-toggle:hover { color: var(--color-primary); }
+.af-trecho-texto { font-size: 12px; color: var(--color-text-faint); font-style: italic; margin: 4px 0 0; }
 .af-metodo-linha { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
 .af-metodo-linha select { min-width: 200px; }
 .af-metodo-linha input[type='number'] { max-width: 110px; }

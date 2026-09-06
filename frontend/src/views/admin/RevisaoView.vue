@@ -346,11 +346,14 @@ async function excluirRegistro() {
 .detail-header-faint { color: var(--color-text-faint); font-weight: 400; }
 .field-hint { display: block; margin-top: 4px; font-size: 11.5px; color: var(--color-text-faint); }
 
-/* No mobile a coluna única fica: fila primeiro (pra escolher o relato),
-   depois o detalhe; as "Dicas" saem de cena. */
+/* Fila sempre antes do detalhe na ordem visual (escanear a lista, depois focar
+   no item), em qualquer largura - a ordem no DOM continua "detalhe, fila"
+   (não precisou mexer no template), só a posição visual muda via `order`. */
+.revisao-lateral { order: -1; }
+
+/* No mobile a coluna única vira empilhada; as "Dicas" saem de cena. */
 @media (max-width: 760px) {
   .revisao-grid { display: flex; flex-direction: column; gap: 14px; }
-  .revisao-lateral { order: -1; }
   .revisao-lateral .card { margin-bottom: 0 !important; }
   .revisao-dicas { display: none; }
   .revisao-card { padding: 16px 14px; }

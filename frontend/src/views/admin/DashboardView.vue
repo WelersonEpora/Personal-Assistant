@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import painelService from '../../services/painel.service.js'
 import registrosService from '../../services/registros.service.js'
-import { statusMeta, corParaId, formatarDataHora } from '../../utils/registroStatus.js'
+import { statusMeta, corParaId, formatarDataHora, temVariosPersonais } from '../../utils/registroStatus.js'
 import { formatarDataAvaliacao, rotuloMesAno } from '../../utils/avaliacaoFisica.js'
 import { useToasts } from '../../composables/useToasts.js'
 import ToastStack from '../../components/ToastStack.vue'
@@ -36,6 +36,12 @@ const nomeUsuario = computed(() => {
 const resumo = computed(() => painel.value?.resumo)
 const acao = computed(() => painel.value?.acao_necessaria)
 const panorama = computed(() => painel.value?.panorama)
+
+// docs/adr/0011 - só mostra "por {personal}" com mais de um personal ativo
+// no painel; equipe solo não precisa do ruído do próprio nome.
+const mostrarPersonal = computed(() =>
+  temVariosPersonais([...(painel.value?.atividade_recente || []), ...(acao.value?.relatos_com_erro?.itens || [])])
+)
 
 // Legenda de cada card do panorama: o critério, vindo dos limiares do
 // payload (docs/adr/0017) pra nunca desencontrar do backend.
@@ -151,7 +157,10 @@ function descricaoEvento(ev) {
           <span class="acao-row-icone">⚠️</span>
           <span class="list-row-body">
             <span class="list-row-title">{{ relato.aluno?.nome }} — {{ statusMeta(relato.status).label }}</span>
-            <span class="list-row-sub">{{ relato.titulo || 'Relato' }}</span>
+            <span class="list-row-sub">
+              {{ relato.titulo || 'Relato' }}
+              <template v-if="mostrarPersonal && relato.usuario?.nome"> · por {{ relato.usuario.nome }}</template>
+            </span>
           </span>
           <button
             v-if="!reprocessados.has(relato.id)"
@@ -286,6 +295,7 @@ function descricaoEvento(ev) {
               <span>
                 <strong>{{ ev.aluno?.nome || 'Aluno' }}</strong>
                 — {{ FEED_ICONE[ev.tipo] }} {{ descricaoEvento(ev) }}
+                <template v-if="mostrarPersonal && ev.usuario?.nome"> · por {{ ev.usuario.nome }}</template>
                 · {{ formatarDataHora(ev.quando) }}<br />
                 <span
                   v-if="ev.tipo === 'relato'"

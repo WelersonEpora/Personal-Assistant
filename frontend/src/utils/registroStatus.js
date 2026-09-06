@@ -30,6 +30,18 @@ export function tipoMeta(tipo) {
   return { tipo: 'atendimento', label: 'Atendimento', chip: '', icon: '📝', badge: 'neutral' }
 }
 
+// Equipe com mais de um personal ativo nesta lista (docs/adr/0011) - liga o
+// "registrado por" nas telas de relatos; equipe solo (o caso comum) não
+// precisa do ruído do próprio nome em toda linha.
+export function temVariosPersonais(lista) {
+  const ids = new Set()
+  for (const item of lista) {
+    const id = item.usuario?.id
+    if (id) ids.add(id)
+  }
+  return ids.size > 1
+}
+
 export function entradaIcon(tipo) {
   return tipo === 'audio' ? '🎙️' : '⌨️'
 }

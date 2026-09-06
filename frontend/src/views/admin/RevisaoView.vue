@@ -9,7 +9,8 @@ import {
   formatarHora,
   formatarDataAtendimento,
   resumoEntradas,
-  tipoMeta
+  tipoMeta,
+  temVariosPersonais
 } from '../../utils/registroStatus.js'
 import { useToasts } from '../../composables/useToasts.js'
 import { useConfirm } from '../../composables/useConfirm.js'
@@ -42,6 +43,10 @@ const minDataAtendimento = computed(() => {
   base.setDate(base.getDate() - 60)
   return base.toISOString().slice(0, 10)
 })
+
+// docs/adr/0011 - só mostra "registrado por" com mais de um personal ativo
+// na fila de revisão; equipe solo não precisa do ruído.
+const mostrarPersonal = computed(() => temVariosPersonais(fila.value))
 
 async function carregarFila() {
   fila.value = await registrosService.listar({ status: 'aguardando_revisao' })
@@ -197,6 +202,7 @@ async function excluirRegistro() {
             <div class="detail-header-sub">
               <strong>Atendimento em {{ formatarDataAtendimento(selecionado.data_atendimento) }}</strong>
               <span class="detail-header-faint"> · registrado {{ formatarData(selecionado.created_at) }} às {{ formatarHora(selecionado.iniciado_em) }}</span>
+              <span v-if="mostrarPersonal && selecionado.usuario?.nome" class="detail-header-faint"> · por {{ selecionado.usuario.nome }}</span>
               <span v-if="editando" class="detail-header-faint"> · ajuste a data abaixo</span>
             </div>
           </div>
@@ -316,7 +322,10 @@ async function excluirRegistro() {
               {{ registro.aluno?.nome }} — {{ registro.titulo || 'Registro' }}
               <span v-if="registro.tipo === 'avaliacao_fisica'" class="badge badge-avaliacao" style="font-size: 10px;">{{ tipoMeta(registro.tipo).icon }} {{ tipoMeta(registro.tipo).chip }}</span>
             </span>
-            <span class="queue-item-sub">Atendimento {{ formatarDataAtendimento(registro.data_atendimento) }}</span>
+            <span class="queue-item-sub">
+              Atendimento {{ formatarDataAtendimento(registro.data_atendimento) }}
+              <template v-if="mostrarPersonal && registro.usuario?.nome"> · {{ registro.usuario.nome }}</template>
+            </span>
           </span>
         </button>
       </div>

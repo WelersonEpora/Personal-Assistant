@@ -10,7 +10,8 @@ import {
   iniciais,
   formatarData,
   formatarHora,
-  formatarDataAtendimento
+  formatarDataAtendimento,
+  temVariosPersonais
 } from '../../utils/registroStatus.js'
 import { useToasts } from '../../composables/useToasts.js'
 import { useConfirm } from '../../composables/useConfirm.js'
@@ -63,6 +64,10 @@ const pendentesProcessamento = computed(
 const filaTexto = computed(() =>
   pendentesProcessamento.value > 0 ? `Processando ${pendentesProcessamento.value} registro(s)…` : 'Nada na fila de IA'
 )
+
+// Só mostra "registrado por" quando há mais de um personal capturando
+// relatos nesta equipe (docs/adr/0011) - equipe solo não precisa do ruído.
+const mostrarPersonal = computed(() => temVariosPersonais(registros.value))
 
 const listaFiltrada = computed(() => {
   let lista = registros.value
@@ -191,7 +196,10 @@ async function reprocessarRegistro(registro) {
             <span class="avatar sz-sm" :style="{ background: corParaId(registro.aluno?.id) }">{{ iniciais(registro.aluno?.nome) }}</span>
             <div>
               <div class="list-row-title">{{ registro.aluno?.nome }} — Atendimento em {{ formatarDataAtendimento(registro.data_atendimento) }}</div>
-              <div class="list-row-sub">{{ registro.titulo || 'Sem título' }} · registrado {{ formatarData(registro.created_at) }} às {{ formatarHora(registro.iniciado_em) }}</div>
+              <div class="list-row-sub">
+                {{ registro.titulo || 'Sem título' }} · registrado {{ formatarData(registro.created_at) }} às {{ formatarHora(registro.iniciado_em) }}
+                <span v-if="mostrarPersonal && registro.usuario?.nome"> · por {{ registro.usuario.nome }}</span>
+              </div>
             </div>
           </div>
           <div class="registro-card-head-actions">

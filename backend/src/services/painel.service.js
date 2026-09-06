@@ -50,6 +50,7 @@ function relatoResumo(registro) {
   return {
     id: registro.id,
     aluno: registro.aluno ? { id: registro.aluno.id, nome: registro.aluno.nome } : null,
+    usuario: registro.usuario ? { id: registro.usuario.id, nome: registro.usuario.nome } : null,
     titulo: registro.titulo || null,
     status: registro.status,
     iniciado_em: registro.iniciado_em,
@@ -143,6 +144,7 @@ function montarFeed({ relatos, avaliacoesFisicas, fichas, avaliacoesMensais }) {
     relatos.map((r) => ({
       tipo: "relato",
       aluno: r.aluno ? { id: r.aluno.id, nome: r.aluno.nome } : null,
+      usuario: r.usuario ? { id: r.usuario.id, nome: r.usuario.nome } : null,
       // `quando` = created_at: o feed é "o que entrou no sistema" (docs/adr/0017).
       // data_atendimento vai junto só para a linha poder exibir "atendimento de".
       quando: r.created_at,

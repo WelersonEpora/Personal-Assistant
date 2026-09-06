@@ -6,7 +6,8 @@ import {
   chipsDataAtendimento,
   rotuloDataAtendimento,
   ehRetroativo,
-  formatarDataAtendimento
+  formatarDataAtendimento,
+  temVariosPersonais
 } from './registroStatus.js'
 
 // docs/adr/0019 - helpers da data do atendimento (dia do evento, ≠ data do registro)
@@ -48,4 +49,12 @@ test('formatarDataAtendimento: AAAA-MM-DD -> DD/MM/AAAA sem shift de fuso', () =
   assert.equal(formatarDataAtendimento('2026-08-01'), '01/08/2026')
   assert.equal(formatarDataAtendimento('2026-08-01T00:00:00Z'), '01/08/2026')
   assert.equal(formatarDataAtendimento(null), '')
+})
+
+test('temVariosPersonais: só true com 2+ usuario_id distintos na lista', () => {
+  assert.equal(temVariosPersonais([]), false)
+  assert.equal(temVariosPersonais([{ usuario: { id: 'a' } }]), false)
+  assert.equal(temVariosPersonais([{ usuario: { id: 'a' } }, { usuario: { id: 'a' } }]), false)
+  assert.equal(temVariosPersonais([{ usuario: { id: 'a' } }, { usuario: { id: 'b' } }]), true)
+  assert.equal(temVariosPersonais([{ usuario: null }, { }]), false)
 })

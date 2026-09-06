@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import registrosService from '../../services/registros.service.js'
 import alunosService from '../../services/alunos.service.js'
-import { corParaId, iniciais, formatarData, formatarDataAtendimento } from '../../utils/registroStatus.js'
+import { corParaId, iniciais, formatarData, formatarDataAtendimento, temVariosPersonais } from '../../utils/registroStatus.js'
 import SeletorPeriodo from '../../components/SeletorPeriodo.vue'
 
 const route = useRoute()
@@ -61,6 +61,10 @@ onMounted(async () => {
 const ordenados = computed(() =>
   [...registros.value].sort((a, b) => (a.validacao?.confirmado_em < b.validacao?.confirmado_em ? 1 : -1))
 )
+
+// docs/adr/0011 - só mostra "registrado por" com mais de um personal ativo
+// no histórico carregado; equipe solo não precisa do ruído.
+const mostrarPersonal = computed(() => temVariosPersonais(registros.value))
 
 // Clicar no card expande/colapsa - `listar()` só traz entradas leves
 // (id/tipo/ordem) e a validação (ver registro.repository.js), então ao
@@ -154,6 +158,7 @@ function notaGeralConfirmada(registro) {
                 Atendimento em {{ formatarDataAtendimento(registro.data_atendimento) }} ·
                 confirmado em {{ formatarData(registro.validacao?.confirmado_em || registro.created_at) }} ·
                 {{ registro.validacao?.payload_confirmado_json?.itens?.length || 0 }} item(ns)
+                <span v-if="mostrarPersonal && registro.usuario?.nome"> · por {{ registro.usuario.nome }}</span>
               </div>
             </div>
           </div>

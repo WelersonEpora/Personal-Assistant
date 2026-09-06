@@ -14,7 +14,8 @@ const {
   FichaTreino,
   Exercicio,
   AvaliacaoFisica,
-  AvaliacaoMensal
+  AvaliacaoMensal,
+  Usuario
 } = require("../models");
 
 // --------------------------------------------------------------- contadores
@@ -87,7 +88,10 @@ function listarRelatosComErro(equipeId) {
       deletado_em: null,
       status: [Registro.STATUS.ERRO_TRANSCRICAO, Registro.STATUS.ERRO_INTERPRETACAO]
     },
-    include: [{ model: Aluno, as: "aluno", attributes: ["id", "nome"] }],
+    include: [
+      { model: Aluno, as: "aluno", attributes: ["id", "nome"] },
+      { model: Usuario, as: "usuario", attributes: ["id", "nome"] }
+    ],
     order: [["updated_at", "DESC"]]
   });
 }
@@ -176,7 +180,12 @@ function relatosRecentes(equipeId, limite, desde) {
   return Registro.findAll({
     where: { equipe_id: equipeId, deletado_em: null, created_at: { [Op.gte]: desde } },
     attributes: ["id", "titulo", "status", "iniciado_em", "data_atendimento", "created_at"],
-    include: [{ model: Aluno, as: "aluno", attributes: ["id", "nome"] }],
+    include: [
+      { model: Aluno, as: "aluno", attributes: ["id", "nome"] },
+      // Quem capturou (docs/adr/0011) - o feed mostra "por" quando a equipe
+      // tem mais de um personal.
+      { model: Usuario, as: "usuario", attributes: ["id", "nome"] }
+    ],
     order: [["created_at", "DESC"]],
     limit: limite
   });

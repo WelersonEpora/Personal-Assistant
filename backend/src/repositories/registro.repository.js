@@ -11,7 +11,8 @@ const {
   Validacao,
   PropostaAvaliacaoFisica,
   AvaliacaoFisica,
-  Aluno
+  Aluno,
+  Usuario
 } = require("../models");
 
 const INCLUDE_ENTRADAS_COMPLETO = {
@@ -99,6 +100,9 @@ function listarPorEquipe({ equipeId, status, de, ate, alunoId, tipo }) {
     },
     include: [
       { model: Aluno, as: "aluno", attributes: ["id", "nome"] },
+      // Quem capturou (auditoria, docs/adr/0011) - a tela de Relatos/Histórico
+      // mostra "registrado por" quando a equipe tem mais de um personal.
+      { model: Usuario, as: "usuario", attributes: ["id", "nome"] },
       { model: RegistroEntrada, as: "entradas", attributes: ["id", "tipo", "ordem"] },
       { model: Validacao, as: "validacao", attributes: ["id", "confirmado_em", "payload_confirmado_json"] }
     ],
@@ -111,6 +115,7 @@ function obterDetalhado(id) {
     where: { id, deletado_em: null },
     include: [
       { model: Aluno, as: "aluno", attributes: ["id", "nome"] },
+      { model: Usuario, as: "usuario", attributes: ["id", "nome"] },
       INCLUDE_ENTRADAS_COMPLETO,
       { model: ResultadoIa, as: "resultadoIa" },
       { model: Validacao, as: "validacao" },

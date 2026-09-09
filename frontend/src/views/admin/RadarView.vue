@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import radarService from '../../services/radar.service.js'
-import { tipoMeta, dataInformada, agruparPorMes, filtrarPorBusca, legendaTipos } from '../../utils/radar.js'
+import { tipoMeta, dataInformada, agruparPorEntrada, filtrarPorBusca, legendaTipos } from '../../utils/radar.js'
 import { useToasts } from '../../composables/useToasts.js'
 import ToastStack from '../../components/ToastStack.vue'
 import SeletorPeriodo from '../../components/SeletorPeriodo.vue'
@@ -38,7 +38,7 @@ function alternarExpandido(id) {
 // já vem inteiro do período/assunto (a tela não pagina, ver radar.service).
 const busca = ref('')
 const itensFiltrados = computed(() => filtrarPorBusca(itens.value, busca.value))
-const meses = computed(() => agruparPorMes(itensFiltrados.value))
+const lotes = computed(() => agruparPorEntrada(itensFiltrados.value))
 const opcoesAssunto = computed(() => gruposDisponiveis.value.map((g) => ({ valor: g.chave, rotulo: g.nome })))
 
 async function carregar() {
@@ -188,18 +188,18 @@ function aoMudarAssunto(chaves) {
 
     <div v-if="carregando" class="empty-state">Carregando…</div>
 
-    <div v-else-if="!meses.length" class="empty-state">
+    <div v-else-if="!lotes.length" class="empty-state">
       <div class="empty-state-icon">{{ busca.trim() ? '🔍' : '📡' }}</div>
       <template v-if="busca.trim()">Nada corresponde a “{{ busca.trim() }}”.</template>
       <template v-else>Nada no radar neste período.</template>
     </div>
 
     <div v-else class="radar-feed">
-      <section v-for="mes in meses" :key="mes.chave" class="radar-bucket">
-        <div class="radar-bucket-label">{{ mes.rotulo }}</div>
+      <section v-for="lote in lotes" :key="lote.chave" class="radar-bucket">
+        <div class="radar-bucket-label">{{ lote.rotulo }}</div>
 
         <article
-          v-for="item in mes.itens"
+          v-for="item in lote.itens"
           :key="item.id"
           class="card radar-item row-clickable"
           @click="alternarExpandido(item.id)"

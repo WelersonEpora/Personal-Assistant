@@ -15,10 +15,18 @@ const {
   Exercicio,
   AvaliacaoFisica,
   AvaliacaoMensal,
-  Usuario
+  Usuario,
+  Membro
 } = require("../models");
 
 // --------------------------------------------------------------- contadores
+
+// A equipe tem mais de um personal ativo? Liga o "por {personal}" no feed e
+// nas listas do painel (docs/adr/0011) - equipe solo (o caso comum) não
+// precisa do ruído do próprio nome em toda linha.
+function contarMembrosAtivos(equipeId) {
+  return Membro.count({ where: { equipe_id: equipeId, ativo: true } });
+}
 
 async function contarAlunos(equipeId) {
   const [ativos, total] = await Promise.all([
@@ -222,6 +230,7 @@ function avaliacoesMensaisRecentes(equipeId, limite, desde) {
 }
 
 module.exports = {
+  contarMembrosAtivos,
   contarAlunos,
   contarRelatosConfirmadosDesde,
   contarRelatosEmProcessamento,

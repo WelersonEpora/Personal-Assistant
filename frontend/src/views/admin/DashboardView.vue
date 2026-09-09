@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import painelService from '../../services/painel.service.js'
 import registrosService from '../../services/registros.service.js'
-import { statusMeta, corParaId, formatarDataHora, temVariosPersonais } from '../../utils/registroStatus.js'
+import { statusMeta, corParaId, formatarDataHora } from '../../utils/registroStatus.js'
 import { formatarDataAvaliacao, rotuloMesAno } from '../../utils/avaliacaoFisica.js'
 import { useToasts } from '../../composables/useToasts.js'
 import ToastStack from '../../components/ToastStack.vue'
@@ -37,11 +37,11 @@ const resumo = computed(() => painel.value?.resumo)
 const acao = computed(() => painel.value?.acao_necessaria)
 const panorama = computed(() => painel.value?.panorama)
 
-// docs/adr/0011 - só mostra "por {personal}" com mais de um personal ativo
-// no painel; equipe solo não precisa do ruído do próprio nome.
-const mostrarPersonal = computed(() =>
-  temVariosPersonais([...(painel.value?.atividade_recente || []), ...(acao.value?.relatos_com_erro?.itens || [])])
-)
+// docs/adr/0011 - só mostra "por {personal}" quando a equipe tem mais de um
+// personal ativo (o backend conta os membros); equipe solo não precisa do
+// ruído do próprio nome. Antes isto era inferido da amostra do feed, que num
+// dia de poucos relatos do mesmo personal dava falso-negativo.
+const mostrarPersonal = computed(() => painel.value?.equipe?.varios_personais === true)
 
 // Legenda de cada card do panorama: o critério, vindo dos limiares do
 // payload (docs/adr/0017) pra nunca desencontrar do backend.
@@ -121,6 +121,12 @@ function descricaoEvento(ev) {
   if (ev.tipo === 'ficha_treino') return ev.dados.ativo ? 'Nova ficha de treino' : 'Ficha de treino substituída'
   if (ev.tipo === 'avaliacao_mensal') return `Acompanhamento Individual de ${rotuloMesAno(`${ev.dados.ano_mes}-01`)}`
   return ''
+}
+// O feed é um log cronológico, não uma lista de tarefas - não mostra o status
+// do relato (isso vive no bloco "Ação necessária" e na tela de Revisão). A
+// única exceção é o relato com erro, que muda o que o personal faz olhando ali.
+function relatoComErro(ev) {
+  return ev.tipo === 'relato' && ['erro_transcricao', 'erro_interpretacao'].includes(ev.dados.status)
 }
 </script>
 
@@ -296,16 +302,18 @@ function descricaoEvento(ev) {
                 <strong>{{ ev.aluno?.nome || 'Aluno' }}</strong>
                 — {{ FEED_ICONE[ev.tipo] }} {{ descricaoEvento(ev) }}
                 <template v-if="mostrarPersonal && ev.usuario?.nome"> · por {{ ev.usuario.nome }}</template>
-                · {{ formatarDataHora(ev.quando) }}<br />
-                <span
-                  v-if="ev.tipo === 'relato'"
-                  class="badge"
-                  :class="'badge-' + statusMeta(ev.dados.status).badge"
-                  style="margin-top: 4px;"
-                >
+                · {{ formatarDataHora(ev.quando) }}
+                <span v-if="relatoComErro(ev)" class="badge badge-danger" style="margin-left: 4px;">
                   {{ statusMeta(ev.dados.status).icon }} {{ statusMeta(ev.dados.status).label }}
                 </span>
               </span>
+            </div>
+            <div
+              v-if="painel.atividade_recente_truncada"
+              class="painel-catalogo"
+              style="margin-top: 8px; padding: 0;"
+            >
+              Mostrando as {{ painel.atividade_recente.length }} atividades mais recentes dos últimos 30 dias.
             </div>
             <div v-if="!painel.atividade_recente.length" class="empty-state" style="padding: 26px;">
               Nenhuma atividade ainda.

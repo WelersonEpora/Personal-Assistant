@@ -11,6 +11,7 @@ const { randomUUID } = require("node:crypto");
 const {
   Usuario,
   Equipe,
+  Membro,
   Aluno,
   Registro,
   ResultadoIa,
@@ -30,6 +31,8 @@ const anoMesCiclo = mesReferenciaAnterior(new Date());
 let usuario;
 const criados = {
   equipes: [],
+  membros: [],
+  usuarios: [],
   registros: [],
   alunos: [],
   fichas: [],
@@ -49,6 +52,14 @@ async function novaEquipe() {
   const equipe = await Equipe.create({ nome: `Equipe Painel ${randomUUID()}` });
   criados.equipes.push(equipe.id);
   return equipe.id;
+}
+
+async function adicionarMembro(equipeId, { ativo = true } = {}) {
+  const u = await Usuario.create({ nome: "Membro", email: `m-${randomUUID()}@ex.com`, senha_hash: "h" });
+  const m = await Membro.create({ equipe_id: equipeId, usuario_id: u.id, papel: "colaborador", ativo });
+  criados.usuarios.push(u.id);
+  criados.membros.push(m.id);
+  return m;
 }
 
 async function criarAluno(equipeId, props = {}) {
@@ -144,8 +155,9 @@ after(async () => {
   await AvaliacaoMensal.destroy({ where: { id: criados.avaliacoesMensais } });
   await Exercicio.destroy({ where: { id: criados.exercicios } });
   await Aluno.destroy({ where: { id: criados.alunos } });
+  await Membro.destroy({ where: { id: criados.membros } });
   await Equipe.destroy({ where: { id: criados.equipes } });
-  await Usuario.destroy({ where: { id: usuario.id } });
+  await Usuario.destroy({ where: { id: [usuario.id, ...criados.usuarios] } });
 });
 
 test("resumo: conta alunos ativos/total, ignora inativos e outra equipe", async () => {
@@ -328,15 +340,42 @@ test("atividade_recente: lançamento com mais de 30 dias não aparece", async ()
   assert.equal(painel.atividade_recente.filter((e) => e.tipo === "avaliacao_fisica").length, 1);
 });
 
-test("atividade_recente: no máximo 4 itens por tipo (um lote não domina o feed)", async () => {
+test("atividade_recente: um lote do mesmo tipo aparece inteiro (sem cota por tipo)", async () => {
   const equipeId = await novaEquipe();
   const aluno = await criarAluno(equipeId, { nome: "Feed Lote" });
   for (let i = 0; i < 6; i += 1) await criarAvaliacaoFisica(aluno, isoDia(diasAtras(i)));
   await criarRelato({ aluno, status: Registro.STATUS.RECEBIDO });
 
   const painel = await painelService.obterPainel(equipeId);
-  assert.equal(painel.atividade_recente.filter((e) => e.tipo === "avaliacao_fisica").length, 4);
+  assert.equal(painel.atividade_recente.filter((e) => e.tipo === "avaliacao_fisica").length, 6);
   assert.ok(painel.atividade_recente.some((e) => e.tipo === "relato"));
+  assert.equal(painel.atividade_recente_truncada, false);
+  const datas = painel.atividade_recente.map((e) => new Date(e.quando).getTime());
+  assert.deepEqual(datas, [...datas].sort((x, y) => y - x));
+});
+
+test("atividade_recente: teto de 20 itens, marca truncada quando a janela tem mais", async () => {
+  const equipeId = await novaEquipe();
+  const aluno = await criarAluno(equipeId, { nome: "Feed Cheio" });
+  for (let i = 0; i < 22; i += 1) await criarAvaliacaoFisica(aluno, isoDia(diasAtras(i)));
+
+  const painel = await painelService.obterPainel(equipeId);
+  assert.equal(painel.atividade_recente.length, 20);
+  assert.equal(painel.atividade_recente_truncada, true);
+});
+
+test("equipe.varios_personais: true só com 2+ membros ativos", async () => {
+  const soloId = await novaEquipe();
+  await adicionarMembro(soloId);
+  const solo = await painelService.obterPainel(soloId);
+  assert.equal(solo.equipe.varios_personais, false);
+
+  const duplaId = await novaEquipe();
+  await adicionarMembro(duplaId);
+  await adicionarMembro(duplaId);
+  await adicionarMembro(duplaId, { ativo: false });
+  const dupla = await painelService.obterPainel(duplaId);
+  assert.equal(dupla.equipe.varios_personais, true);
 });
 
 test("catalogo: conta exercícios visíveis (globais + próprios) e fichas ativas da equipe", async () => {

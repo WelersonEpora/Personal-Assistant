@@ -566,3 +566,17 @@ precisa saber de onde vem (e de onde não vem) o que está lendo.
   verdade" que já vale para `grupos` (§7). A tela só junta os nomes com `·`.
 - Sem card, sem contrato de escrita; `config/radar.js` continua sendo o único
   lugar de curadoria de fontes (commit, não tela).
+
+### 11. agrupamento por data de entrada, não por mês (2026-09-09)
+
+O agrupamento visual do feed (§4, §7, §9) passa de **mês** para **data de
+entrada no Radar** (`created_at`, dia a dia). Como o job roda em lote semanal,
+cada grupo é, na prática, uma rodada — e o separador ("Incluído em
+15/10/2025") vira a referência de "li até aqui". O `data_informada` (data do
+artigo, texto livre da IA) fica misturado dentro de cada rodada e não serve
+para isso; continua só na linha da fonte do card, com o aviso de imprecisão.
+
+- Não é marcação de "lido" — é só um ponto de referência temporal. Marcar
+  itens como lidos fica para depois, se fizer falta.
+- Só frontend: `agruparPorMes` → `agruparPorEntrada` em `utils/radar.js` (com
+  teste). O payload já traz `created_at` por item; nada muda no backend.

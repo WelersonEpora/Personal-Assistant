@@ -103,23 +103,28 @@ export function filtrarPorBusca(itens, termo) {
   })
 }
 
-const MESES = [
-  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-]
+function dd(n) {
+  return String(n).padStart(2, '0')
+}
 
-// Agrupa o feed por mês de entrada no Radar (`created_at`) - dá ritmo à
-// leitura e funciona para qualquer janela do filtro de período. Os itens já
-// vêm do mais novo para o mais antigo; a ordem dos grupos segue isso.
-export function agruparPorMes(itens) {
+// Agrupa o feed pela data de entrada no Radar (`created_at`). O job roda em
+// lotes (semanal), então cada grupo é uma rodada do Radar - o separador vira
+// a referência de "li até aqui", sem repetir a data em cada card. Funciona
+// para qualquer janela do filtro de período. Os itens já vêm do mais novo
+// para o mais antigo; a ordem dos grupos segue isso.
+export function agruparPorEntrada(itens) {
   const grupos = []
   const porChave = new Map()
   for (const item of itens) {
     const d = new Date(item.created_at)
-    const chave = `${d.getFullYear()}-${d.getMonth()}`
+    const chave = `${d.getFullYear()}-${dd(d.getMonth() + 1)}-${dd(d.getDate())}`
     let grupo = porChave.get(chave)
     if (!grupo) {
-      grupo = { chave, rotulo: `${MESES[d.getMonth()]} de ${d.getFullYear()}`, itens: [] }
+      grupo = {
+        chave,
+        rotulo: `Incluído em ${dd(d.getDate())}/${dd(d.getMonth() + 1)}/${d.getFullYear()}`,
+        itens: []
+      }
       porChave.set(chave, grupo)
       grupos.push(grupo)
     }

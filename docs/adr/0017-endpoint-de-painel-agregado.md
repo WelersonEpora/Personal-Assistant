@@ -49,7 +49,9 @@ normais: `painel.controller` → `painel.service` → `painel.repository`.
 | `acao_necessaria` | relatos aguardando revisão, relatos com erro (retomáveis), acompanhamentos mensais com `falha`, alunos ativos sem relato há > N dias, e — só quando > 0 — relatos em processamento pela IA (linha informativa) |
 | `resumo` | alunos ativos/total, relatos confirmados (7d — número principal — e 30d), relatos capturados 30d, em processamento, ciclo mensal (gerados / dados insuficientes / falha / pendentes) |
 | `panorama` | alunos ativos sem ficha ativa, com ficha antiga, com avaliação física vencida, com acompanhamento mensal `dados_insuficientes` no mês de referência, aniversariantes dos próximos 30 dias |
-| `atividade_recente` | feed unificado (relato, avaliação física, ficha, acompanhamento) — só lançamentos dos últimos 30 dias (por `created_at`/`gerada_em`, não a data do evento), no máx. 4 por tipo, mesclados por timestamp, teto de 12 |
+| `atividade_recente` | log cronológico unificado (relato, avaliação física, ficha, acompanhamento) — só lançamentos dos últimos 30 dias (por `created_at`/`gerada_em`, não a data do evento), todos mesclados por timestamp, sem cota por tipo, teto de segurança de 20 |
+| `atividade_recente_truncada` | `true` quando a janela de 30 dias tem mais eventos do que o teto — a UI mostra um aviso "as N mais recentes" |
+| `equipe.varios_personais` | `true` quando a equipe tem 2+ membros ativos — liga o "· por {personal}" no feed e nas listas (equipe solo não mostra o próprio nome em toda linha) |
 | `catalogo` | nº de exercícios visíveis, nº de fichas ativas |
 | `pendentes_revisao` | atalho para o badge da navegação |
 
@@ -130,3 +132,25 @@ no payload deixa a porta aberta para unificar depois.
   a próxima só precisa de mais uma query no `painel.repository`.
 - `GET /api/v1/registros` continua existindo e sendo usado por
   `RegistrosView`; nada foi removido.
+
+## Adendo (2026-09-09) — feed cronológico e atribuição de personal
+
+- **`atividade_recente` deixa de ter cota por tipo.** A versão original
+  cortava cada fonte em 4 itens antes de mesclar, para "um lote não engolir
+  o feed". Na prática, num dia de vários relatos (atendimento em família), o
+  feed escondia relatos legítimos e ninguém entendia por que a "Atividade
+  recente" mostrava menos do que a fila de revisão. Agora é um log
+  cronológico puro: janela de 30 dias, tudo mesclado por timestamp, teto de
+  segurança de **20** (`LIMITE_FEED`), e `atividade_recente_truncada` avisa a
+  UI quando a janela tem mais do que isso (cada fonte busca `LIMITE_FEED + 1`
+  para o merge detectar o corte com precisão). A fila completa de pendências
+  continua no bloco **Ação necessária**, não no feed.
+- **O feed do dashboard não mostra mais o status do relato** — só um selo
+  quando o relato está com erro (`erro_transcricao`/`erro_interpretacao`).
+  Status é informação de fila de trabalho, não de log de atividade.
+- **`equipe.varios_personais`** entra no payload (contagem de `membro`
+  ativos > 1). O gate do "· por {personal}" no dashboard passa a usar isso;
+  antes era inferido da amostra do feed e dava falso-negativo quando os
+  poucos relatos recentes eram todos do mesmo personal, mesmo a equipe tendo
+  vários. As telas Relatos/Histórico/Revisão seguem inferindo da própria
+  lista (grande o suficiente para não ter o problema).

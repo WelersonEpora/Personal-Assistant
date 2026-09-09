@@ -21,13 +21,14 @@ const JANELA_ANIVERSARIANTES_DIAS = 30;
 // Quantos itens cada lista do painel devolve (o resto fica com um "+N" e o
 // link para a tela completa).
 const LIMITE_LISTA = 5;
-// Atividade recente: só lançamentos dos últimos N dias, no máximo M por tipo
-// (pra um lote - importação, dia cheio de relatos - não engolir o feed), e o
-// feed final tem no máximo LIMITE_FEED linhas.
+// Atividade recente: log cronológico puro dos lançamentos dos últimos N dias,
+// de todas as fontes, na ordem em que entraram no sistema - sem cota por tipo
+// (um dia cheio de relatos APARECE cheio de relatos). LIMITE_FEED é só um
+// teto de segurança do payload num pico; `atividade_recente_truncada` avisa a
+// UI quando a janela tem mais do que isso. Cada fonte busca LIMITE_FEED + 1
+// linhas para o merge conseguir detectar o corte com precisão.
 const FEED_JANELA_DIAS = 30;
-const FEED_MAX_POR_TIPO = 4;
-const LIMITE_FEED_POR_FONTE = 8;
-const LIMITE_FEED = 12;
+const LIMITE_FEED = 20;
 
 const MS_POR_DIA = 24 * 60 * 60 * 1000;
 
@@ -138,8 +139,6 @@ function montarPanorama(alunos, agora) {
 }
 
 function montarFeed({ relatos, avaliacoesFisicas, fichas, avaliacoesMensais }) {
-  // Cada grupo já vem do banco ordenado do mais recente para o mais antigo -
-  // corta em FEED_MAX_POR_TIPO antes de mesclar, pra nenhuma fonte dominar.
   const grupos = [
     relatos.map((r) => ({
       tipo: "relato",
@@ -169,10 +168,11 @@ function montarFeed({ relatos, avaliacoesFisicas, fichas, avaliacoesMensais }) {
       dados: { id: m.id, ano_mes: m.ano_mes }
     }))
   ];
-  return grupos
-    .flatMap((grupo) => grupo.filter((e) => e.quando).slice(0, FEED_MAX_POR_TIPO))
-    .sort((a, b) => new Date(b.quando).getTime() - new Date(a.quando).getTime())
-    .slice(0, LIMITE_FEED);
+  const ordenado = grupos
+    .flat()
+    .filter((e) => e.quando)
+    .sort((a, b) => new Date(b.quando).getTime() - new Date(a.quando).getTime());
+  return { itens: ordenado.slice(0, LIMITE_FEED), truncada: ordenado.length > LIMITE_FEED };
 }
 
 async function obterPainel(equipeId) {
@@ -182,7 +182,10 @@ async function obterPainel(equipeId) {
   const desde30d = new Date(agora.getTime() - 30 * MS_POR_DIA);
   const desdeFeed = new Date(agora.getTime() - FEED_JANELA_DIAS * MS_POR_DIA);
 
+  const feedPorFonte = LIMITE_FEED + 1;
+
   const [
+    membrosAtivos,
     alunosContagem,
     confirmados7d,
     confirmados30d,
@@ -200,6 +203,7 @@ async function obterPainel(equipeId) {
     fichasFeed,
     avaliacoesMensaisFeed
   ] = await Promise.all([
+    painelRepository.contarMembrosAtivos(equipeId),
     painelRepository.contarAlunos(equipeId),
     painelRepository.contarRelatosConfirmadosDesde(equipeId, desde7d),
     painelRepository.contarRelatosConfirmadosDesde(equipeId, desde30d),
@@ -212,10 +216,10 @@ async function obterPainel(equipeId) {
     painelRepository.resumoAvaliacoesMensaisDoMes(equipeId, anoMesCiclo),
     painelRepository.listarAvaliacoesMensaisComFalha(equipeId, anoMesCiclo),
     painelRepository.listarAvaliacoesMensaisSemDados(equipeId, anoMesCiclo),
-    painelRepository.relatosRecentes(equipeId, LIMITE_FEED_POR_FONTE, desdeFeed),
-    painelRepository.avaliacoesFisicasRecentes(equipeId, LIMITE_FEED_POR_FONTE, desdeFeed),
-    painelRepository.fichasRecentes(equipeId, LIMITE_FEED_POR_FONTE, desdeFeed),
-    painelRepository.avaliacoesMensaisRecentes(equipeId, LIMITE_FEED_POR_FONTE, desdeFeed)
+    painelRepository.relatosRecentes(equipeId, feedPorFonte, desdeFeed),
+    painelRepository.avaliacoesFisicasRecentes(equipeId, feedPorFonte, desdeFeed),
+    painelRepository.fichasRecentes(equipeId, feedPorFonte, desdeFeed),
+    painelRepository.avaliacoesMensaisRecentes(equipeId, feedPorFonte, desdeFeed)
   ]);
 
   const panorama = montarPanorama(alunosIndicadores, agora);
@@ -235,9 +239,16 @@ async function obterPainel(equipeId) {
 
   const aguardandoResumo = aguardandoRevisao.map(relatoResumo);
   const comErroResumo = comErro.map(relatoResumo);
+  const feed = montarFeed({
+    relatos: relatosFeed,
+    avaliacoesFisicas: avaliacoesFisicasFeed,
+    fichas: fichasFeed,
+    avaliacoesMensais: avaliacoesMensaisFeed
+  });
 
   return {
     gerado_em: agora.toISOString(),
+    equipe: { varios_personais: membrosAtivos > 1 },
     acao_necessaria: {
       relatos_aguardando_revisao: recortar(aguardandoResumo),
       relatos_com_erro: recortar(comErroResumo),
@@ -267,12 +278,8 @@ async function obterPainel(equipeId) {
       }
     },
     panorama,
-    atividade_recente: montarFeed({
-      relatos: relatosFeed,
-      avaliacoesFisicas: avaliacoesFisicasFeed,
-      fichas: fichasFeed,
-      avaliacoesMensais: avaliacoesMensaisFeed
-    }),
+    atividade_recente: feed.itens,
+    atividade_recente_truncada: feed.truncada,
     catalogo,
     pendentes_revisao: aguardandoResumo.length
   };

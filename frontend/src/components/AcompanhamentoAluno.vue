@@ -5,6 +5,7 @@ import analisesSobDemandaService from '../services/analisesSobDemanda.service.js
 import avaliacoesPersonalService from '../services/avaliacoesPersonal.service.js'
 import registrosService from '../services/registros.service.js'
 import { formatarDataHora } from '../utils/registroStatus.js'
+import { revisaoDesatualizada } from '../utils/avaliacaoMensalCompartilhada.js'
 import { useToasts } from '../composables/useToasts.js'
 import { useConfirm } from '../composables/useConfirm.js'
 import ToastStack from './ToastStack.vue'
@@ -166,6 +167,21 @@ function podeGerar(m) {
 function rotuloBotaoGerar(m) {
   if (gerandoMes.value === m.anoMes) return 'Gerando…'
   return m.mensal ? '✨ Regerar mês' : '✨ Gerar mensal agora'
+}
+
+function formatarDataCurta(iso) {
+  if (!iso) return ''
+  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+// Estado do compartilhamento da avaliação mensal (docs/adr/0023).
+function estadoCompartilhamento(av) {
+  if (!av || av.status !== 'gerada') return null
+  if (!av.revisao) return { rotulo: 'Ainda não compartilhada', stale: false }
+  if (revisaoDesatualizada(av, av.revisao)) {
+    return { rotulo: 'Revisão desatualizada — a avaliação mudou depois', stale: true }
+  }
+  return { rotulo: `Compartilhada em ${formatarDataCurta(av.revisao.compartilhada_em)}`, stale: false }
 }
 
 function subLinhaMensal(av) {
@@ -477,6 +493,19 @@ async function excluirAvaliacaoPersonal(avaliacao) {
             <span class="acomp-chevron">{{ expandidoId === 'm:' + m.anoMes ? '▲' : '▼' }}</span>
           </div>
           <div v-if="expandidoId === 'm:' + m.anoMes" class="acomp-detalhe-box" @click.stop>
+            <!-- Compartilhar com o aluno (docs/adr/0023) - só quando a IA gerou. -->
+            <div v-if="estadoCompartilhamento(m.mensal)" class="acomp-compartilhar">
+              <router-link
+                class="btn btn-primary btn-sm"
+                :to="{ name: 'compartilhar-avaliacao-mensal', params: { id: props.id, anoMes: m.anoMes } }"
+              >
+                📄 {{ m.mensal.revisao ? 'Revisar / gerar PDF' : 'Compartilhar com o aluno' }}
+              </router-link>
+              <span class="list-row-sub" :class="{ 'acomp-compartilhar-stale': estadoCompartilhamento(m.mensal).stale }">
+                {{ estadoCompartilhamento(m.mensal).rotulo }}
+              </span>
+            </div>
+
             <AcompanhamentoDetalhe
               :avaliacao="m.mensal.avaliacao_json"
               :contexto="m.mensal.contexto_consolidado_json"
@@ -717,6 +746,19 @@ async function excluirAvaliacaoPersonal(avaliacao) {
 }
 .acomp-editor textarea {
   width: 100%;
+}
+.acomp-compartilhar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--color-border);
+}
+.acomp-compartilhar-stale {
+  color: var(--color-warning, #b45309);
+  font-weight: 600;
 }
 .acomp-editor-acoes {
   display: flex;

@@ -1,11 +1,21 @@
 "use strict";
 
 const { Op } = require("sequelize");
-const { AvaliacaoMensal, Aluno, Registro, Validacao } = require("../models");
+const { AvaliacaoMensal, Aluno, Registro, Validacao, RevisaoAvaliacaoMensal } = require("../models");
+
+// Resumo da revisão do personal (docs/adr/0023) - o suficiente para a tela de
+// Acompanhamento sinalizar "compartilhada" / "revisão desatualizada" sem uma
+// segunda chamada. O comentário completo só vem no endpoint de compartilhamento.
+const INCLUDE_REVISAO = {
+  model: RevisaoAvaliacaoMensal,
+  as: "revisao",
+  attributes: ["id", "compartilhada_em", "avaliacao_gerada_em"]
+};
 
 function listarPorAluno({ alunoId, equipeId }) {
   return AvaliacaoMensal.findAll({
     where: { aluno_id: alunoId, equipe_id: equipeId },
+    include: [INCLUDE_REVISAO],
     order: [["ano_mes", "DESC"]]
   });
 }
@@ -13,7 +23,10 @@ function listarPorAluno({ alunoId, equipeId }) {
 function obterPorMes({ alunoId, equipeId, anoMes }) {
   return AvaliacaoMensal.findOne({
     where: { aluno_id: alunoId, equipe_id: equipeId, ano_mes: anoMes },
-    include: [{ model: AvaliacaoMensal, as: "contextoAnterior", attributes: ["id", "ano_mes"] }]
+    include: [
+      { model: AvaliacaoMensal, as: "contextoAnterior", attributes: ["id", "ano_mes"] },
+      INCLUDE_REVISAO
+    ]
   });
 }
 

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import alunosService from '../../services/alunos.service.js'
 import { corParaId, iniciais } from '../../utils/registroStatus.js'
 import { useToasts } from '../../composables/useToasts.js'
@@ -8,6 +8,7 @@ import { useConfirm } from '../../composables/useConfirm.js'
 import ToastStack from '../../components/ToastStack.vue'
 
 const router = useRouter()
+const route = useRoute()
 const { toasts, showToast } = useToasts()
 const { confirmar } = useConfirm()
 
@@ -81,6 +82,15 @@ const filtrados = computed(() => {
 
 const ativos = computed(() => filtrados.value.filter((a) => a.ativo))
 const inativos = computed(() => filtrados.value.filter((a) => !a.ativo))
+
+// Ativos x Inativos são abas (mesmo mecanismo do detalhe do aluno), não duas
+// seções na mesma tela. A aba fica no query da URL (?status=inativos) - a
+// aba "Ativos" é o padrão e não gera query.
+const abaAtiva = computed(() => (route.query.status === 'inativos' ? 'inativos' : 'ativos'))
+function trocarAba(id) {
+  router.replace({ query: id === 'inativos' ? { status: 'inativos' } : {} })
+}
+const alunosDaAba = computed(() => (abaAtiva.value === 'inativos' ? inativos.value : ativos.value))
 
 function abrirDetalhe(id) {
   router.push({ name: 'admin-aluno-detalhe', params: { id } })
@@ -170,11 +180,33 @@ async function salvarNovoAluno() {
       </div>
     </div>
 
-    <p v-if="alunos.length && (ativos.length || !busca.trim())" style="font-size: 12px; font-weight: 700; color: var(--color-text-faint); text-transform: uppercase; letter-spacing: .03em; margin: 0 0 10px;">
-      Ativos
-    </p>
-    <div v-if="alunos.length && (ativos.length || !busca.trim())" class="students-grid" style="margin-bottom: 26px;">
-      <div v-for="aluno in ativos" :key="aluno.id" class="card student-card" style="position: relative;" @click="abrirDetalhe(aluno.id)">
+    <div v-if="alunos.length" class="filter-tabs" style="margin-bottom: 20px;">
+      <button
+        type="button"
+        class="filter-tab"
+        :class="{ active: abaAtiva === 'ativos' }"
+        @click="trocarAba('ativos')"
+      >
+        Ativos ({{ ativos.length }})
+      </button>
+      <button
+        type="button"
+        class="filter-tab"
+        :class="{ active: abaAtiva === 'inativos' }"
+        @click="trocarAba('inativos')"
+      >
+        Inativos ({{ inativos.length }})
+      </button>
+    </div>
+
+    <div v-if="alunosDaAba.length" class="students-grid">
+      <div
+        v-for="aluno in alunosDaAba"
+        :key="aluno.id"
+        class="card student-card"
+        :style="{ position: 'relative', opacity: aluno.ativo ? 1 : 0.7 }"
+        @click="abrirDetalhe(aluno.id)"
+      >
         <div class="student-card-actions">
           <button
             type="button"
@@ -207,53 +239,14 @@ async function salvarNovoAluno() {
           {{ aluno.registros_count || 0 }} relato(s) · {{ aluno.avaliacoes_fisicas_count || 0 }} aval. física(s)<template v-if="aluno.dispensa_ficha_treino"> · não usa ficha de treino</template>
         </div>
       </div>
-      <div v-if="!ativos.length" class="card empty-state">Nenhum aluno ativo.</div>
     </div>
 
-    <div v-if="busca.trim() && !filtrados.length" class="empty-state">
-      Nenhum aluno encontrado para “{{ busca.trim() }}”.
+    <div v-else-if="alunos.length && busca.trim()" class="empty-state">
+      Nenhum aluno {{ abaAtiva === 'inativos' ? 'inativo' : 'ativo' }} encontrado para “{{ busca.trim() }}”.
     </div>
-
-    <template v-if="inativos.length">
-      <p style="font-size: 12px; font-weight: 700; color: var(--color-text-faint); text-transform: uppercase; letter-spacing: .03em; margin: 0 0 10px;">
-        Inativos
-      </p>
-      <div class="students-grid">
-        <div v-for="aluno in inativos" :key="aluno.id" class="card student-card" style="position: relative; opacity: .7;" @click="abrirDetalhe(aluno.id)">
-          <div class="student-card-actions">
-            <button
-              type="button"
-              class="badge"
-              style="border: none; cursor: pointer;"
-              :class="aluno.ativo ? 'badge-success' : 'badge-neutral'"
-              :title="aluno.ativo ? 'Marcar como inativo' : 'Marcar como ativo'"
-              @click.stop="alternarAtivo(aluno)"
-            >
-              {{ aluno.ativo ? 'Ativo' : 'Inativo' }}
-            </button>
-            <button
-              type="button"
-              class="student-card-favorite"
-              :title="aluno.favorito ? 'Remover dos favoritos' : 'Marcar como favorito'"
-              @click.stop="alternarFavorito(aluno)"
-            >
-              {{ aluno.favorito ? '⭐' : '☆' }}
-            </button>
-          </div>
-          <div class="student-card-top">
-            <img v-if="aluno.fotoUrl" :src="aluno.fotoUrl" class="avatar sz-lg" alt="" />
-            <span v-else class="avatar sz-lg" :style="{ background: corParaId(aluno.id) }">{{ iniciais(aluno.nome) }}</span>
-            <div>
-              <div class="student-card-name">{{ aluno.nome }}</div>
-            </div>
-          </div>
-          <div v-if="aluno.observacoes" class="student-card-workout">{{ aluno.observacoes }}</div>
-          <div style="font-size: 12px; color: var(--color-text-faint);">
-            {{ aluno.registros_count || 0 }} relato(s) · {{ aluno.avaliacoes_fisicas_count || 0 }} aval. física(s)
-          </div>
-        </div>
-      </div>
-    </template>
+    <div v-else-if="alunos.length" class="empty-state">
+      {{ abaAtiva === 'inativos' ? 'Nenhum aluno inativo.' : 'Nenhum aluno ativo.' }}
+    </div>
 
     <div v-if="!carregando && !alunos.length" class="empty-state">
       <div class="empty-state-icon">👥</div>Nenhum aluno cadastrado ainda.

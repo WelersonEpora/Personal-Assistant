@@ -11,6 +11,7 @@
 // algo, o personal registra um novo relato, que entra no ciclo seguinte.
 const avaliacaoMensalRepository = require("../repositories/avaliacaoMensal.repository");
 const avaliacaoPersonalRepository = require("../repositories/avaliacaoPersonal.repository");
+const revisaoAvaliacaoMensalRepository = require("../repositories/revisaoAvaliacaoMensal.repository");
 const alunoRepository = require("../repositories/aluno.repository");
 const geminiService = require("./ia/gemini.service");
 const env = require("../config/env");
@@ -86,10 +87,22 @@ function blocoAvaliacoesPersonal(avaliacoesPersonal) {
   return `\n\n=== AVALIAÇÃO DO PERSONAL (escrita pelo profissional, ${avaliacoesPersonal.length}) ===\n${linhas}`;
 }
 
+// Bloco da revisão que o personal fez da avaliação do MÊS ANTERIOR ao
+// compartilhá-la com o aluno (docs/adr/0023). É a leitura do profissional
+// sobre a avaliação da IA - peso alto, prevalece sobre contradições.
+function blocoRevisaoAnterior(revisaoAnterior) {
+  if (!revisaoAnterior || !revisaoAnterior.comentario) return "";
+  const quando = new Date(revisaoAnterior.compartilhada_em).toISOString().slice(0, 10);
+  return (
+    `\n\n=== REVISÃO DA AVALIAÇÃO DO MÊS ANTERIOR (comentário que o personal escreveu ao aluno, em ${quando}) ===\n` +
+    `[revisao_mensal:${revisaoAnterior.id}]\n${revisaoAnterior.comentario}`
+  );
+}
+
 // Monta o texto enviado à IA: contexto anterior + relatos do mês + avaliações
 // do personal do mês. Avaliação física ainda NÃO entra aqui (fora do escopo
 // atual); quando entrar, será outro bloco e uma dimensão em "estado_atual".
-function montarPromptAvaliacao({ alunoId, anoMes, contextoAnterior, relatos, avaliacoesPersonal = [] }) {
+function montarPromptAvaliacao({ alunoId, anoMes, contextoAnterior, relatos, avaliacoesPersonal = [], revisaoAnterior = null }) {
   const blocoContexto = contextoAnterior
     ? JSON.stringify(contextoAnterior, null, 2)
     : "Nenhum - este é o primeiro ciclo de acompanhamento deste aluno.";
@@ -124,7 +137,9 @@ function montarPromptAvaliacao({ alunoId, anoMes, contextoAnterior, relatos, ava
       "",
       `=== RELATOS CONFIRMADOS DE ${anoMes} (${relatos.length}, na ordem de confirmação) ===`,
       blocoRelatos
-    ].join("\n") + blocoAvaliacoesPersonal(avaliacoesPersonal)
+    ].join("\n") +
+    blocoAvaliacoesPersonal(avaliacoesPersonal) +
+    blocoRevisaoAnterior(revisaoAnterior)
   );
 }
 
@@ -188,6 +203,12 @@ async function gerarParaAluno({ equipeId, alunoId, anoMes, origem = "automatica"
   const anterior = await avaliacaoMensalRepository.obterAnteriorAoMes({ alunoId, anoMes });
   const contextoAnterior = anterior?.contexto_consolidado_json || null;
 
+  // Revisão que o personal fez ao compartilhar a avaliação do mês anterior
+  // (docs/adr/0023) - entra no prompt como leitura do profissional, peso alto.
+  const revisaoAnterior = anterior
+    ? await revisaoAvaliacaoMensalRepository.obterPorAvaliacao(anterior.id)
+    : null;
+
   const avaliacoesPersonal = await avaliacaoPersonalRepository.listarNoPeriodo({
     equipeId,
     alunoId,
@@ -222,7 +243,14 @@ async function gerarParaAluno({ equipeId, alunoId, anoMes, origem = "automatica"
   }
 
   try {
-    const promptContexto = montarPromptAvaliacao({ alunoId, anoMes, contextoAnterior, relatos, avaliacoesPersonal });
+    const promptContexto = montarPromptAvaliacao({
+      alunoId,
+      anoMes,
+      contextoAnterior,
+      relatos,
+      avaliacoesPersonal,
+      revisaoAnterior
+    });
     const { avaliacaoMensal, contextoConsolidado } = await geminiService.gerarAvaliacaoMensal({ promptContexto });
 
     if (!avaliacaoMensal || !contextoConsolidado) {

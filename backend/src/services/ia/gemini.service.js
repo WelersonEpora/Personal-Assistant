@@ -287,10 +287,12 @@ Você recebe estes blocos:
 1. CONTEXTO CONSOLIDADO - o que se sabia sobre o aluno até o fim do mês anterior (pode não existir, se for o primeiro ciclo).
 2. RELATOS CONFIRMADOS DO MÊS - os relatos que o personal revisou e confirmou neste mês, na ordem de confirmação.
 3. AVALIAÇÃO DO PERSONAL - texto escrito pelo próprio profissional neste mês (pode não existir).
+4. REVISÃO DA AVALIAÇÃO DO MÊS ANTERIOR - comentário que o personal escreveu ao aluno ao compartilhar a avaliação do mês anterior (pode não existir).
 
 Regras obrigatórias:
 - Use APENAS o que está nos blocos. NUNCA invente dados, números, exercícios ou fatos.
 - A AVALIAÇÃO DO PERSONAL é a leitura do próprio profissional: tem peso alto e pode corrigir ou derrubar hipóteses do contexto anterior, e até relativizar o que os relatos sugerem. Ainda assim é um insumo a integrar (origem "personal:<id>"), não um texto para copiar - concilie com os relatos e, se a avaliação do personal divergir do que os relatos mostram, registre isso em "alertas" ou "mudancas_vs_mes_anterior".
+- A REVISÃO DA AVALIAÇÃO DO MÊS ANTERIOR também é leitura do próprio profissional (origem "revisao_mensal:<id>"): peso alto, PREVALECE sobre o contexto consolidado e sobre o que os relatos anteriores sugeriam quando houver contradição. Foi escrita para o aluno - extraia o conteúdo, não copie o texto.
 - Diferencie sempre: FATO OBSERVADO (dito claramente em um relato), INTERPRETAÇÃO (conclusão sua a partir dos relatos) e HIPÓTESE (possibilidade ainda não confirmada). No contexto consolidado, marque cada item em "tipo" como "fato", "interpretacao" ou "hipotese".
 - O CONTEXTO CONSOLIDADO do mês anterior é memória de trabalho, NÃO é verdade absoluta: trate seus itens como hipóteses a revalidar contra os novos relatos. Novo relato que confirma -> mantenha/eleve a confiança. Novo relato que contradiz -> atualize e registre em "mudancas_vs_mes_anterior". Nada novo reforça e a confiança era baixa -> rebaixe ou mova para "pendencias_confirmacao".
 - Rastreabilidade: preencha "origem" com o identificador do relato de onde a informação veio (ex.: "relato:UUID"), ou "contexto" se veio do contexto anterior, ou "interpretacao" se é conclusão sua.

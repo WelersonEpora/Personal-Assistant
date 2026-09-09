@@ -22,6 +22,7 @@ db.FichaAcessoLink = require("./fichaAcessoLink")(sequelize);
 db.AvaliacaoMensal = require("./avaliacaoMensal")(sequelize);
 db.AnaliseSobDemanda = require("./analiseSobDemanda")(sequelize);
 db.AvaliacaoPersonal = require("./avaliacaoPersonal")(sequelize);
+db.RevisaoAvaliacaoMensal = require("./revisaoAvaliacaoMensal")(sequelize);
 db.MetricaAvaliacaoFisica = require("./metricaAvaliacaoFisica")(sequelize);
 db.AvaliacaoFisica = require("./avaliacaoFisica")(sequelize);
 db.AvaliacaoFisicaMedida = require("./avaliacaoFisicaMedida")(sequelize);

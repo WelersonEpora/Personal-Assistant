@@ -6,6 +6,7 @@ const alunoController = require("../controllers/aluno.controller");
 const fichaTreinoController = require("../controllers/ficha-treino.controller");
 const fichaAcessoLinkController = require("../controllers/ficha-acesso-link.controller");
 const avaliacaoMensalController = require("../controllers/avaliacao-mensal.controller");
+const avaliacaoMensalCompartilhadaController = require("../controllers/avaliacao-mensal-compartilhada.controller");
 const analiseSobDemandaController = require("../controllers/analise-sob-demanda.controller");
 const avaliacaoPersonalController = require("../controllers/avaliacao-personal.controller");
 const avaliacaoFisicaController = require("../controllers/avaliacao-fisica.controller");
@@ -47,6 +48,14 @@ router.delete("/:id/ficha-link", fichaAcessoLinkController.revogar);
 router.get("/:id/avaliacoes-mensais", avaliacaoMensalController.listarPorAluno);
 router.get("/:id/avaliacoes-mensais/:anoMes", avaliacaoMensalController.obterPorMes);
 router.post("/:id/avaliacoes-mensais/:anoMes/gerar", avaliacaoMensalController.gerar);
+
+// Compartilhamento da avaliação mensal com o aluno (docs/adr/0023) - revisão
+// do personal (comentário + itens a mostrar) que habilita o PDF gerado no
+// cliente. NÃO cria `validacao` nem torna a avaliação oficial; o comentário
+// entra no próximo ciclo mensal como insumo de peso alto.
+router.get("/:id/avaliacoes-mensais/:anoMes/compartilhamento", avaliacaoMensalCompartilhadaController.obter);
+router.put("/:id/avaliacoes-mensais/:anoMes/compartilhamento", avaliacaoMensalCompartilhadaController.salvar);
+router.delete("/:id/avaliacoes-mensais/:anoMes/compartilhamento", avaliacaoMensalCompartilhadaController.excluir);
 
 // Análise sob demanda (docs/adr/0015) - leitura pontual da IA a pedido do
 // personal, no máximo 1 gerada a cada 7 dias por aluno. Não altera o

@@ -313,6 +313,19 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
   assinatura do título → Jaccard ≥ 0,90 → lista "já no Radar" no prompt.
   `normalizarItem` encaixa os assuntos da IA no vocabulário fixo dos grupos.
   (Adendos 2026-09-02.)
+- **A avaliação mensal só chega ao aluno via PDF, depois de uma revisão do
+  personal** (ADR-0023). Tabela `revisao_avaliacao_mensal` (1:1 com
+  `avaliacao_mensal`): comentário obrigatório + `itens_excluidos`. A revisão
+  **habilita o compartilhamento e nada mais** — não torna a avaliação oficial
+  (só `validacao` é), nenhum job/worker escreve nela, e o fluxo não cria
+  `validacao`. O comentário entra no ciclo do mês seguinte como leitura do
+  profissional (peso alto, origem `revisao_mensal:<id>`, prevalece em
+  contradição). PDF é gerado no cliente ("salvar como PDF" do navegador,
+  rota `/compartilhar/avaliacao-mensal/:id/:anoMes`, fora do `AdminShell`) —
+  **sem endpoint público** e sem armazenar o arquivo. O PDF nunca mostra
+  `alertas`, `pendencias_confirmacao`, `mudancas_vs_mes_anterior` nem o
+  contexto consolidado. Regerar a avaliação depois da revisão a marca como
+  desatualizada e trava o PDF até revisar de novo.
 - Toda decisão arquitetural relevante e difícil de reverter vira ADR em
   `docs/adr/`, numerada sequencialmente, com Contexto/Decisão/Alternativas
   consideradas/Consequências. Decisões operacionais ou de baixa relevância
@@ -359,6 +372,7 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
 | 0020 | Tela de Atendimentos (relatório de atividade por período) |
 | 0021 | Interação de gravação de voz (segurar + travar, estilo WhatsApp) |
 | 0022 | Radar — atualização profissional ("fofoqueira científica") |
+| 0023 | Compartilhar a avaliação mensal com o aluno (PDF com revisão do personal) |
 
 ## Estado atual
 
@@ -374,7 +388,11 @@ MVP completo e verificado de ponta a ponta:
   demanda com limite de 1 análise gerada a cada 7 dias — sem relatos/dados
   insuficientes não vira registro nem consome a janela; + avaliação escrita
   pelo próprio personal (sem IA) que entra no prompt dos ciclos junto dos
-  relatos; IA atua como personal trainer sênior; nunca dado oficial),
+  relatos; IA atua como personal trainer sênior; nunca dado oficial;
+  + compartilhamento com o aluno via PDF (docs/adr/0023 — `revisao_avaliacao_mensal`
+  1:1 com a avaliação: comentário obrigatório + `itens_excluidos`, endpoint
+  `GET/PUT/DELETE /api/v1/alunos/:id/avaliacoes-mensais/:anoMes/compartilhamento`;
+  o comentário realimenta o ciclo seguinte com peso alto; não cria `validacao`),
   Avaliação Física (docs/adr/0016 — modelo v3: catálogo de métricas +
   `avaliacao_fisica` + `avaliacao_fisica_medida` com `principal` e métricas
   derivadas IMC/RCQ; importador one-shot do BodyMove, idempotente, com os
@@ -432,7 +450,7 @@ MVP completo e verificado de ponta a ponta:
   **Relatos** (`/admin/registros`) virou a caixa de entrada do pipeline (só não
   confirmados; confirmado vive só no Histórico), sem filtro de tempo e sem a aba
   "Confirmados".
-  308 testes automatizados (`node --test`, unitários +
+  320 testes automatizados (`node --test`, unitários +
   integração contra banco de teste dedicado).
 - **Frontend**: app Vue 3 + Vite + PWA único (`/captura` mobile-first
   offline, `/admin` gestão/validação), IndexedDB + fila de sincronização
@@ -466,6 +484,15 @@ MVP completo e verificado de ponta a ponta:
   agregada, sem dar pro personal descobrir quem precisava de ação.
   Switches "não usa ficha de treino" / "não faz avaliação física" no topo das
   seções do aluno (tiram do painel; não apagam dados).
+  Compartilhar a avaliação mensal com o aluno (docs/adr/0023): na linha da
+  avaliação mensal `gerada` do Acompanhamento, botão que leva a
+  `views/CompartilharAvaliacaoMensalView.vue` (rota top-level
+  `/compartilhar/avaliacao-mensal/:id/:anoMes`, fora do `AdminShell`): painel
+  de preparação (comentário obrigatório + checklist de itens a incluir) só em
+  tela, documento (o que vira PDF) em tela e no `@media print`; "Gerar PDF"
+  salva a revisão e chama `window.print()`. Selo "Compartilhada em DD/MM" /
+  "Revisão desatualizada" no card. Util puro `utils/avaliacaoMensalCompartilhada.js`
+  (`listarItensExcluiveis`, `filtrarAvaliacaoParaAluno`, `revisaoDesatualizada`).
   Captura de Avaliação Física por voz (docs/adr/0018): seletor de tipo
   (Atendimento / Avaliação física) ao iniciar o Registro (persistido; um
   `em_andamento` por aluno **por tipo**), roteiro de ditado opcional, acento
@@ -499,10 +526,10 @@ MVP completo e verificado de ponta a ponta:
   único + dropdown em `≤ 760px`; prop `multiple` (array, vazio = "todos"). Em
   `RegistrosView` (status), `SeletorPeriodo` (presets), `ExerciciosView`
   (origem) e `RadarView` (assunto, `multiple`).
-  59 testes automatizados (`node --test` + `fake-indexeddb`; +
+  80 testes automatizados (`node --test` + `fake-indexeddb`; +
   `echarts-option-builder.test.js`, `echarts-bar-option-builder.test.js`,
-  `periodos.test.js`, `avaliacaoFisica.test.js`, `gravacaoVoz.test.js` e
-  `registroStatus.test.js` puros).
+  `periodos.test.js`, `avaliacaoFisica.test.js`, `gravacaoVoz.test.js`,
+  `avaliacaoMensalCompartilhada.test.js` e `registroStatus.test.js` puros).
 - **Docker**: `compose.dev.yml` (Postgres + pgAdmin) e `compose.prod.yml`
   (Postgres + backend + frontend) validados; Dockerfiles com healthcheck
   em ambos os serviços da aplicação.

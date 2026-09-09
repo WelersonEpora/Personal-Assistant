@@ -45,6 +45,28 @@ test("montarPromptAvaliacao: inclui os itens confirmados de cada relato e a rast
   assert.match(prompt, /nota geral: aluno motivado/);
 });
 
+test("montarPromptAvaliacao: inclui a revisão da avaliação do mês anterior (docs/adr/0023)", () => {
+  const prompt = montarPromptAvaliacao({
+    alunoId: "aluno-1",
+    anoMes: "2026-04",
+    contextoAnterior: { linha_de_base: [] },
+    relatos: [],
+    revisaoAnterior: {
+      id: "rev-1",
+      comentario: "Ajustei a leitura da IA: a dor no joelho já tinha passado no fim do mês.",
+      compartilhada_em: new Date(2026, 3, 2)
+    }
+  });
+  assert.match(prompt, /REVISÃO DA AVALIAÇÃO DO MÊS ANTERIOR/);
+  assert.match(prompt, /revisao_mensal:rev-1/);
+  assert.match(prompt, /dor no joelho já tinha passado/);
+});
+
+test("montarPromptAvaliacao: sem revisão anterior, não adiciona o bloco", () => {
+  const prompt = montarPromptAvaliacao({ alunoId: "aluno-1", anoMes: "2026-04", contextoAnterior: null, relatos: [] });
+  assert.doesNotMatch(prompt, /REVISÃO DA AVALIAÇÃO DO MÊS ANTERIOR/);
+});
+
 test("montarPromptAvaliacao: usa data_atendimento como 'sessão em' (docs/adr/0019)", () => {
   const relatos = [
     {

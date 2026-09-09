@@ -14,6 +14,14 @@ const routes = [
     meta: { publica: true }
   },
   { path: '/captura', name: 'captura', component: () => import('../views/captura/CapturaView.vue') },
+  // Preparação do PDF da avaliação mensal para o aluno (docs/adr/0023).
+  // Autenticada, mas fora do AdminShell para o print sair limpo.
+  {
+    path: '/compartilhar/avaliacao-mensal/:id/:anoMes',
+    name: 'compartilhar-avaliacao-mensal',
+    component: () => import('../views/CompartilharAvaliacaoMensalView.vue'),
+    props: true
+  },
   {
     path: '/admin',
     component: () => import('../views/admin/AdminShell.vue'),

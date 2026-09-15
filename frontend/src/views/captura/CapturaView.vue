@@ -73,6 +73,7 @@ const registrosServidorRecentes = ref([])
 
 const gravando = computed(() => micEstado.value !== 'idle')
 const suportaPausa = typeof MediaRecorder !== 'undefined' && typeof MediaRecorder.prototype.pause === 'function'
+const suportaWakeLock = typeof navigator !== 'undefined' && 'wakeLock' in navigator
 
 const relogioGravacao = criarRelogioGravacao()
 let cronometroInterval = null
@@ -81,6 +82,7 @@ let gestoOrigemY = 0
 // janela curta logo depois de travar em que cliques no composer são
 // ignorados - soltar o dedo depois do arraste não pode disparar "enviar".
 let suprimirCliqueAte = 0
+let wakeLock = null
 
 const alunoAtual = computed(() => alunos.value.find((a) => a.id === alunoAtualId.value) || null)
 // Só alunos ativos podem ser selecionados pra um novo Registro (inativo =
@@ -298,6 +300,8 @@ onMounted(async () => {
   syncQueue.iniciarMotor()
   await carregarAlunos()
   await carregarRecentesServidor()
+  document.addEventListener('visibilitychange', onVisibilityChange)
+  await solicitarWakeLock()
 })
 
 // Avatar do personal na topbar (mesmo padrão de AdminShell.vue) - se
@@ -321,8 +325,10 @@ onMounted(carregarFotoPropria)
 watch(() => auth.usuario?.foto_caminho, carregarFotoPropria)
 
 onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', onVisibilityChange)
   clearInterval(cronometroInterval)
   gravador.cancelar()
+  liberarWakeLock()
   syncQueue.registrosLocais.forEach((r) => revogarAudioUrls(r.entradas))
   registrosServidorRecentes.value.forEach((r) => revogarAudioUrls(r.entradas || []))
   if (fotoUrl.value) URL.revokeObjectURL(fotoUrl.value)
@@ -460,6 +466,36 @@ function alternarPausa() {
     gravacaoPausada.value = true
     clearInterval(cronometroInterval)
     tickCronometro()
+  }
+}
+
+// Mantém a tela acesa enquanto o personal está na captura, a tela toda - sem
+// isso, o timeout de tela do celular apaga a tela (às vezes no meio de um
+// relato longo) e o navegador chega a suspender a página, cortando a
+// gravação em andamento. Vale para a tela inteira, não só durante a
+// gravação: o personal pode ficar com o app aberto sem tocar em nada entre
+// um aluno e outro. O navegador solta o lock sozinho ao esconder a aba
+// (troca de app); onVisibilityChange reconquista ao voltar.
+async function solicitarWakeLock() {
+  if (!suportaWakeLock) return
+  try {
+    wakeLock = await navigator.wakeLock.request('screen')
+  } catch (_err) {
+    // ambiente sem permissão (ex.: economia de bateria) - segue sem o lock
+    wakeLock = null
+  }
+}
+
+async function liberarWakeLock() {
+  try {
+    await wakeLock?.release()
+  } catch (_err) { /* já pode ter sido liberado pelo navegador */ }
+  wakeLock = null
+}
+
+async function onVisibilityChange() {
+  if (document.visibilityState === 'visible' && !wakeLock) {
+    await solicitarWakeLock()
   }
 }
 

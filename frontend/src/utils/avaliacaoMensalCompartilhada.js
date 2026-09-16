@@ -46,7 +46,11 @@ export function filtrarAvaliacaoParaAluno(avaliacaoJson, itensExcluidos = []) {
     .map(({ d }) => ({
       nome: d?.nome || '',
       situacao_atual: d?.situacao_atual || '',
-      evolucao_no_mes: d?.evolucao_no_mes || d?.evolucao_recente || ''
+      evolucao_no_mes: d?.evolucao_no_mes || d?.evolucao_recente || '',
+      // "hipotese" precisa continuar visível pro aluno como possibilidade,
+      // não fato - avaliações antigas sem o campo não ganham a chave (evita
+      // "tipo: undefined" no documento).
+      ...(d?.tipo ? { tipo: d.tipo } : {})
     }))
 
   const destaques = (Array.isArray(av.destaques) ? av.destaques : [])

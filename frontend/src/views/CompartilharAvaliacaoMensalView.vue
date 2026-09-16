@@ -233,7 +233,10 @@ function voltar() {
         <section v-if="documento.dimensoes.length" class="doc-secao">
           <h2>Evolução por dimensão</h2>
           <div v-for="(dim, i) in documento.dimensoes" :key="i" class="doc-dimensao">
-            <div class="doc-dimensao-nome">{{ dim.nome }}</div>
+            <div class="doc-dimensao-nome">
+              {{ dim.nome }}
+              <span v-if="dim.tipo === 'hipotese'" class="doc-selo-possibilidade">possibilidade, não diagnóstico</span>
+            </div>
             <div v-if="dim.situacao_atual" class="doc-dimensao-sit">{{ dim.situacao_atual }}</div>
             <div v-if="dim.evolucao_no_mes" class="doc-dimensao-evo">{{ dim.evolucao_no_mes }}</div>
           </div>
@@ -407,6 +410,19 @@ function voltar() {
 }
 .doc-dimensao-nome {
   font-weight: 700;
+}
+.doc-selo-possibilidade {
+  display: inline-block;
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #71717a;
+  border: 1px solid #d4d4d8;
+  border-radius: 999px;
+  padding: 1px 8px;
+  margin-left: 6px;
+  vertical-align: middle;
 }
 .doc-dimensao-sit {
   color: #52525b;

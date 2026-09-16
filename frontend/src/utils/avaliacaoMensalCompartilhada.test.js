@@ -37,6 +37,20 @@ test('filtrarAvaliacaoParaAluno tira evidências/origem/confiança das dimensõe
   assert.equal(out.dimensoes[0].confianca, undefined)
 })
 
+test('filtrarAvaliacaoParaAluno preserva "tipo" quando presente (hipótese precisa continuar marcada pro aluno)', () => {
+  const comHipotese = {
+    ...AVALIACAO,
+    dimensoes: [{ nome: 'Dor no joelho', situacao_atual: 'recorrente', evolucao_no_mes: 'possível sobrecarga', tipo: 'hipotese' }]
+  }
+  const out = filtrarAvaliacaoParaAluno(comHipotese, [])
+  assert.equal(out.dimensoes[0].tipo, 'hipotese')
+})
+
+test('filtrarAvaliacaoParaAluno não introduz "tipo" quando a dimensão não tem (avaliação antiga)', () => {
+  const out = filtrarAvaliacaoParaAluno(AVALIACAO, [])
+  assert.deepEqual(Object.keys(out.dimensoes[0]), ['nome', 'situacao_atual', 'evolucao_no_mes'])
+})
+
 test('filtrarAvaliacaoParaAluno nunca expõe alertas ou mudanças vs. mês anterior', () => {
   const out = filtrarAvaliacaoParaAluno(AVALIACAO, [])
   assert.equal(out.alertas, undefined)

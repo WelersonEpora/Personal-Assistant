@@ -11,7 +11,12 @@ const {
   ehTransitorio,
   montarCatalogoParaPrompt,
   montarPromptRadar,
-  extrairPrimeiroArrayJson
+  extrairPrimeiroArrayJson,
+  PERSONA_PERSONAL_SENIOR,
+  INSTRUCAO_AVALIACAO_MENSAL,
+  INSTRUCAO_ANALISE_SOB_DEMANDA,
+  SCHEMA_AVALIACAO_MENSAL,
+  SCHEMA_ANALISE_SOB_DEMANDA
 } = require("./gemini.service");
 
 test("ehTransitorio: reconhece 503/429/500 e mensagens de sobrecarga", () => {
@@ -137,6 +142,53 @@ test("montarPromptRadar: com jaPublicados, injeta a lista 'já no Radar' para o 
   });
   assert.match(prompt, /NÃO devolva nenhuma destas/);
   assert.match(prompt, /Revisão sobre imersão em água fria \(https:\/\/doi\.org\/10\.1\/x\)/);
+});
+
+// Acompanhamento de IA (docs/adr/0015) - guardas de segurança sobre dor/
+// diagnóstico e faltas/ausências, e o schema que as reforça estruturalmente
+// (não só em prosa, que o modelo pode "esquecer").
+
+test("persona: proíbe diagnóstico/tratamento e orienta encaminhamento profissional", () => {
+  assert.match(PERSONA_PERSONAL_SENIOR, /NÃO é médico/);
+  assert.match(PERSONA_PERSONAL_SENIOR, /NUNCA como fato ou diagnóstico fechado/);
+  assert.match(PERSONA_PERSONAL_SENIOR, /NUNCA prescrevendo tratamento/);
+  assert.match(PERSONA_PERSONAL_SENIOR, /profissional de saúde/);
+});
+
+test("avaliação mensal: instrui tipo obrigatório, dor sem regra rígida de contagem e faltas sem inferir de silêncio", () => {
+  assert.match(INSTRUCAO_AVALIACAO_MENSAL, /preencha "tipo"/);
+  assert.match(INSTRUCAO_AVALIACAO_MENSAL, /Não crie uma regra rígida de contagem/);
+  assert.match(INSTRUCAO_AVALIACAO_MENSAL, /NUNCA conclua ou insinue que o aluno faltou apenas porque não há relato/);
+  assert.match(INSTRUCAO_AVALIACAO_MENSAL, /responsabilidade de outra parte do sistema/);
+});
+
+test("análise sob demanda: mesmas guardas de dor e faltas da avaliação mensal", () => {
+  assert.match(INSTRUCAO_ANALISE_SOB_DEMANDA, /preencha "tipo"/);
+  assert.match(INSTRUCAO_ANALISE_SOB_DEMANDA, /NUNCA conclua ou insinue em "alertas" que o aluno faltou/);
+});
+
+test("schema mensal: dimensoes e alertas exigem 'tipo' (fato/interpretacao/hipotese)", () => {
+  const dimensao = SCHEMA_AVALIACAO_MENSAL.properties.avaliacao_mensal.properties.dimensoes.items;
+  const alerta = SCHEMA_AVALIACAO_MENSAL.properties.avaliacao_mensal.properties.alertas.items;
+  assert.ok(dimensao.required.includes("tipo"));
+  assert.deepEqual(dimensao.properties.tipo.enum, ["fato", "interpretacao", "hipotese"]);
+  assert.ok(alerta.required.includes("tipo"));
+  assert.deepEqual(alerta.properties.tipo.enum, ["fato", "interpretacao", "hipotese"]);
+});
+
+test("schema mensal: gravidade do alerta não reaproveita o enum de confiança", () => {
+  const alerta = SCHEMA_AVALIACAO_MENSAL.properties.avaliacao_mensal.properties.alertas.items;
+  const dimensao = SCHEMA_AVALIACAO_MENSAL.properties.avaliacao_mensal.properties.dimensoes.items;
+  assert.notEqual(alerta.properties.gravidade, dimensao.properties.confianca, "gravidade deve ser um enum próprio, não o mesmo objeto de NIVEL_CONFIANCA");
+  assert.deepEqual(alerta.properties.gravidade.enum, ["alta", "media", "baixa"]);
+});
+
+test("schema de análise sob demanda: mesmas garantias estruturais da avaliação mensal", () => {
+  const dimensao = SCHEMA_ANALISE_SOB_DEMANDA.properties.analise.properties.dimensoes.items;
+  const alerta = SCHEMA_ANALISE_SOB_DEMANDA.properties.analise.properties.alertas.items;
+  assert.ok(dimensao.required.includes("tipo"));
+  assert.ok(alerta.required.includes("tipo"));
+  assert.notEqual(alerta.properties.gravidade, dimensao.properties.confianca);
 });
 
 test("comRetry: transitório persistente estoura após o máximo de tentativas", async () => {

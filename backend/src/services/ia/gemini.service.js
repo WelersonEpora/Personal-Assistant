@@ -100,6 +100,10 @@ Se não houver nada estruturável no conteúdo, devolva "itens" como lista vazia
 // lista é array de objetos rasos: fácil de validar via responseSchema e de
 // renderizar, e mantém o contexto pequeno (o prompt instrui a limitar).
 const NIVEL_CONFIANCA = { type: "string", enum: ["alta", "media", "baixa"] };
+// Gravidade (impacto de um alerta) é um conceito diferente de confiança
+// (o quanto a IA tem certeza da informação) - mesma escala hoje, enum
+// próprio de propósito para não ficar preso a essa coincidência no futuro.
+const NIVEL_GRAVIDADE = { type: "string", enum: ["alta", "media", "baixa"] };
 const TIPO_INFORMACAO = { type: "string", enum: ["fato", "interpretacao", "hipotese"] };
 
 // Persona comum das análises de acompanhamento (mensal e sob demanda,
@@ -113,6 +117,7 @@ Sua postura:
 - Deixe explícito quando os dados são insuficientes para uma conclusão - não force uma resposta.
 - Diferencie sempre FATO OBSERVADO (dito claramente em um relato), INTERPRETAÇÃO (sua conclusão a partir dos relatos) e HIPÓTESE (possibilidade ainda não confirmada).
 - NUNCA invente informações, números, exercícios ou fatos que não estejam no conteúdo fornecido.
+- Você tem conhecimento técnico sobre dor, lesões e limitações físicas, mas NÃO é médico nem fisioterapeuta e não está autorizado a diagnosticar. Pode levantar uma possibilidade sobre a origem de um sintoma, mas SEMPRE como HIPÓTESE, com linguagem explícita de possibilidade ("pode estar relacionado a", "é possível que", "vale investigar se") - NUNCA como fato ou diagnóstico fechado, e NUNCA prescrevendo tratamento (medicação, protocolo terapêutico, conduta clínica). Quando o sintoma parecer relevante, recomende que o personal encaminhe o aluno a um profissional de saúde para avaliação - isso é uma recomendação de processo, não um diagnóstico seu.
 - Você é APOIO TÉCNICO à análise do profissional, não substituto da decisão dele.`;
 
 const SCHEMA_AVALIACAO_MENSAL = {
@@ -153,9 +158,13 @@ const SCHEMA_AVALIACAO_MENSAL = {
                   required: ["texto"]
                 }
               },
-              confianca: NIVEL_CONFIANCA
+              confianca: NIVEL_CONFIANCA,
+              // Obrigatório: garante estruturalmente que uma possibilidade
+              // (ex.: hipótese sobre causa de uma dor) nunca fique só na
+              // prosa, sem marcação, correndo o risco de ser lida como fato.
+              tipo: TIPO_INFORMACAO
             },
-            required: ["nome", "situacao_atual", "evolucao_no_mes", "confianca"]
+            required: ["nome", "situacao_atual", "evolucao_no_mes", "confianca", "tipo"]
           }
         },
         destaques: { type: "array", items: { type: "string" } },
@@ -163,8 +172,8 @@ const SCHEMA_AVALIACAO_MENSAL = {
           type: "array",
           items: {
             type: "object",
-            properties: { texto: { type: "string" }, gravidade: NIVEL_CONFIANCA },
-            required: ["texto"]
+            properties: { texto: { type: "string" }, gravidade: NIVEL_GRAVIDADE, tipo: TIPO_INFORMACAO },
+            required: ["texto", "tipo"]
           }
         },
         recomendacoes: { type: "array", items: { type: "string" } },
@@ -298,6 +307,10 @@ Regras obrigatórias:
 - Rastreabilidade: preencha "origem" com o identificador do relato de onde a informação veio (ex.: "relato:UUID"), ou "contexto" se veio do contexto anterior, ou "interpretacao" se é conclusão sua.
 - Sinalize contradições (entre relatos, ou entre um relato e o contexto anterior) de forma explícita, em "alertas" ou "pendencias_confirmacao".
 - A avaliação é uma INTERPRETAÇÃO sua e NUNCA deve ser tratada como dado oficial do aluno.
+- Em CADA dimensão e CADA alerta, preencha "tipo" ("fato", "interpretacao" ou "hipotese"). É obrigatório - é o que garante ao personal que uma possibilidade sua não seja lida como se fosse um fato confirmado.
+- DOR, DESCONFORTO OU LESÃO: identifique padrões relevantes ao longo do mês. Recorrência (o mesmo sintoma em vários relatos) é um indício forte de relevância, mas NÃO é a única razão para destacar algo - uma ocorrência isolada também pode merecer destaque dependendo da intensidade, da evolução, do impacto no treino ou de como o próprio relato descreve a situação. Não crie uma regra rígida de contagem; use julgamento clínico-funcional razoável. Qualquer hipótese sobre a causa do sintoma segue a regra acima (persona): "tipo": "hipotese", linguagem de possibilidade, nunca diagnóstico, nunca tratamento, com sugestão de avaliação profissional quando pertinente.
+- FALTAS/AUSÊNCIAS: diferencie SEMPRE ausência EXPLICITAMENTE RELATADA (um relato ou o personal menciona que o aluno faltou, cancelou ou não compareceu) de simples FALTA DE RELATO no período (nenhum registro chegou, o que não quer dizer que o aluno faltou). Destaque ausência relatada em "alertas" só quando houver recorrência, padrão ou impacto relevante no acompanhamento - uma falta isolada e sem gravidade normalmente não precisa aparecer. NUNCA conclua ou insinue que o aluno faltou apenas porque não há relato correspondente a um período - registre isso, quando notável, em "lacunas" (falta de informação), nunca em "alertas" (que implicaria um fato sobre o aluno). A detecção de inatividade por ausência de registros é responsabilidade de outra parte do sistema, fora desta avaliação.
+- NOMEAÇÃO DE DIMENSÕES: ao abrir uma dimensão sobre um tema que já aparece no "estado_atual" do contexto consolidado anterior, reaproveite o mesmo nome (campo "dimensao" de lá) em vez de inventar um rótulo novo para o mesmo assunto - isso permite ao personal comparar a evolução de um tema entre ciclos. Ainda assim, não crie dimensões vazias só para preencher uma lista ou seguir um padrão de meses anteriores: abra uma dimensão só quando houver conteúdo real do mês para ela.
 
 Sobre o CONTEXTO CONSOLIDADO que você deve produzir (será a entrada do próximo ciclo):
 - COMPACTO e ESTRUTURADO. Não acumule avaliações anteriores nem repita o histórico mês a mês.
@@ -361,9 +374,10 @@ const SCHEMA_ANALISE_SOB_DEMANDA = {
                   required: ["texto"]
                 }
               },
-              confianca: NIVEL_CONFIANCA
+              confianca: NIVEL_CONFIANCA,
+              tipo: TIPO_INFORMACAO
             },
-            required: ["nome", "situacao_atual", "evolucao_recente", "confianca"]
+            required: ["nome", "situacao_atual", "evolucao_recente", "confianca", "tipo"]
           }
         },
         destaques: { type: "array", items: { type: "string" } },
@@ -371,8 +385,8 @@ const SCHEMA_ANALISE_SOB_DEMANDA = {
           type: "array",
           items: {
             type: "object",
-            properties: { texto: { type: "string" }, gravidade: NIVEL_CONFIANCA },
-            required: ["texto"]
+            properties: { texto: { type: "string" }, gravidade: NIVEL_GRAVIDADE, tipo: TIPO_INFORMACAO },
+            required: ["texto", "tipo"]
           }
         },
         recomendacoes: { type: "array", items: { type: "string" } },
@@ -412,6 +426,9 @@ Regras:
 - Trate o CONTEXTO CONSOLIDADO como referência a confrontar com os relatos recentes, não como verdade absoluta. Aponte contradições explicitamente (em "alertas" ou "pendencias_confirmacao").
 - Rastreabilidade: "origem" = identificador do relato ("relato:UUID"), "contexto" ou "interpretacao".
 - Esta análise é um APOIO pontual: NÃO é dado oficial e NÃO altera o contexto consolidado do ciclo mensal.
+- Em CADA dimensão e CADA alerta, preencha "tipo" ("fato", "interpretacao" ou "hipotese") - obrigatório, mesma regra da avaliação mensal.
+- DOR, DESCONFORTO OU LESÃO: identifique padrões relevantes (recorrência é um indício forte, mas uma ocorrência isolada também pode ser relevante dependendo de intensidade, evolução ou impacto). Qualquer hipótese sobre a causa segue a persona: "tipo": "hipotese", linguagem de possibilidade, nunca diagnóstico, nunca tratamento, com sugestão de avaliação profissional quando pertinente.
+- FALTAS/AUSÊNCIAS: diferencie ausência EXPLICITAMENTE RELATADA de simples FALTA DE RELATO recente. Só destaque ausência relatada com recorrência, padrão ou impacto relevante, em "alertas". NUNCA conclua ou insinue em "alertas" que o aluno faltou apenas porque há poucos relatos recentes - a detecção de inatividade por ausência de registros já é responsabilidade de outra parte do sistema, fora desta análise.
 - Se houver poucos relatos recentes, marque "dados_insuficientes" como true, mantenha a análise curta e não infira tendências.`;
 
 // Contexto (contexto consolidado mais recente + relatos recentes, já montado
@@ -689,5 +706,10 @@ module.exports = {
   ehTransitorio,
   montarCatalogoParaPrompt,
   montarPromptRadar,
-  extrairPrimeiroArrayJson
+  extrairPrimeiroArrayJson,
+  PERSONA_PERSONAL_SENIOR,
+  INSTRUCAO_AVALIACAO_MENSAL,
+  INSTRUCAO_ANALISE_SOB_DEMANDA,
+  SCHEMA_AVALIACAO_MENSAL,
+  SCHEMA_ANALISE_SOB_DEMANDA
 };

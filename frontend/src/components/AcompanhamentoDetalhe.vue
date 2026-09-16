@@ -19,6 +19,33 @@ function classeConfianca(nivel) {
   return nivel === 'alta' ? 'alta' : nivel === 'baixa' ? 'baixa' : 'media'
 }
 
+// Gravidade (impacto de um alerta) usa a mesma escala visual de confiança,
+// mas é um conceito diferente - função própria para não confundir os dois
+// no código (mesmo critério do enum separado no backend).
+function classeGravidade(nivel) {
+  return classeConfianca(nivel)
+}
+
+// "hipotese" é uma possibilidade levantada pela IA, nunca um fato - avaliações
+// antigas (antes deste campo existir) não têm "tipo": tratado como não-hipótese,
+// sem selo (não dá pra afirmar retroativamente o que era possibilidade).
+function ehPossibilidade(item) {
+  return item?.tipo === 'hipotese'
+}
+
+// "origem" vem da IA como "relato:<uuid>", "personal:<uuid>", "contexto" ou
+// "interpretacao" (docs/adr/0015) - o uuid é rastreabilidade pra auditoria,
+// não pra leitura humana. Aqui vira um rótulo legível, sem o hash.
+function rotuloOrigem(origem) {
+  if (!origem) return ''
+  if (origem.startsWith('relato:')) return 'relato'
+  if (origem.startsWith('personal:')) return 'avaliação do personal'
+  if (origem.startsWith('revisao_mensal:')) return 'revisão da avaliação anterior'
+  if (origem === 'contexto') return 'ciclo anterior'
+  if (origem === 'interpretacao') return 'interpretação da IA'
+  return origem
+}
+
 function rotuloMes(anoMes) {
   if (!anoMes) return ''
   const [ano, mes] = String(anoMes).split('-')
@@ -42,7 +69,10 @@ function rotuloMes(anoMes) {
         <div v-for="(dim, i) in avaliacao.dimensoes || []" :key="i" class="exercise-card">
           <div class="exercise-card-top">
             <div>
-              <div class="exercise-name">{{ dim.nome }}</div>
+              <div class="exercise-name">
+                {{ dim.nome }}
+                <span v-if="ehPossibilidade(dim)" class="badge badge-warning acomp-selo-possibilidade" title="A IA levantou isto como possibilidade, não como diagnóstico ou fato confirmado.">possibilidade</span>
+              </div>
               <div class="exercise-meta">{{ dim.situacao_atual }}</div>
             </div>
             <span class="confidence-note" :class="classeConfianca(dim.confianca)">● {{ dim.confianca }}</span>
@@ -51,7 +81,7 @@ function rotuloMes(anoMes) {
           <ul v-if="(dim.evidencias || []).length" class="acomp-evidencias">
             <li v-for="(ev, j) in dim.evidencias" :key="j">
               "{{ ev.texto }}"
-              <span class="list-row-sub">— {{ ev.origem }}<template v-if="ev.data"> · {{ ev.data }}</template></span>
+              <span class="list-row-sub">— {{ rotuloOrigem(ev.origem) }}<template v-if="ev.data"> · {{ ev.data }}</template></span>
             </li>
           </ul>
         </div>
@@ -65,8 +95,9 @@ function rotuloMes(anoMes) {
           <p class="acomp-section">Alertas</p>
           <ul class="acomp-lista">
             <li v-for="(a, i) in avaliacao.alertas" :key="i">
-              <span class="confidence-note" :class="classeConfianca(a.gravidade)" style="display: inline-flex;">●</span>
+              <span class="confidence-note" :class="classeGravidade(a.gravidade)" style="display: inline-flex;">●</span>
               {{ a.texto }}
+              <span v-if="ehPossibilidade(a)" class="badge badge-warning acomp-selo-possibilidade" title="A IA levantou isto como possibilidade, não como diagnóstico ou fato confirmado.">possibilidade</span>
             </li>
           </ul>
         </template>
@@ -111,7 +142,7 @@ function rotuloMes(anoMes) {
         <div class="acomp-bloco-titulo">Linha de base</div>
         <div v-for="(item, i) in contexto.linha_de_base" :key="i" class="acomp-item">
           <strong>{{ item.rotulo }}:</strong> {{ item.valor }}
-          <span class="list-row-sub">[{{ item.tipo }}]<template v-if="item.origem"> · {{ item.origem }}</template><template v-if="item.confianca"> · {{ item.confianca }}</template></span>
+          <span class="list-row-sub">[{{ item.tipo }}]<template v-if="item.origem"> · {{ rotuloOrigem(item.origem) }}</template><template v-if="item.confianca"> · {{ item.confianca }}</template></span>
         </div>
       </div>
 
@@ -135,7 +166,7 @@ function rotuloMes(anoMes) {
         <div class="acomp-bloco-titulo">Marcos</div>
         <div v-for="(item, i) in contexto.marcos" :key="i" class="acomp-item">
           <strong>{{ item.data }}</strong> — {{ item.evento }}
-          <span v-if="item.origem" class="list-row-sub">· {{ item.origem }}</span>
+          <span v-if="item.origem" class="list-row-sub">· {{ rotuloOrigem(item.origem) }}</span>
         </div>
       </div>
 
@@ -219,5 +250,10 @@ function rotuloMes(anoMes) {
   font-size: 13px;
   line-height: 1.6;
   padding: 3px 0;
+}
+.acomp-selo-possibilidade {
+  margin-left: 6px;
+  font-size: 10px;
+  padding: 2px 8px;
 }
 </style>

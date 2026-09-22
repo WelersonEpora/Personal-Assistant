@@ -20,7 +20,7 @@ const { NotFoundError, ValidationError } = require("../shared/errors");
 
 // Mínimo de relatos confirmados no mês para acionar a IA. Abaixo disso o
 // ciclo é registrado como "dados_insuficientes" e a IA não é chamada.
-const MINIMO_RELATOS = 5;
+const MINIMO_RELATOS = 3;
 
 const FORMATO_ANO_MES = /^\d{4}-(0[1-9]|1[0-2])$/;
 

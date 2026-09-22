@@ -385,7 +385,7 @@ async function excluirAvaliacaoPersonal(avaliacao) {
         próprias observações, que serão consideradas nas próximas análises junto aos relatos.
       </span>
       <span class="acomp-obs-item">
-        A avaliação mensal é gerada automaticamente no início de cada mês, desde que haja pelo menos 5 relatos confirmados.
+        A avaliação mensal é gerada automaticamente no início de cada mês, desde que haja pelo menos 3 relatos confirmados.
       </span>
     </div>
 

@@ -2,7 +2,7 @@
 
 // docs/adr/0015-acompanhamento-individual-mensal.md. Integração - toca o
 // banco de teste; a chamada ao Gemini é mockada. Cobre as garantias
-// críticas: gatilho mínimo de 5 relatos, filtro por mês de confirmação,
+// críticas: gatilho mínimo de 3 relatos, filtro por mês de confirmação,
 // contexto do mês anterior como entrada, regeneração idempotente e - o mais
 // importante - a avaliação mensal NUNCA cria dado oficial (`validacao`).
 
@@ -109,15 +109,15 @@ async function criarRelatoConfirmado(confirmadoEm, itens = [{ label: "Agachament
   return registro;
 }
 
-test("menos de 5 relatos confirmados: registra dados_insuficientes e NÃO chama a IA", async (t) => {
+test("menos de 3 relatos confirmados: registra dados_insuficientes e NÃO chama a IA", async (t) => {
   const spy = t.mock.method(geminiService, "gerarAvaliacaoMensal");
-  for (let i = 0; i < 4; i += 1) await criarRelatoConfirmado(new Date(2026, 2, 5 + i));
+  for (let i = 0; i < 2; i += 1) await criarRelatoConfirmado(new Date(2026, 2, 5 + i));
   t.after(limpar);
 
   const avaliacao = await avaliacaoMensalService.gerarParaAluno({ equipeId: equipe.id, alunoId: aluno.id, anoMes: "2026-03" });
 
   assert.equal(avaliacao.status, "dados_insuficientes");
-  assert.equal(avaliacao.relatos_considerados, 4);
+  assert.equal(avaliacao.relatos_considerados, 2);
   assert.equal(avaliacao.avaliacao_json.dados_insuficientes, true);
   assert.equal(avaliacao.modelo, null);
   assert.equal(spy.mock.callCount(), 0);
@@ -135,9 +135,9 @@ test("0 relatos no mês: dados_insuficientes com contexto vazio, sem IA", async 
   assert.equal(spy.mock.callCount(), 0);
 });
 
-test("geração MANUAL com menos de 5 relatos: NÃO persiste linha, devolve aviso e não chama a IA", async (t) => {
+test("geração MANUAL com menos de 3 relatos: NÃO persiste linha, devolve aviso e não chama a IA", async (t) => {
   const spy = t.mock.method(geminiService, "gerarAvaliacaoMensal");
-  for (let i = 0; i < 3; i += 1) await criarRelatoConfirmado(new Date(2026, 2, 5 + i));
+  for (let i = 0; i < 2; i += 1) await criarRelatoConfirmado(new Date(2026, 2, 5 + i));
   t.after(limpar);
 
   const resultado = await avaliacaoMensalService.gerarParaAluno({
@@ -148,7 +148,7 @@ test("geração MANUAL com menos de 5 relatos: NÃO persiste linha, devolve avis
   });
 
   assert.equal(resultado.persistida, false);
-  assert.equal(resultado.relatos_considerados, 3);
+  assert.equal(resultado.relatos_considerados, 2);
   assert.match(resultado.mensagem, /mínimo/i);
   assert.equal(spy.mock.callCount(), 0);
 
@@ -189,9 +189,9 @@ test("geração MANUAL insuficiente não altera uma avaliação já existente do
   assert.equal(linha.avaliacao_json.resumo_geral, "avaliação anterior");
 });
 
-test("job (origem automatica) com menos de 5 relatos continua gravando dados_insuficientes", async (t) => {
+test("job (origem automatica) com menos de 3 relatos continua gravando dados_insuficientes", async (t) => {
   const spy = t.mock.method(geminiService, "gerarAvaliacaoMensal");
-  for (let i = 0; i < 3; i += 1) await criarRelatoConfirmado(new Date(2026, 2, 5 + i));
+  for (let i = 0; i < 2; i += 1) await criarRelatoConfirmado(new Date(2026, 2, 5 + i));
   t.after(limpar);
 
   const avaliacao = await avaliacaoMensalService.gerarParaAluno({
@@ -202,20 +202,20 @@ test("job (origem automatica) com menos de 5 relatos continua gravando dados_ins
   });
 
   assert.equal(avaliacao.status, "dados_insuficientes");
-  assert.equal(avaliacao.relatos_considerados, 3);
+  assert.equal(avaliacao.relatos_considerados, 2);
   assert.equal(spy.mock.callCount(), 0);
 });
 
-test("5+ relatos: chama a IA e persiste avaliação + contexto (aluno_id e cobre_ate normalizados)", async (t) => {
+test("3+ relatos: chama a IA e persiste avaliação + contexto (aluno_id e cobre_ate normalizados)", async (t) => {
   t.mock.method(geminiService, "gerarAvaliacaoMensal", async () => RESPOSTA_IA_FAKE);
-  for (let i = 0; i < 5; i += 1) await criarRelatoConfirmado(new Date(2026, 3, 4 + i));
+  for (let i = 0; i < 3; i += 1) await criarRelatoConfirmado(new Date(2026, 3, 4 + i));
   t.after(limpar);
 
   const avaliacao = await avaliacaoMensalService.gerarParaAluno({ equipeId: equipe.id, alunoId: aluno.id, anoMes: "2026-04" });
 
   assert.equal(avaliacao.status, "gerada");
-  assert.equal(avaliacao.relatos_considerados, 5);
-  assert.equal(avaliacao.baseada_em_registro_ids.length, 5);
+  assert.equal(avaliacao.relatos_considerados, 3);
+  assert.equal(avaliacao.baseada_em_registro_ids.length, 3);
   assert.equal(avaliacao.contexto_consolidado_json.aluno_id, aluno.id);
   assert.equal(avaliacao.contexto_consolidado_json.cobre_ate, "2026-04");
 });
@@ -240,12 +240,12 @@ test("a avaliação mensal NUNCA cria uma Validacao (não é dado oficial)", asy
 
 test("relatos são filtrados pelo mês de CONFIRMAÇÃO (confirmado_em), não pela data da sessão", async (t) => {
   t.mock.method(geminiService, "gerarAvaliacaoMensal", async () => RESPOSTA_IA_FAKE);
-  for (let i = 0; i < 3; i += 1) await criarRelatoConfirmado(new Date(2026, 6, 10 + i)); // julho
+  for (let i = 0; i < 2; i += 1) await criarRelatoConfirmado(new Date(2026, 6, 10 + i)); // julho
   for (let i = 0; i < 2; i += 1) await criarRelatoConfirmado(new Date(2026, 7, 1 + i)); // agosto
   t.after(limpar);
 
   const julho = await avaliacaoMensalService.gerarParaAluno({ equipeId: equipe.id, alunoId: aluno.id, anoMes: "2026-07" });
-  assert.equal(julho.relatos_considerados, 3);
+  assert.equal(julho.relatos_considerados, 2);
   assert.equal(julho.status, "dados_insuficientes");
 });
 

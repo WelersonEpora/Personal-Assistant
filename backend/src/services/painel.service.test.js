@@ -311,7 +311,7 @@ test("panorama: acompanhamento_sem_dados lista quem ficou 'dados_insuficientes' 
   assert.deepEqual(painel.panorama.acompanhamento_sem_dados.itens, [
     { id: semDados.id, nome: "Poucos Relatos", relatos_considerados: 2 }
   ]);
-  assert.equal(painel.panorama.limiares.minimo_relatos_acompanhamento, 5);
+  assert.equal(painel.panorama.limiares.minimo_relatos_acompanhamento, 3);
 });
 
 test("atividade_recente: mescla fontes e ordena por data desc", async () => {

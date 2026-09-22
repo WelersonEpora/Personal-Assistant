@@ -41,11 +41,16 @@ um novo relato normalmente**, que é considerado no ciclo seguinte.
 
 ### Gatilho de geração
 
-- Só gera avaliação com a IA quando há **≥ 5 relatos confirmados no mês**.
-- Com 0 a 4 relatos **no job automático**: registra o ciclo como
+- Só gera avaliação com a IA quando há **≥ 3 relatos confirmados no mês**
+  (`MINIMO_RELATOS`, reduzido de 5 para 3 em 2026-09-22 — aluno com aula
+  semanal já cai a 3 relatos num mês com um feriado ou falta, e não fazia
+  sentido travar o acompanhamento nesse caso comum; com menos evidência a
+  leitura de tendência fica mais rasa, mas isso é aceitável porque a
+  avaliação nunca é dado oficial).
+- Com 0 a 2 relatos **no job automático**: registra o ciclo como
   `dados_insuficientes`, **não chama a IA**, e carrega o contexto consolidado
   do mês anterior adiante sem alteração.
-- Com 0 a 4 relatos **numa geração manual pelo personal**: **não registra
+- Com 0 a 2 relatos **numa geração manual pelo personal**: **não registra
   nada** — o backend devolve uma resposta não persistida
   (`persistida: false`, com `mensagem` e a contagem de relatos); a UI mostra
   o aviso, o estado do mês não muda (uma avaliação já existente fica intacta)
@@ -126,7 +131,7 @@ qualquer momento (`analise_sob_demanda`, tabela própria).
   (`SCHEMA_ANALISE_SOB_DEMANDA`) — igual à parte `avaliacao_mensal` do mensal,
   sem a parte `contexto_consolidado`.
 
-> Contraste com o **job mensal**: lá, "dados insuficientes" (< 5 relatos)
+> Contraste com o **job mensal**: lá, "dados insuficientes" (< 3 relatos)
 > **vira** registro (`avaliacao_mensal` com `status = dados_insuficientes`),
 > porque o job roda sem interação humana, precisa marcar que aquele ciclo
 > aconteceu e carregar o contexto consolidado adiante. Tanto a análise sob
@@ -146,7 +151,7 @@ edita/exclui à vontade — não é dado oficial nem saída de IA).
 Ela **entra no prompt dos ciclos de IA**, junto dos relatos:
 - **Ciclo mensal:** avaliações com `created_at` na janela do mês (mesmo
   bucketing dos relatos). Só vão para a IA quando o ciclo efetivamente roda
-  (≥ 5 relatos confirmados) — **não** alteram o gatilho. Os ids consumidos
+  (≥ 3 relatos confirmados) — **não** alteram o gatilho. Os ids consumidos
   ficam em `avaliacao_mensal.avaliacoes_personal_consideradas`. Num mês
   `dados_insuficientes` a avaliação daquele mês não é enviada (aceita-se a
   perda — v1 simples).
@@ -227,7 +232,7 @@ insuficientes, diferenciar fato/interpretação/hipótese e nunca inventar. É
   do profissional sobre o momento do aluno) e merece um caminho leve:
   escreveu, salvou.
 - **Avaliação do personal disparando o ciclo mensal / rolando entre meses.**
-  Rejeitada na v1 — mantém o gatilho de 5 relatos intacto e o bucketing por
+  Rejeitada na v1 — mantém o gatilho de relatos intacto e o bucketing por
   mês idêntico ao dos relatos. Carry-forward de avaliações não consumidas
   fica como evolução possível se a perda em meses esparsos incomodar.
 

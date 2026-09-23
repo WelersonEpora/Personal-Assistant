@@ -11,6 +11,7 @@ const alunoRepository = require("../repositories/aluno.repository");
 const { NotFoundError, ValidationError } = require("../shared/errors");
 const { METODOS_VALIDOS } = require("./avaliacao-fisica/metodos");
 const { calcularDerivadas, arredondar, DERIVADAS } = require("./avaliacao-fisica/metricas-derivadas");
+const { calcularPercentualGordura, idadeEm, PROTOCOLOS_CALCULADOS } = require("./avaliacao-fisica/protocolos-gordura");
 const { validarAnamneseJson, validarPosturalJson } = require("./avaliacao-fisica/esquemas");
 
 const TAMANHO_MAXIMO_OBS = 5000;
@@ -42,14 +43,64 @@ function validarObservacoes(valor) {
   return t;
 }
 
+// docs/adr/0024 - calculada junto com a % de gordura de um protocolo de dobras.
+const CALCULADAS_POR_PROTOCOLO = ["densidade_corporal"];
+
+// Contexto do cálculo por protocolo (docs/adr/0024): sexo do aluno e idade na
+// data da avaliação.
+function contextoDoAluno(aluno, dataAvaliacao) {
+  return {
+    sexo: aluno?.sexo || null,
+    idade: idadeEm(aluno?.data_nascimento, dataAvaliacao)
+  };
+}
+
+// % de gordura (+ densidade) dos protocolos pedidos com `calcular: true`, a
+// partir das dobras medidas. Faltando dado (dobra, sexo, nascimento) a % não
+// sai - a avaliação é salva do mesmo jeito (série esparsa); o formulário avisa
+// antes o que falta.
+function linhasCalculadasPorProtocolo(pedidos, linhasMedidas, contexto, catalogoPorCodigo) {
+  const dobras = {};
+  for (const l of linhasMedidas) {
+    if (l.metodo === "direto") dobras[l.metrica_codigo] = l.valor;
+  }
+  const linhas = [];
+  for (const { metodo, principal } of pedidos) {
+    const r = calcularPercentualGordura(metodo, { dobras, ...contexto });
+    if (r.faltando) continue;
+    linhas.push({
+      metrica_codigo: "percentual_gordura",
+      metodo,
+      principal,
+      valor: arredondar(r.percentual, catalogoPorCodigo.get("percentual_gordura").casas_decimais),
+      origem_valor: "calculado"
+    });
+    const metricaDensidade = catalogoPorCodigo.get("densidade_corporal");
+    if (metricaDensidade?.ativo && !linhas.some((l) => l.metrica_codigo === "densidade_corporal")) {
+      linhas.push({
+        metrica_codigo: "densidade_corporal",
+        metodo,
+        principal: true,
+        valor: arredondar(r.densidade, metricaDensidade.casas_decimais),
+        origem_valor: "calculado"
+      });
+    }
+  }
+  return linhas;
+}
+
 // entradas: [{ metrica_codigo, metodo?, valor, principal? }] -> linhas de medida
-// validadas/normalizadas (sem avaliacao_fisica_id), já com IMC/RCQ derivados.
-function normalizarMedidas(entradas, catalogoPorCodigo) {
+// validadas/normalizadas (sem avaliacao_fisica_id), já com as derivadas.
+// docs/adr/0024: `{ metrica_codigo: 'percentual_gordura', metodo: 'pollock_7',
+// calcular: true }` (sem `valor`) pede a % calculada pelo protocolo - precisa
+// do `contexto` (sexo/idade do aluno).
+function normalizarMedidas(entradas, catalogoPorCodigo, contexto = {}) {
   if (entradas === undefined) return null;
   if (!Array.isArray(entradas)) throw new ValidationError('"medidas" deve ser uma lista.');
 
   const vistos = new Set();
   const linhas = [];
+  const pedidosCalculo = [];
 
   for (const entrada of entradas) {
     if (!entrada || typeof entrada !== "object") {
@@ -60,7 +111,7 @@ function normalizarMedidas(entradas, catalogoPorCodigo) {
     if (!metrica || !metrica.ativo) {
       throw new ValidationError(`Métrica "${codigo}" não existe no catálogo (ou está inativa).`);
     }
-    if (DERIVADAS.includes(codigo)) {
+    if (DERIVADAS.includes(codigo) || CALCULADAS_POR_PROTOCOLO.includes(codigo)) {
       throw new ValidationError(`"${codigo}" é calculada automaticamente - não envie como medida.`);
     }
 
@@ -75,6 +126,14 @@ function normalizarMedidas(entradas, catalogoPorCodigo) {
     }
     vistos.add(chave);
 
+    if (entrada.calcular === true) {
+      if (codigo !== "percentual_gordura" || !PROTOCOLOS_CALCULADOS.includes(metodo)) {
+        throw new ValidationError(`O sistema não calcula "${codigo}" pelo método "${metodo}" - informe o valor.`);
+      }
+      pedidosCalculo.push({ metodo, principal: Boolean(entrada.principal) });
+      continue;
+    }
+
     const valorNum = typeof entrada.valor === "number" ? entrada.valor : Number(entrada.valor);
     if (!Number.isFinite(valorNum) || valorNum <= 0) {
       throw new ValidationError(`Valor de "${codigo}" deve ser um número maior que zero.`);
@@ -88,6 +147,8 @@ function normalizarMedidas(entradas, catalogoPorCodigo) {
       origem_valor: "medido"
     });
   }
+
+  linhas.push(...linhasCalculadasPorProtocolo(pedidosCalculo, linhas, contexto, catalogoPorCodigo));
 
   // principal: no máximo um por métrica; se nenhum marcado, o primeiro.
   const porMetrica = new Map();
@@ -142,7 +203,7 @@ async function obter(equipeId, alunoId, id) {
 // depois do commit, fora da transação estrangeira).
 async function criar(equipeId, alunoId, autorId, dados = {}, opcoes = {}) {
   const { origem = "manual", registroId = null, transaction = null } = opcoes;
-  await verificarAluno(equipeId, alunoId);
+  const aluno = await verificarAluno(equipeId, alunoId);
 
   const catalogo = await carregarCatalogo();
   const header = {
@@ -156,7 +217,7 @@ async function criar(equipeId, alunoId, autorId, dados = {}, opcoes = {}) {
     postural_json: validarPosturalJson(dados.postural_json ?? null),
     observacoes: validarObservacoes(dados.observacoes)
   };
-  const medidas = normalizarMedidas(dados.medidas ?? [], catalogo) || [];
+  const medidas = normalizarMedidas(dados.medidas ?? [], catalogo, contextoDoAluno(aluno, header.data)) || [];
 
   const id = await avaliacaoFisicaRepository.criar({ header, medidas }, transaction);
   if (transaction) return id;
@@ -164,7 +225,7 @@ async function criar(equipeId, alunoId, autorId, dados = {}, opcoes = {}) {
 }
 
 async function atualizar(equipeId, alunoId, id, dados = {}) {
-  await verificarAluno(equipeId, alunoId);
+  const aluno = await verificarAluno(equipeId, alunoId);
   const avaliacao = await avaliacaoFisicaRepository.obterPorId({ id, equipeId });
   if (!avaliacao || avaliacao.aluno_id !== alunoId) {
     throw new NotFoundError("Avaliação física não encontrada.");
@@ -180,7 +241,8 @@ async function atualizar(equipeId, alunoId, id, dados = {}) {
   let medidas = null;
   if (dados.medidas !== undefined) {
     const catalogo = await carregarCatalogo();
-    medidas = normalizarMedidas(dados.medidas || [], catalogo) || [];
+    const dataAvaliacao = header.data ?? String(avaliacao.data).slice(0, 10);
+    medidas = normalizarMedidas(dados.medidas || [], catalogo, contextoDoAluno(aluno, dataAvaliacao)) || [];
   }
 
   await avaliacaoFisicaRepository.atualizar(avaliacao, { header, medidas });

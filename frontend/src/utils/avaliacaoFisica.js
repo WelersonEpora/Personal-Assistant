@@ -162,8 +162,9 @@ export function ehMultiMetodo(codigo) {
 // Métricas calculadas pelo service (backend/src/services/avaliacao-fisica/
 // metricas-derivadas.js) - NUNCA têm input no formulário e o backend rejeita
 // medida enviada para elas. `massa_gorda`/`massa_magra` são derivadas (modelo
-// 2 compartimentos) desde a atualização da docs/adr/0016.
-export const DERIVADAS = ['imc', 'rcq', 'massa_gorda', 'massa_magra']
+// 2 compartimentos) desde a atualização da docs/adr/0016. `densidade_corporal`
+// sai junto com a % de gordura de um protocolo de dobras (docs/adr/0024).
+export const DERIVADAS = ['imc', 'rcq', 'massa_gorda', 'massa_magra', 'densidade_corporal']
 
 // docs/adr/0018 - payload_json da proposta_avaliacao_fisica -> rascunho no
 // formato que o AvaliacaoFisicaForm hidrata (sem anamnese/postural - a

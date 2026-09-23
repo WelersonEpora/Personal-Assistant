@@ -548,7 +548,7 @@ Para cada medida identificada, devolva um item em "medidas" com:
 - "trecho_origem": a parte da fala de onde a medida foi tirada.
 
 Regras obrigatórias:
-- NÃO calcule % de gordura, VO2, IMC, RCQ nem massas a partir de dobras/perímetros. Registre SÓ o que foi dito como valor - o sistema calcula os índices depois.
+- NÃO calcule % de gordura, densidade corporal, VO2, IMC, RCQ nem massas a partir de dobras/perímetros. Registre SÓ o que foi dito como valor - o sistema calcula os índices depois.
 - "data_ouvida" (AAAA-MM-DD) só se a data da avaliação foi dita explicitamente; caso contrário "".
 - "observacoes": comentário geral do personal que não é uma medida (string vazia se não houver).
 - "nao_mapeado": lista de objetos { "trecho", "motivo" } para o que foi dito e não virou medida.

@@ -5,7 +5,9 @@
 // (database/seeders) e o importador do legado consomem esta mesma lista
 // (o importador usa `casas_decimais` para limpar o ruído de float do Access).
 //
-// Cada linha: [codigo, rotulo, categoria, unidade, casas_decimais, direcao_favoravel]
+// Cada linha: [codigo, rotulo, categoria, unidade, casas_decimais, direcao_favoravel, ordem?]
+// `ordem` explícita só para métrica acrescentada depois do seed inicial (a
+// ordem das demais é a posição na lista × 10 - não reordenar as existentes).
 const METRICAS = [
   // Antropometria (medição direta)
   ["peso", "Peso corporal", "antropometria", "kg", 1, "neutro"],
@@ -57,20 +59,24 @@ const METRICAS = [
   ["fc_repouso", "FC de repouso", "cardio", "bpm", 0, "menor"],
   ["fc_maxima", "FC máxima", "cardio", "bpm", 0, "neutro"],
   ["pas_repouso", "Pressão sistólica (repouso)", "cardio", "mmHg", 0, "neutro"],
-  ["pad_repouso", "Pressão diastólica (repouso)", "cardio", "mmHg", 0, "neutro"]
+  ["pad_repouso", "Pressão diastólica (repouso)", "cardio", "mmHg", 0, "neutro"],
+
+  // docs/adr/0024 - calculada pelo protocolo de dobras junto com a % de
+  // gordura; ordem 35 = logo depois de percentual_gordura (30).
+  ["densidade_corporal", "Densidade corporal", "composicao", "g/mL", 4, "neutro", 35]
 ];
 
 const CASAS_POR_CODIGO = Object.fromEntries(METRICAS.map(([codigo, , , , casas]) => [codigo, casas]));
 
 function linhasSeed(now) {
-  return METRICAS.map(([codigo, rotulo, categoria, unidade, casas, direcao], i) => ({
+  return METRICAS.map(([codigo, rotulo, categoria, unidade, casas, direcao, ordem], i) => ({
     codigo,
     rotulo,
     categoria,
     unidade,
     casas_decimais: casas,
     direcao_favoravel: direcao,
-    ordem: (i + 1) * 10,
+    ordem: ordem ?? (i + 1) * 10,
     ativo: true,
     created_at: now,
     updated_at: now

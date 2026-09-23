@@ -8,7 +8,7 @@ const { DataTypes } = require("sequelize");
 // a unidade e o rótulo saem daqui em join com a série - nunca por linha de
 // medida.
 const CATEGORIAS_VALIDAS = ["antropometria", "composicao", "perimetro", "dobra", "indice", "cardio"];
-const UNIDADES_VALIDAS = ["kg", "cm", "mm", "%", "L", "kg/m²", "mL/kg/min", "bpm", "mmHg", "kcal/dia", "adimensional"];
+const UNIDADES_VALIDAS = ["kg", "cm", "mm", "%", "L", "kg/m²", "mL/kg/min", "bpm", "mmHg", "kcal/dia", "adimensional", "g/mL"];
 const DIRECOES_VALIDAS = ["menor", "maior", "neutro"];
 
 module.exports = (sequelize) => {

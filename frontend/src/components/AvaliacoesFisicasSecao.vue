@@ -208,6 +208,7 @@ async function excluir(av) {
       </button>
       <AvaliacaoFisicaForm
         :aluno-id="props.id"
+        :aluno="aluno"
         :metricas="metricas"
         :avaliacao="modo === 'editar' ? selecionada : null"
         @salvo="aoSalvar"

@@ -263,7 +263,12 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
 - **Avaliação física nunca vira `validacao` e nenhum job/worker escreve em
   `avaliacao_fisica*`** (ADR-0016) — é dado objetivo do personal, CRUD direto
   como `avaliacao_personal`. Métricas derivadas (`imc`, `rcq`, `massa_gorda`,
-  `massa_magra`) são do service, nunca escritas por humano nem por IA.
+  `massa_magra`, `densidade_corporal`) são do service, nunca escritas por humano
+  nem por IA. A % de gordura do **Pollock 7 dobras** (ADR-0024) também é
+  calculada pelo service, a pedido (`calcular: true`), a partir das dobras +
+  `aluno.sexo` + idade na data (Jackson & Pollock + constantes de Lohman — mesma
+  conta do BodyMove); faltando dado, a avaliação salva sem a % e o formulário
+  avisa o que falta. Os demais protocolos continuam digitados.
   Importação do legado é idempotente por `(aluno_id, data, origem)` e mantém
   `origem = legado_bodymove`. A ADR-0018 permite que a IA gere um **rascunho**
   de avaliação (tabela `proposta_avaliacao_fisica`, descartável, nunca oficial,
@@ -340,7 +345,7 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
   de treino etc.), dashboard/gráficos/comparação entre
   avaliações físicas (modelo, importação e CRUD feitos — ADR-0016; falta a
   camada de visualização evolutiva), cálculo de
-  protocolos (Pollock/VO₂) para avaliações novas, sistema
+  VO₂ e de protocolos de dobras além do Pollock 7 (ADR-0024), sistema
   completo de treinos, réplica do legado, multi-tenant com múltiplas
   equipes por usuário e controle de acesso por papel (ver docs/adr/0011 —
   a multi-tenancy básica de Equipe/Membro já está implementada),
@@ -373,6 +378,7 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
 | 0021 | Interação de gravação de voz (segurar + travar, estilo WhatsApp) |
 | 0022 | Radar — atualização profissional ("fofoqueira científica") |
 | 0023 | Compartilhar a avaliação mensal com o aluno (PDF com revisão do personal) |
+| 0024 | Cálculo da % de gordura por protocolo de dobras (Pollock 7) |
 
 ## Estado atual
 
@@ -403,6 +409,10 @@ MVP completo e verificado de ponta a ponta:
   `massa_gorda` e `massa_magra` (2 compartimentos, a partir da % de gordura
   acompanhada; `scripts/recalcular-derivadas-avaliacao-fisica.js` fez o backfill
   das importadas); `data_nascimento` e `sexo` no cadastro do aluno.
+  % de gordura Pollock 7 calculada pelo service (docs/adr/0024 —
+  `avaliacao-fisica/protocolos-gordura.js`, conferido contra as 319 avaliações
+  Pollock 7 do BodyMove; grava também `densidade_corporal`, g/mL, com
+  `avaliacao_fisica_medida.valor` em `NUMERIC(10,4)`).
   Tabela comparativa (métricas × avaliações no tempo) já existe; gráficos e uso
   pela IA ainda não. Dashboard do `/admin` servido por um endpoint agregado
   `GET /api/v1/painel` (docs/adr/0017 — ação necessária, KPIs, panorama dos
@@ -450,7 +460,7 @@ MVP completo e verificado de ponta a ponta:
   **Relatos** (`/admin/registros`) virou a caixa de entrada do pipeline (só não
   confirmados; confirmado vive só no Histórico), sem filtro de tempo e sem a aba
   "Confirmados".
-  320 testes automatizados (`node --test`, unitários +
+  343 testes automatizados (`node --test`, unitários +
   integração contra banco de teste dedicado).
 - **Frontend**: app Vue 3 + Vite + PWA único (`/captura` mobile-first
   offline, `/admin` gestão/validação), IndexedDB + fila de sincronização
@@ -526,10 +536,16 @@ MVP completo e verificado de ponta a ponta:
   único + dropdown em `≤ 760px`; prop `multiple` (array, vazio = "todos"). Em
   `RegistrosView` (status), `SeletorPeriodo` (presets), `ExerciciosView`
   (origem) e `RadarView` (assunto, `multiple`).
-  80 testes automatizados (`node --test` + `fake-indexeddb`; +
+  % de gordura Pollock 7 no formulário de avaliação física (docs/adr/0024):
+  linha "Pollock 7 dobras" calculada (padrão quando não há % nenhuma), preview
+  ao vivo pelo espelho `utils/protocolosGordura.js` e aviso do que falta
+  (sexo/nascimento no cadastro, dobras em branco); o form recebe o `aluno` ou
+  o busca sozinho (revisão da captura).
+  85 testes automatizados (`node --test` + `fake-indexeddb`; +
   `echarts-option-builder.test.js`, `echarts-bar-option-builder.test.js`,
   `periodos.test.js`, `avaliacaoFisica.test.js`, `gravacaoVoz.test.js`,
-  `avaliacaoMensalCompartilhada.test.js` e `registroStatus.test.js` puros).
+  `avaliacaoMensalCompartilhada.test.js`, `registroStatus.test.js` e
+  `protocolosGordura.test.js` puros).
 - **Docker**: `compose.dev.yml` (Postgres + pgAdmin) e `compose.prod.yml`
   (Postgres + backend + frontend) validados; Dockerfiles com healthcheck
   em ambos os serviços da aplicação.

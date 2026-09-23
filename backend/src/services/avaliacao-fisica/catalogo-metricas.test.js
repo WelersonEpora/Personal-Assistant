@@ -26,7 +26,7 @@ test("a lista é consistente: códigos únicos, categorias/unidades/direções n
     assert.ok(CATEGORIAS.has(categoria), `${codigo}: categoria inválida ${categoria}`);
     assert.ok(UNIDADES.has(unidade), `${codigo}: unidade inválida ${unidade}`);
     assert.ok(DIRECOES.has(direcao), `${codigo}: direção inválida ${direcao}`);
-    assert.ok(Number.isInteger(casas) && casas >= 0 && casas <= 3);
+    assert.ok(Number.isInteger(casas) && casas >= 0 && casas <= 4);
   }
 
   // imc e rcq (derivadas do escopo) precisam existir no catálogo.

@@ -242,3 +242,112 @@ test("listarMetricas: devolve o catálogo ordenado", async () => {
   assert.ok(metricas.length >= 38);
   assert.ok(metricas.some((m) => m.codigo === "peso" && m.unidade === "kg"));
 });
+
+// --- docs/adr/0024: % de gordura calculada por protocolo (Pollock 7) ---
+
+const DOBRAS_7 = {
+  dobra_peitoral: 9,
+  dobra_axilar_media: 7,
+  dobra_tricipital: 14,
+  dobra_subescapular: 10,
+  dobra_abdominal: 15,
+  dobra_suprailiaca: 9,
+  dobra_coxa: 22
+};
+const pedidoPollock = { metrica_codigo: "percentual_gordura", metodo: "pollock_7", calcular: true, principal: true };
+
+function medidasDobras(dobras = DOBRAS_7) {
+  return Object.entries(dobras).map(([codigo, valor]) => medida(codigo, valor));
+}
+
+async function alunoComCadastro(t, dados) {
+  const a = await Aluno.create({ equipe_id: equipe.id, nome: "Aluna Pollock", ...dados });
+  t.after(async () => {
+    const avs = await AvaliacaoFisica.findAll({ where: { aluno_id: a.id }, attributes: ["id"] });
+    await AvaliacaoFisicaMedida.destroy({ where: { avaliacao_fisica_id: avs.map((x) => x.id) } });
+    await AvaliacaoFisica.destroy({ where: { aluno_id: a.id } });
+    await Aluno.destroy({ where: { id: a.id } });
+  });
+  return a;
+}
+
+test("criar: pollock_7 calcula % de gordura, densidade e daí massa gorda/magra", async (t) => {
+  // mesmo caso do BodyMove (mulher, 43 anos na data, soma 86 mm -> 17,67%)
+  const a = await alunoComCadastro(t, { sexo: "F", data_nascimento: "1982-06-10" });
+  const av = await service.criar(equipe.id, a.id, usuario.id, {
+    data: "2026-01-15",
+    medidas: [medida("peso", 51.6), ...medidasDobras(), pedidoPollock]
+  });
+
+  const porCodigo = Object.fromEntries(av.medidas.map((m) => [m.metrica_codigo, m]));
+  assert.equal(Number(porCodigo.percentual_gordura.valor), 17.7);
+  assert.equal(porCodigo.percentual_gordura.metodo, "pollock_7");
+  assert.equal(porCodigo.percentual_gordura.origem_valor, "calculado");
+  assert.equal(porCodigo.densidade_corporal.metodo, "pollock_7");
+  assert.ok(Math.abs(Number(porCodigo.densidade_corporal.valor) - 1.0552) < 0.0001);
+  assert.equal(Number(porCodigo.massa_gorda.valor), 9.1); // 51,6 * 17,7%
+  assert.equal(Number(porCodigo.massa_magra.valor), 42.5);
+});
+
+test("criar: sem sexo/nascimento a avaliação é salva, mas sem % de gordura", async (t) => {
+  const a = await alunoComCadastro(t, {});
+  const av = await service.criar(equipe.id, a.id, usuario.id, {
+    data: "2026-01-15",
+    medidas: [medida("peso", 60), ...medidasDobras(), pedidoPollock]
+  });
+  const codigos = av.medidas.map((m) => m.metrica_codigo);
+  assert.ok(codigos.includes("dobra_coxa"));
+  assert.ok(!codigos.includes("percentual_gordura"));
+  assert.ok(!codigos.includes("densidade_corporal"));
+  assert.ok(!codigos.includes("massa_gorda"));
+});
+
+test("atualizar: salvar de novo com o protocolo calcula o que antes faltava", async (t) => {
+  const a = await alunoComCadastro(t, { sexo: "F", data_nascimento: "1982-06-10" });
+  // avaliação feita só com peso + dobras (sem % de gordura)
+  const av = await service.criar(equipe.id, a.id, usuario.id, {
+    data: "2026-01-15",
+    medidas: [medida("peso", 51.6), ...medidasDobras()]
+  });
+  assert.ok(!av.medidas.some((m) => m.metrica_codigo === "massa_magra"));
+
+  const editada = await service.atualizar(equipe.id, a.id, av.id, {
+    medidas: [medida("peso", 51.6), ...medidasDobras(), pedidoPollock]
+  });
+  const porCodigo = Object.fromEntries(editada.medidas.map((m) => [m.metrica_codigo, m]));
+  assert.equal(Number(porCodigo.percentual_gordura.valor), 17.7);
+  assert.equal(Number(porCodigo.massa_magra.valor), 42.5);
+});
+
+test("pollock calculado convive com % digitada de outro método (principal escolhido)", async (t) => {
+  const a = await alunoComCadastro(t, { sexo: "F", data_nascimento: "1982-06-10" });
+  const av = await service.criar(equipe.id, a.id, usuario.id, {
+    data: "2026-01-15",
+    medidas: [
+      medida("peso", 51.6),
+      ...medidasDobras(),
+      { ...pedidoPollock, principal: false },
+      medida("percentual_gordura", 22, { metodo: "bioimpedancia", principal: true })
+    ]
+  });
+  const gorduras = av.medidas.filter((m) => m.metrica_codigo === "percentual_gordura");
+  assert.equal(gorduras.length, 2);
+  assert.equal(gorduras.find((m) => m.principal).metodo, "bioimpedancia");
+  const massaGorda = av.medidas.find((m) => m.metrica_codigo === "massa_gorda");
+  assert.equal(Number(massaGorda.valor), 11.4); // 51,6 * 22% (a principal)
+});
+
+test("rejeita densidade digitada e pedido de cálculo em método sem fórmula", async () => {
+  await assert.rejects(
+    () => service.criar(equipe.id, aluno.id, usuario.id, { data: "2026-01-15", medidas: [medida("densidade_corporal", 1.05)] }),
+    /calculada automaticamente/
+  );
+  await assert.rejects(
+    () =>
+      service.criar(equipe.id, aluno.id, usuario.id, {
+        data: "2026-01-15",
+        medidas: [{ metrica_codigo: "percentual_gordura", metodo: "bioimpedancia", calcular: true }]
+      }),
+    /não calcula/
+  );
+});

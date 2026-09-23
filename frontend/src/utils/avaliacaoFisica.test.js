@@ -22,8 +22,8 @@ test('propostaParaRascunho: sem dataFallback, usa data_ouvida; mapeia observacoe
   ])
 })
 
-test('DERIVADAS espelha as métricas calculadas pelo service (imc, rcq, massa gorda/magra)', () => {
-  assert.deepEqual([...DERIVADAS].sort(), ['imc', 'massa_gorda', 'massa_magra', 'rcq'])
+test('DERIVADAS espelha as métricas calculadas pelo service (imc, rcq, massa gorda/magra, densidade)', () => {
+  assert.deepEqual([...DERIVADAS].sort(), ['densidade_corporal', 'imc', 'massa_gorda', 'massa_magra', 'rcq'])
 })
 
 test('propostaParaRascunho: descarta derivadas (incl. massa gorda/magra) e valores não positivos', () => {

@@ -26,8 +26,8 @@ module.exports = (sequelize) => {
         validate: { isIn: [METODOS_VALIDOS] }
       },
       principal: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
-      // NUMERIC(8,3) no banco - Sequelize devolve string; quem consome converte.
-      valor: { type: DataTypes.DECIMAL(8, 3), allowNull: false },
+      // NUMERIC(10,4) no banco (docs/adr/0024 - densidade corporal) - Sequelize devolve string; quem consome converte.
+      valor: { type: DataTypes.DECIMAL(10, 4), allowNull: false },
       origem_valor: {
         type: DataTypes.STRING(10),
         allowNull: false,

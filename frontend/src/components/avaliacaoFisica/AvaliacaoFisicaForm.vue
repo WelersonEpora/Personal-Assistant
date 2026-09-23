@@ -1,6 +1,7 @@
 <script setup>
 import { ref, reactive, computed, watch } from 'vue'
 import avaliacoesFisicasService from '../../services/avaliacoesFisicas.service.js'
+import alunosService from '../../services/alunos.service.js'
 import { useToasts } from '../../composables/useToasts.js'
 import ToastStack from '../../components/ToastStack.vue'
 import {
@@ -14,11 +15,16 @@ import {
   ANAMNESE_CAMPOS_TEXTO,
   POSTURAL_SECOES,
   POSTURAL_SECOES_LADO,
-  LADOS
+  LADOS,
+  calcularIdade
 } from '../../utils/avaliacaoFisica.js'
+import { calcularPercentualGordura, descreverFaltando, ehProtocoloCalculado } from '../../utils/protocolosGordura.js'
 
 const props = defineProps({
   alunoId: { type: String, required: true },
+  // docs/adr/0024 - sexo/data_nascimento para a % de gordura por protocolo.
+  // Quem já tem o aluno carregado passa; senão o form busca.
+  aluno: { type: Object, default: null },
   metricas: { type: Array, required: true },
   avaliacao: { type: Object, default: null }, // null = criar
   // docs/adr/0018 - 'criar' | 'editar' | 'revisao'. Em 'revisao' o form é
@@ -53,8 +59,54 @@ const observacoes = ref('')
 
 // medidas de método único: { [codigo]: 'valorString' }
 const valores = reactive({})
-// medidas multi-método: { percentual_gordura: [{metodo, valor, principal}], vo2max: [...] }
+// medidas multi-método: { percentual_gordura: [{metodo, valor, principal, calcular}], vo2max: [...] }
+// `calcular` (docs/adr/0024): a % sai do protocolo de dobras, sem valor digitado.
 const multi = reactive({ percentual_gordura: [], vo2max: [] })
+
+const alunoCarregado = ref(null)
+const alunoDados = computed(() => props.aluno || alunoCarregado.value)
+watch(
+  () => [props.aluno, props.alunoId],
+  async () => {
+    if (props.aluno || !props.alunoId) return
+    try {
+      alunoCarregado.value = await alunosService.obter(props.alunoId)
+    } catch {
+      alunoCarregado.value = null
+    }
+  },
+  { immediate: true }
+)
+
+function rotuloMetrica(codigo) {
+  return props.metricas.find((m) => m.codigo === codigo)?.rotulo || codigo
+}
+
+// % de gordura por protocolo, ao vivo (o backend refaz a conta ao salvar).
+function calculoDaLinha(linha) {
+  const dobras = {}
+  for (const [codigo, v] of Object.entries(valores)) if (codigo.startsWith('dobra_')) dobras[codigo] = v
+  return calcularPercentualGordura(linha.metodo, {
+    dobras,
+    sexo: alunoDados.value?.sexo || null,
+    idade: calcularIdade(alunoDados.value?.data_nascimento, data.value)
+  })
+}
+function faltandoDaLinha(linha) {
+  return descreverFaltando(calculoDaLinha(linha).faltando || [], rotuloMetrica)
+}
+function valorPercentualDaLinha(linha) {
+  if (linha.calcular) {
+    const r = calculoDaLinha(linha)
+    return r.percentual ? Number(r.percentual.toFixed(1)) : null
+  }
+  const v = Number(linha.valor)
+  return v > 0 ? v : null
+}
+function aoTrocarMetodo(codigo, linha) {
+  linha.calcular = codigo === 'percentual_gordura' && ehProtocoloCalculado(linha.metodo)
+  if (linha.calcular) linha.valor = ''
+}
 
 const metricasSimples = computed(() => {
   const ativas = props.metricas.filter((m) => m.ativo && !DERIVADAS.includes(m.codigo) && !ehMultiMetodo(m.codigo))
@@ -92,9 +144,12 @@ const previewDerivadas = computed(() => {
   const quadril = num('perimetro_quadril')
   if (cintura && quadril) out.rcq = (cintura / quadril).toFixed(2)
   // massa gorda/magra (2 compartimentos) a partir da % de gordura acompanhada
-  const linhasGordura = multi.percentual_gordura.filter((r) => Number(r.valor) > 0)
+  const linhasGordura = multi.percentual_gordura.filter((r) => valorPercentualDaLinha(r))
   const gorduraPrincipal = linhasGordura.find((r) => r.principal) || linhasGordura[0]
-  const pctGordura = gorduraPrincipal ? Number(gorduraPrincipal.valor) : null
+  const pctGordura = gorduraPrincipal ? valorPercentualDaLinha(gorduraPrincipal) : null
+  const calculada = multi.percentual_gordura.find((r) => r.calcular)
+  const densidade = calculada ? calculoDaLinha(calculada).densidade : null
+  if (densidade) out.densidade = densidade.toFixed(4)
   if (peso && pctGordura > 0) {
     const massaGorda = (peso * pctGordura) / 100
     out.massa_gorda = massaGorda.toFixed(1)
@@ -174,6 +229,7 @@ function hidratar() {
   const av = revisao.value ? props.rascunhoInicial : props.avaliacao
   if (!av) {
     data.value = hoje()
+    adicionarPollockPadrao()
     return
   }
   data.value = av.data ? String(av.data).slice(0, 10) : hoje()
@@ -182,7 +238,15 @@ function hidratar() {
   for (const m of av.medidas || []) {
     if (DERIVADAS.includes(m.metrica_codigo)) continue
     if (ehMultiMetodo(m.metrica_codigo)) {
-      multi[m.metrica_codigo].push({ metodo: m.metodo, valor: String(m.valor), principal: Boolean(m.principal) })
+      // % já calculada pelo sistema volta como "calcular" (refaz com as dobras
+      // atuais); valor importado do BodyMove ou ditado continua digitado.
+      const calcular = m.metrica_codigo === 'percentual_gordura' && ehProtocoloCalculado(m.metodo) && m.origem_valor === 'calculado'
+      multi[m.metrica_codigo].push({
+        metodo: m.metodo,
+        valor: calcular ? '' : String(m.valor),
+        principal: Boolean(m.principal),
+        calcular
+      })
     } else {
       valores[m.metrica_codigo] = String(m.valor)
     }
@@ -211,6 +275,15 @@ function hidratar() {
     }
   }
   posturalObs.value = p.observacoes || ''
+  adicionarPollockPadrao()
+}
+
+// docs/adr/0024 - sem nenhuma % de gordura, o Pollock 7 (calculado) já vem
+// como padrão: é o protocolo do histórico do BodyMove. O personal troca ou
+// remove se usar outro método.
+function adicionarPollockPadrao() {
+  if (multi.percentual_gordura.length) return
+  multi.percentual_gordura.push({ metodo: 'pollock_7', valor: '', principal: true, calcular: true })
 }
 
 // Síncrono no setup - o template lê `postural[regiao][...]` já no primeiro
@@ -225,7 +298,12 @@ function adicionarMetodo(codigo) {
   const usados = multi[codigo].map((r) => r.metodo)
   const disp = metodosDisponiveis(codigo, usados)
   if (!disp.length) return
-  multi[codigo].push({ metodo: disp[0], valor: '', principal: multi[codigo].length === 0 })
+  multi[codigo].push({
+    metodo: disp[0],
+    valor: '',
+    principal: multi[codigo].length === 0,
+    calcular: codigo === 'percentual_gordura' && ehProtocoloCalculado(disp[0])
+  })
 }
 function removerMetodo(codigo, i) {
   const eraPrincipal = multi[codigo][i].principal
@@ -243,10 +321,15 @@ function montarPayload() {
     if (val !== '' && Number.isFinite(n) && n > 0) medidas.push({ metrica_codigo: codigo, valor: n })
   }
   for (const codigo of Object.keys(METODOS_POR_METRICA)) {
-    const linhas = multi[codigo].filter((r) => r.valor !== '' && Number(r.valor) > 0)
+    const linhas = multi[codigo].filter((r) => r.calcular || (r.valor !== '' && Number(r.valor) > 0))
     if (linhas.length && !linhas.some((r) => r.principal)) linhas[0].principal = true
     for (const r of linhas) {
-      medidas.push({ metrica_codigo: codigo, metodo: r.metodo, valor: Number(r.valor), principal: Boolean(r.principal) })
+      if (r.calcular) {
+        // docs/adr/0024 - o backend calcula (e ignora se faltar dado)
+        medidas.push({ metrica_codigo: codigo, metodo: r.metodo, calcular: true, principal: Boolean(r.principal) })
+      } else {
+        medidas.push({ metrica_codigo: codigo, metodo: r.metodo, valor: Number(r.valor), principal: Boolean(r.principal) })
+      }
     }
   }
 
@@ -380,17 +463,32 @@ async function salvar() {
       </div>
       <p class="list-row-sub" style="margin-bottom: 10px;">
         Pode registrar mais de um protocolo. Marque qual é o valor acompanhado.
+        <template v-if="codigo === 'percentual_gordura'">
+          O Pollock 7 dobras é calculado pelo sistema a partir das dobras, do sexo e da idade do aluno.
+        </template>
       </p>
-      <div v-for="(linha, i) in multi[codigo]" :key="i" class="af-metodo-linha">
-        <label class="af-principal">
-          <input type="radio" :name="`principal-${codigo}`" :checked="linha.principal" @change="marcarPrincipal(codigo, i)" />
-          acompanhado
-        </label>
-        <select v-model="linha.metodo">
-          <option v-for="met in METODOS_POR_METRICA[codigo]" :key="met" :value="met">{{ rotuloMetodo(met) }}</option>
-        </select>
-        <input v-model="linha.valor" type="number" step="any" min="0" inputmode="decimal" placeholder="valor" />
-        <button type="button" class="btn btn-ghost btn-sm" @click="removerMetodo(codigo, i)">Remover</button>
+      <div v-for="(linha, i) in multi[codigo]" :key="i" class="af-metodo-bloco">
+        <div class="af-metodo-linha">
+          <label class="af-principal">
+            <input type="radio" :name="`principal-${codigo}`" :checked="linha.principal" @change="marcarPrincipal(codigo, i)" />
+            acompanhado
+          </label>
+          <select v-model="linha.metodo" @change="aoTrocarMetodo(codigo, linha)">
+            <option v-for="met in METODOS_POR_METRICA[codigo]" :key="met" :value="met">{{ rotuloMetodo(met) }}</option>
+          </select>
+          <span v-if="linha.calcular" class="af-calculado" :class="{ pendente: !valorPercentualDaLinha(linha) }">
+            {{ valorPercentualDaLinha(linha) ? `${valorPercentualDaLinha(linha)} % · calculado` : 'aguardando dados' }}
+          </span>
+          <input v-else v-model="linha.valor" type="number" step="any" min="0" inputmode="decimal" placeholder="valor" />
+          <button type="button" class="btn btn-ghost btn-sm" @click="removerMetodo(codigo, i)">Remover</button>
+        </div>
+        <div v-if="linha.calcular && faltandoDaLinha(linha).length" class="af-aviso-calculo">
+          <strong>O sistema calcula a % de gordura pelo {{ rotuloMetodo(linha.metodo) }}, mas ainda falta:</strong>
+          <ul>
+            <li v-for="item in faltandoDaLinha(linha)" :key="item">{{ item }}</li>
+          </ul>
+          <span>Sem isso a avaliação é salva normalmente, só sem a % de gordura, a massa gorda e a massa magra.</span>
+        </div>
       </div>
       <button
         type="button"
@@ -409,6 +507,7 @@ async function salvar() {
         IMC {{ previewDerivadas.imc || '—' }} · RCQ {{ previewDerivadas.rcq || '—' }}
         · Massa gorda {{ previewDerivadas.massa_gorda ? previewDerivadas.massa_gorda + ' kg' : '—' }}
         · Massa magra {{ previewDerivadas.massa_magra ? previewDerivadas.massa_magra + ' kg' : '—' }}
+        <template v-if="previewDerivadas.densidade">· Densidade corporal {{ previewDerivadas.densidade }} g/mL</template>
         <span class="af-unidade"> (a partir de peso/altura, cintura/quadril e da % de gordura acompanhada)</span>
       </p>
     </div>
@@ -517,7 +616,15 @@ async function salvar() {
 }
 .af-trecho-toggle:hover { color: var(--color-primary); }
 .af-trecho-texto { font-size: 12px; color: var(--color-text-faint); font-style: italic; margin: 4px 0 0; }
+.af-metodo-bloco { margin-bottom: 8px; }
 .af-metodo-linha { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+.af-calculado { font-size: 13px; font-weight: 600; min-width: 110px; }
+.af-calculado.pendente { font-weight: 400; color: var(--color-text-faint, #888); }
+.af-aviso-calculo {
+  font-size: 12.5px; line-height: 1.45; padding: 8px 10px; border-radius: var(--radius-sm);
+  background: var(--color-warning-light); color: var(--color-warning);
+}
+.af-aviso-calculo ul { margin: 4px 0; padding-left: 18px; }
 .af-metodo-linha select { min-width: 200px; }
 .af-metodo-linha input[type='number'] { max-width: 110px; }
 .af-principal { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; white-space: nowrap; }

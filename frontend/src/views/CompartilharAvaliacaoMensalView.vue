@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import alunosService from '../services/alunos.service.js'
 import avaliacoesMensaisService from '../services/avaliacoesMensais.service.js'
@@ -42,6 +42,23 @@ const NOMES_MES = [
 const rotuloMes = computed(() => {
   const [ano, mes] = String(props.anoMes).split('-')
   return `${NOMES_MES[Number(mes) - 1]} de ${ano}`
+})
+
+// O "salvar como PDF" do navegador sugere o document.title como nome do
+// arquivo. Fica valendo enquanto a tela está aberta (cobre também o Ctrl+P)
+// e volta ao título original ao sair.
+const tituloOriginal = document.title
+const nomeArquivo = computed(() => {
+  if (!aluno.value?.nome) return null
+  const [ano, mes] = String(props.anoMes).split('-')
+  const nome = `${aluno.value.nome} - ${NOMES_MES[Number(mes) - 1]} ${ano}`
+  return nome.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim()
+})
+watch(nomeArquivo, (nome) => {
+  document.title = nome || tituloOriginal
+})
+onBeforeUnmount(() => {
+  document.title = tituloOriginal
 })
 
 function formatarData(iso) {

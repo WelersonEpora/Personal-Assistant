@@ -6,3 +6,6 @@ node_modules/
 # Sistema legado do personal (BodyMove) — contém dados pessoais e de saúde
 # de pessoas reais; material de referência/migração, nunca versionado.
 Legado/
+
+# Claude Code — permissões pessoais de cada máquina
+.claude/settings.local.json

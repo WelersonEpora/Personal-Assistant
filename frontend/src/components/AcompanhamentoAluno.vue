@@ -265,8 +265,8 @@ async function carregarAvaliacoesPersonal() {
 }
 
 async function carregarRegistros() {
-  const todos = await registrosService.listar({})
-  registros.value = todos.filter((r) => r.aluno_id === props.id)
+  // Filtro no servidor (docs/adr/0020) - sem ele vinham os relatos da equipe inteira.
+  registros.value = await registrosService.listar({ alunoId: props.id })
 }
 
 async function carregar() {

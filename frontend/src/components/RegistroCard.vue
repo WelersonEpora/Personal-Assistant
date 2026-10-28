@@ -24,6 +24,14 @@ function confirmado() {
 function itensConfirmados() {
   return props.registro.validacao?.payload_confirmado_json?.itens || []
 }
+// Prévia na linha fechada: os primeiros itens confirmados, para o personal ver
+// do que se trata sem abrir (a listagem já traz o payload da validação).
+function previaItens() {
+  const labels = itensConfirmados().map((item) => item.label).filter(Boolean)
+  if (!labels.length) return 'Nenhum item confirmado'
+  const resto = labels.length - 3
+  return labels.slice(0, 3).join(' · ') + (resto > 0 ? ` · +${resto}` : '')
+}
 function notaGeralConfirmada() {
   return props.registro.validacao?.payload_confirmado_json?.notaGeral || ''
 }
@@ -80,15 +88,16 @@ onBeforeUnmount(() => {
           📋 {{ confirmado() ? 'Relato confirmado' : 'Relato' }}<span class="acomp-linha-data"> · atendimento em {{ formatarDataAtendimento(registro.data_atendimento) }}</span>
         </span>
         <span class="list-row-sub">
-          <template v-if="confirmado()">
-            {{ registro.validacao?.payload_confirmado_json?.itens?.length || 0 }} item(ns) confirmado(s)
-            · confirmado {{ formatarDataHora(registro.validacao?.confirmado_em || registro.created_at) }}
-          </template>
+          <template v-if="confirmado()">{{ previaItens() }}</template>
           <template v-else>{{ registro.titulo || 'Registro' }} · registrado {{ formatarDataHora(registro.created_at) }}</template>
         </span>
       </div>
-      <span class="badge" :class="'badge-' + statusMeta(registro.status).badge">
-        {{ statusMeta(registro.status).icon }} {{ statusMeta(registro.status).label }}
+      <span class="registro-card-lado">
+        <!-- Confirmado é o caso comum: o selo só aparece quando há algo a notar. -->
+        <span v-if="!confirmado()" class="badge" :class="'badge-' + statusMeta(registro.status).badge">
+          {{ statusMeta(registro.status).icon }} {{ statusMeta(registro.status).label }}
+        </span>
+        <span class="registro-chevron" :class="{ aberto }" aria-hidden="true">▾</span>
       </span>
     </div>
 
@@ -125,6 +134,9 @@ onBeforeUnmount(() => {
         </div>
 
         <template v-if="confirmado()">
+          <p class="source-entry-meta" style="margin: 0 0 10px;">
+            Confirmado em {{ formatarDataHora(registro.validacao?.confirmado_em || registro.created_at) }}
+          </p>
           <div v-if="notaGeralConfirmada()" class="exercise-obs" style="margin-top: 14px;">Nota geral: {{ notaGeralConfirmada() }}</div>
 
           <p class="source-entry-meta" style="margin: 18px 0 10px;">Itens confirmados</p>
@@ -157,6 +169,25 @@ onBeforeUnmount(() => {
   font-weight: 400;
   font-size: 12px;
   color: var(--color-text-secondary);
+}
+.registro-card-lado {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.registro-chevron {
+  display: inline-block;
+  color: var(--color-text-faint);
+  font-size: 13px;
+  transition: transform 0.15s ease;
+}
+.registro-chevron.aberto {
+  transform: rotate(180deg);
+}
+.row-clickable:hover .list-row-title,
+.row-clickable:hover .registro-chevron {
+  color: var(--color-primary);
 }
 .acomp-detalhe-box {
   margin-top: 10px;

@@ -4,7 +4,7 @@ import avaliacoesMensaisService from '../services/avaliacoesMensais.service.js'
 import analisesSobDemandaService from '../services/analisesSobDemanda.service.js'
 import avaliacoesPersonalService from '../services/avaliacoesPersonal.service.js'
 import registrosService from '../services/registros.service.js'
-import { formatarDataHora } from '../utils/registroStatus.js'
+import { formatarDataHora, formatarDataAtendimento } from '../utils/registroStatus.js'
 import { revisaoDesatualizada } from '../utils/avaliacaoMensalCompartilhada.js'
 import { useToasts } from '../composables/useToasts.js'
 import { useConfirm } from '../composables/useConfirm.js'
@@ -22,6 +22,9 @@ const carregando = ref(true)
 // mensal (IA), análise sob demanda (IA) e avaliação do personal (sem IA).
 // Tudo agrupado por mês - um "card do mês", mês mais recente primeiro (ver
 // computed `meses`). O card do mês corrente é o hub de ações.
+// Dentro do card, as leituras (mensal / análise / avaliação do personal) vêm
+// primeiro e a mais relevante ganha destaque; os relatos confirmados ficam
+// recolhidos num grupo - o volume deles não pode esconder a avaliação do mês.
 const registros = ref([])
 const avaliacoes = ref([])
 const analises = ref([])
@@ -29,6 +32,7 @@ const avaliacoesPersonal = ref([])
 const disponibilidade = ref(null)
 
 const expandidoId = ref(null)
+const gruposAbertos = ref(new Set()) // "rel:YYYY-MM" / "an:YYYY-MM" - grupos recolhíveis do card do mês
 const filtro = ref('tudo')
 const mostrarAjuda = ref(false)
 
@@ -79,6 +83,9 @@ function rotuloMes(anoMes) {
   const [ano, mes] = String(anoMes).split('-')
   return `${NOMES_MES[Number(mes) - 1]}/${ano}`
 }
+function nomeMes(anoMes) {
+  return NOMES_MES_LONGO[Number(String(anoMes).split('-')[1]) - 1].toLowerCase()
+}
 function rotuloMesLongo(anoMes) {
   const [ano, mes] = String(anoMes).split('-')
   return `${NOMES_MES_LONGO[Number(mes) - 1]} ${ano}`
@@ -89,48 +96,55 @@ const CHIPS = [
   { id: 'tudo', label: 'Tudo' },
   { id: 'relato', label: 'Relatos' },
   { id: 'mensal', label: 'Mensal' },
-  { id: 'sob_demanda', label: 'Sob demanda' },
+  { id: 'sob_demanda', label: 'Intermediárias' },
   { id: 'personal', label: 'Minhas' }
 ]
 
 // Relato confirmado cai no mês da confirmação (regra da ADR-0015); em
 // andamento, no mês em que foi criado.
 function mesDoRegistro(r) {
-  const quando = r.status === 'confirmado' ? (r.validacao?.confirmado_em || r.created_at) : r.created_at
-  return { anoMes: mesDe(quando), ordem: quando }
+  return mesDe(r.status === 'confirmado' ? (r.validacao?.confirmado_em || r.created_at) : r.created_at)
 }
+
+// Dentro do mês, relatos por data do atendimento (ADR-0019) - é a data que a
+// linha mostra; ordenar pela confirmação deixava a sequência embaralhada.
+function chaveRelato(r) {
+  return `${r.data_atendimento || ''}|${r.validacao?.confirmado_em || r.created_at}`
+}
+const desc = (campo) => (x, y) => String(campo(y)).localeCompare(String(campo(x)))
 
 const meses = computed(() => {
   const mapa = new Map()
   const mesAtual = mesCorrente.value
   const bucket = (anoMes) => {
-    if (!mapa.has(anoMes)) mapa.set(anoMes, { anoMes, mensal: null, itens: [] })
+    if (!mapa.has(anoMes)) mapa.set(anoMes, { anoMes, mensal: null, relatos: [], analises: [], pessoais: [] })
     return mapa.get(anoMes)
   }
 
   // O mês atual sempre tem card (âncora do topo, "em andamento").
   bucket(mesAtual)
 
-  for (const r of registros.value) {
-    const { anoMes, ordem } = mesDoRegistro(r)
-    bucket(anoMes).itens.push({ tipo: 'relato', chave: `r:${r.id}`, ordem, dados: r })
-  }
+  for (const r of registros.value) bucket(mesDoRegistro(r)).relatos.push(r)
   for (const av of avaliacoes.value) bucket(av.ano_mes).mensal = av
-  for (const an of analises.value) {
-    bucket(mesDe(an.solicitada_em)).itens.push({ tipo: 'sob_demanda', chave: `s:${an.id}`, ordem: an.solicitada_em, dados: an })
-  }
-  for (const p of avaliacoesPersonal.value) {
-    bucket(mesDe(p.created_at)).itens.push({ tipo: 'personal', chave: `p:${p.id}`, ordem: p.created_at, dados: p })
-  }
+  for (const an of analises.value) bucket(mesDe(an.solicitada_em)).analises.push(an)
+  for (const p of avaliacoesPersonal.value) bucket(mesDe(p.created_at)).pessoais.push(p)
 
   return [...mapa.values()]
-    .filter((m) => m.anoMes === mesAtual || m.mensal || m.itens.length)
+    .filter((m) => m.anoMes === mesAtual || m.mensal || m.relatos.length || m.analises.length || m.pessoais.length)
     .sort((a, b) => b.anoMes.localeCompare(a.anoMes))
-    .map((m) => ({
-      ...m,
-      emAndamento: m.anoMes >= mesAtual,
-      itens: [...m.itens].sort((x, y) => String(y.ordem).localeCompare(String(x.ordem)))
-    }))
+    .map((m) => {
+      const relatos = [...m.relatos].sort(desc(chaveRelato))
+      return {
+        anoMes: m.anoMes,
+        mensal: m.mensal,
+        emAndamento: m.anoMes >= mesAtual,
+        // Pendentes pedem ação (revisar) - ficam sempre à vista, fora do grupo.
+        relatosPendentes: relatos.filter((r) => r.status !== 'confirmado'),
+        relatosConfirmados: relatos.filter((r) => r.status === 'confirmado'),
+        analises: [...m.analises].sort(desc((a) => a.solicitada_em)),
+        pessoais: [...m.pessoais].sort(desc((p) => p.created_at))
+      }
+    })
 })
 
 const mesesFiltrados = computed(() => {
@@ -138,9 +152,55 @@ const mesesFiltrados = computed(() => {
   return meses.value.filter((m) => {
     if (ehMesCorrente(m)) return true // hub de ações sempre visível
     if (filtro.value === 'mensal') return !!m.mensal
-    return m.itens.some((i) => i.tipo === filtro.value)
+    if (filtro.value === 'relato') return m.relatosPendentes.length + m.relatosConfirmados.length > 0
+    if (filtro.value === 'sob_demanda') return m.analises.length > 0
+    return m.pessoais.length > 0
   })
 })
+
+function mostra(tipo) {
+  return filtro.value === 'tudo' || filtro.value === tipo
+}
+
+// Leitura em destaque do mês: a avaliação mensal, quando existe; senão (mês em
+// andamento) a análise intermediária mais recente. As demais análises ficam
+// num grupo recolhido.
+function analiseDestaque(m) {
+  return m.mensal ? null : m.analises[0] || null
+}
+function analisesSecundarias(m) {
+  return analiseDestaque(m) ? m.analises.slice(1) : m.analises
+}
+function rotuloAnalisesSecundarias(m) {
+  const n = analisesSecundarias(m).length
+  if (analiseDestaque(m)) return `+ ${n} análise(s) intermediária(s) anterior(es)`
+  return `${n} análise(s) intermediária(s) neste mês`
+}
+
+// Grupo recolhível: o filtro do próprio tipo abre o grupo à força.
+function grupoForcado(tipo) {
+  return filtro.value === tipo
+}
+function grupoAberto(chave, tipo) {
+  return grupoForcado(tipo) || gruposAbertos.value.has(chave)
+}
+function alternarGrupo(chave) {
+  if (gruposAbertos.value.has(chave)) gruposAbertos.value.delete(chave)
+  else gruposAbertos.value.add(chave)
+}
+
+function periodoRelatos(relatos) {
+  const datas = relatos.map((r) => r.data_atendimento).filter(Boolean).sort()
+  if (!datas.length) return ''
+  const ini = formatarDataAtendimento(datas[0]).slice(0, 5)
+  const fim = formatarDataAtendimento(datas[datas.length - 1]).slice(0, 5)
+  return ini === fim ? `atendimento em ${ini}` : `atendimentos de ${ini} a ${fim}`
+}
+
+function mesVazio(m) {
+  return !m.mensal && !m.analises.length && !m.pessoais.length &&
+    !m.relatosPendentes.length && !m.relatosConfirmados.length
+}
 
 function contagem(id) {
   if (id === 'relato') return registros.value.length
@@ -148,15 +208,6 @@ function contagem(id) {
   if (id === 'sob_demanda') return analises.value.length
   if (id === 'personal') return avaliacoesPersonal.value.length
   return registros.value.length + avaliacoes.value.length + analises.value.length + avaliacoesPersonal.value.length
-}
-
-function mostrarMensal(m) {
-  return !!m.mensal && (filtro.value === 'tudo' || filtro.value === 'mensal')
-}
-function itensVisiveis(m) {
-  if (filtro.value === 'tudo') return m.itens
-  if (filtro.value === 'mensal') return []
-  return m.itens.filter((i) => i.tipo === filtro.value)
 }
 
 // Gerar/regerar só faz sentido para o mês atual, o anterior (candidatos do job)
@@ -285,6 +336,9 @@ async function solicitarAnalise() {
     }
     await carregarAnalises()
     filtro.value = 'tudo'
+    // A nova costuma virar o destaque do mês; se o mês já tem mensal, ela cai
+    // no grupo recolhido - abre o grupo para a análise aparecer.
+    gruposAbertos.value.add(`an:${mesCorrente.value}`)
     expandidoId.value = `s:${resultado.id}`
     if (resultado.status === 'gerada') {
       showToast('Análise gerada.', 'success')
@@ -378,6 +432,22 @@ async function excluirAvaliacaoPersonal(avaliacao) {
       <button type="button" class="acomp-ajuda-toggle" :aria-expanded="mostrarAjuda" @click="mostrarAjuda = !mostrarAjuda">
         ⓘ Como funciona
       </button>
+
+      <!-- Filtros: discretos e à direita, para não parecerem uma 2ª barra de abas -->
+      <div class="acomp-filtros">
+        <span class="acomp-filtros-rotulo">Mostrar:</span>
+        <button
+          v-for="chip in CHIPS"
+          :key="chip.id"
+          type="button"
+          class="acomp-chip"
+          :class="{ ativo: filtro === chip.id }"
+          :aria-pressed="filtro === chip.id"
+          @click="filtro = chip.id"
+        >
+          {{ chip.label }}<span v-if="contagem(chip.id)" class="acomp-chip-num">{{ contagem(chip.id) }}</span>
+        </button>
+      </div>
     </div>
     <div v-if="mostrarAjuda" class="exercise-obs acomp-ajuda-corpo">
       <span class="acomp-obs-item">
@@ -387,20 +457,6 @@ async function excluirAvaliacaoPersonal(avaliacao) {
       <span class="acomp-obs-item">
         A avaliação mensal é gerada automaticamente no início de cada mês, desde que haja pelo menos 3 relatos confirmados.
       </span>
-    </div>
-
-    <!-- ===== Filtros ===== -->
-    <div class="acomp-filtros">
-      <button
-        v-for="chip in CHIPS"
-        :key="chip.id"
-        type="button"
-        class="acomp-chip"
-        :class="{ ativo: filtro === chip.id }"
-        @click="filtro = chip.id"
-      >
-        {{ chip.label }}<span v-if="contagem(chip.id)" class="acomp-chip-num">{{ contagem(chip.id) }}</span>
-      </button>
     </div>
 
     <!-- ===== Cards do mês ===== -->
@@ -483,14 +539,24 @@ async function excluirAvaliacaoPersonal(avaliacao) {
           </div>
         </div>
 
-        <!-- Avaliação mensal -->
-        <div v-if="mostrarMensal(m)" class="acomp-linha">
+        <!-- Destaque: avaliação mensal -->
+        <div v-if="m.mensal && mostra('mensal')" class="acomp-linha acomp-destaque">
           <div class="registro-card-head row-clickable" @click="alternarExpandido('m:' + m.anoMes)">
             <div class="acomp-feed-cab">
-              <span class="list-row-title">🗓️ Avaliação mensal<span class="acomp-linha-data"> · {{ formatarDataHora(m.mensal.gerada_em) }}</span></span>
-              <span class="list-row-sub">{{ subLinhaMensal(m.mensal) }}</span>
+              <span class="list-row-title acomp-destaque-titulo">
+                🗓️ Avaliação mensal de {{ nomeMes(m.anoMes) }}<span class="acomp-linha-data"> · gerada {{ formatarDataHora(m.mensal.gerada_em) }}</span>
+              </span>
+              <span class="list-row-sub">
+                {{ subLinhaMensal(m.mensal) }}
+                <template v-if="estadoCompartilhamento(m.mensal)">
+                  · <span :class="{ 'acomp-compartilhar-stale': estadoCompartilhamento(m.mensal).stale }">{{ estadoCompartilhamento(m.mensal).rotulo }}</span>
+                </template>
+              </span>
             </div>
-            <span class="acomp-chevron">{{ expandidoId === 'm:' + m.anoMes ? '▲' : '▼' }}</span>
+            <span class="acomp-abrir">
+              {{ expandidoId === 'm:' + m.anoMes ? 'Fechar' : 'Abrir' }}
+              <span class="acomp-chevron" :class="{ aberto: expandidoId === 'm:' + m.anoMes }" aria-hidden="true">▾</span>
+            </span>
           </div>
           <div v-if="expandidoId === 'm:' + m.anoMes" class="acomp-detalhe-box" @click.stop>
             <!-- Compartilhar com o aluno (docs/adr/0023) - só quando a IA gerou. -->
@@ -515,44 +581,71 @@ async function excluirAvaliacaoPersonal(avaliacao) {
           </div>
         </div>
 
-        <!-- Relato / análise sob demanda / avaliação do personal -->
-        <div v-for="item in itensVisiveis(m)" :key="item.chave" class="acomp-linha">
-          <RegistroCard
-            v-if="item.tipo === 'relato'"
-            :registro="item.dados"
-            :aberto="expandidoId === item.chave"
-            @toggle="alternarExpandido(item.chave)"
-          />
-
-          <template v-else-if="item.tipo === 'sob_demanda'">
-            <div class="registro-card-head row-clickable" @click="alternarExpandido(item.chave)">
+        <!-- Análises intermediárias: a mais recente em destaque (mês sem mensal),
+             as demais num grupo recolhido -->
+        <template v-if="mostra('sob_demanda')">
+          <div v-if="analiseDestaque(m)" class="acomp-linha acomp-destaque">
+            <div class="registro-card-head row-clickable" @click="alternarExpandido('s:' + analiseDestaque(m).id)">
               <div class="acomp-feed-cab">
-                <span class="list-row-title">✨ Análise sob demanda<span class="acomp-linha-data"> · {{ formatarDataHora(item.dados.solicitada_em) }}</span></span>
-                <span class="list-row-sub">{{ subLinhaAnalise(item.dados) }}</span>
+                <span class="list-row-title acomp-destaque-titulo">
+                  ✨ Análise intermediária mais recente<span class="acomp-linha-data"> · {{ formatarDataHora(analiseDestaque(m).solicitada_em) }}</span>
+                </span>
+                <span class="list-row-sub">{{ subLinhaAnalise(analiseDestaque(m)) }}</span>
               </div>
-              <span class="badge" :class="statusMeta(item.dados.status).badge">{{ statusMeta(item.dados.status).label }}</span>
+              <span class="acomp-abrir">
+                <span v-if="analiseDestaque(m).status !== 'gerada'" class="badge" :class="statusMeta(analiseDestaque(m).status).badge">{{ statusMeta(analiseDestaque(m).status).label }}</span>
+                {{ expandidoId === 's:' + analiseDestaque(m).id ? 'Fechar' : 'Abrir' }}
+                <span class="acomp-chevron" :class="{ aberto: expandidoId === 's:' + analiseDestaque(m).id }" aria-hidden="true">▾</span>
+              </span>
             </div>
-            <div v-if="expandidoId === item.chave" class="acomp-detalhe-box" @click.stop>
-              <AcompanhamentoDetalhe :avaliacao="item.dados.analise_json" :status="item.dados.status" :erro="item.dados.erro" />
+            <div v-if="expandidoId === 's:' + analiseDestaque(m).id" class="acomp-detalhe-box" @click.stop>
+              <AcompanhamentoDetalhe :avaliacao="analiseDestaque(m).analise_json" :status="analiseDestaque(m).status" :erro="analiseDestaque(m).erro" />
             </div>
-          </template>
+          </div>
 
-          <template v-else>
+          <template v-if="analisesSecundarias(m).length">
+            <div v-if="!grupoForcado('sob_demanda')" class="acomp-linha acomp-grupo-head row-clickable" @click="alternarGrupo('an:' + m.anoMes)">
+              <span class="acomp-grupo-titulo">✨ {{ rotuloAnalisesSecundarias(m) }}</span>
+              <span class="acomp-chevron" :class="{ aberto: grupoAberto('an:' + m.anoMes, 'sob_demanda') }" aria-hidden="true">▾</span>
+            </div>
+            <template v-if="grupoAberto('an:' + m.anoMes, 'sob_demanda')">
+              <div v-for="an in analisesSecundarias(m)" :key="an.id" class="acomp-linha acomp-linha-aninhada">
+                <div class="registro-card-head row-clickable" @click="alternarExpandido('s:' + an.id)">
+                  <div class="acomp-feed-cab">
+                    <span class="list-row-title">✨ Análise intermediária<span class="acomp-linha-data"> · {{ formatarDataHora(an.solicitada_em) }}</span></span>
+                    <span class="list-row-sub">{{ subLinhaAnalise(an) }}</span>
+                  </div>
+                  <span class="acomp-abrir">
+                    <span v-if="an.status !== 'gerada'" class="badge" :class="statusMeta(an.status).badge">{{ statusMeta(an.status).label }}</span>
+                    <span class="acomp-chevron" :class="{ aberto: expandidoId === 's:' + an.id }" aria-hidden="true">▾</span>
+                  </span>
+                </div>
+                <div v-if="expandidoId === 's:' + an.id" class="acomp-detalhe-box" @click.stop>
+                  <AcompanhamentoDetalhe :avaliacao="an.analise_json" :status="an.status" :erro="an.erro" />
+                </div>
+              </div>
+            </template>
+          </template>
+        </template>
+
+        <!-- Avaliações escritas pelo personal -->
+        <template v-if="mostra('personal')">
+          <div v-for="p in m.pessoais" :key="p.id" class="acomp-linha">
             <div class="acomp-pessoal-head">
               <div class="acomp-feed-cab">
-                <span class="list-row-title">✍️ Sua avaliação<span class="acomp-linha-data"> · {{ formatarDataHora(item.dados.created_at) }}</span></span>
+                <span class="list-row-title">✍️ Sua avaliação<span class="acomp-linha-data"> · {{ formatarDataHora(p.created_at) }}</span></span>
                 <span class="list-row-sub">
-                  {{ item.dados.autor?.nome || 'personal' }}
-                  <template v-if="item.dados.updated_at && item.dados.updated_at !== item.dados.created_at"> · editada</template>
+                  {{ p.autor?.nome || 'personal' }}
+                  <template v-if="p.updated_at && p.updated_at !== p.created_at"> · editada</template>
                 </span>
               </div>
-              <div v-if="editandoId !== item.dados.id" class="acomp-pessoal-acoes">
-                <button type="button" class="btn btn-ghost btn-sm" @click="abrirEditorEdicao(item.dados)">Editar</button>
-                <button type="button" class="btn btn-danger-ghost btn-sm" @click="excluirAvaliacaoPersonal(item.dados)">Excluir</button>
+              <div v-if="editandoId !== p.id" class="acomp-pessoal-acoes">
+                <button type="button" class="btn btn-ghost btn-sm" @click="abrirEditorEdicao(p)">Editar</button>
+                <button type="button" class="btn btn-danger-ghost btn-sm" @click="excluirAvaliacaoPersonal(p)">Excluir</button>
               </div>
             </div>
 
-            <div v-if="editandoId === item.dados.id" class="acomp-editor" style="margin-top: 10px;">
+            <div v-if="editandoId === p.id" class="acomp-editor" style="margin-top: 10px;">
               <textarea v-model="textoEditor" rows="5" maxlength="5000" aria-label="Editar avaliação do personal"></textarea>
               <div class="acomp-editor-acoes">
                 <button type="button" class="btn btn-primary btn-sm" :disabled="salvandoAvaliacao || !textoEditor.trim()" @click="salvarAvaliacaoPersonal">
@@ -561,11 +654,35 @@ async function excluirAvaliacaoPersonal(avaliacao) {
                 <button type="button" class="btn btn-ghost btn-sm" @click="fecharEditor">Cancelar</button>
               </div>
             </div>
-            <p v-else class="acomp-pessoal-texto">{{ item.dados.texto }}</p>
-          </template>
-        </div>
+            <p v-else class="acomp-pessoal-texto">{{ p.texto }}</p>
+          </div>
+        </template>
 
-        <p v-if="filtro === 'tudo' && !m.mensal && !m.itens.length && !(ehMesCorrente(m) && novaAberta)" class="list-row-sub acomp-mes-vazio">
+        <!-- Relatos: pendentes sempre à vista; confirmados recolhidos num grupo -->
+        <template v-if="mostra('relato')">
+          <div v-for="r in m.relatosPendentes" :key="r.id" class="acomp-linha">
+            <RegistroCard :registro="r" :aberto="expandidoId === 'r:' + r.id" @toggle="alternarExpandido('r:' + r.id)" />
+          </div>
+
+          <template v-if="m.relatosConfirmados.length">
+            <div v-if="!grupoForcado('relato')" class="acomp-linha acomp-grupo-head row-clickable" @click="alternarGrupo('rel:' + m.anoMes)">
+              <span class="acomp-grupo-titulo">
+                📋 {{ m.relatosConfirmados.length }} relato(s) confirmado(s)<span class="acomp-linha-data"> · {{ periodoRelatos(m.relatosConfirmados) }}</span>
+              </span>
+              <span class="acomp-abrir">
+                {{ grupoAberto('rel:' + m.anoMes, 'relato') ? 'Recolher' : 'Ver relatos' }}
+                <span class="acomp-chevron" :class="{ aberto: grupoAberto('rel:' + m.anoMes, 'relato') }" aria-hidden="true">▾</span>
+              </span>
+            </div>
+            <template v-if="grupoAberto('rel:' + m.anoMes, 'relato')">
+              <div v-for="r in m.relatosConfirmados" :key="r.id" class="acomp-linha acomp-linha-aninhada">
+                <RegistroCard :registro="r" :aberto="expandidoId === 'r:' + r.id" @toggle="alternarExpandido('r:' + r.id)" />
+              </div>
+            </template>
+          </template>
+        </template>
+
+        <p v-if="filtro === 'tudo' && mesVazio(m) && !(ehMesCorrente(m) && novaAberta)" class="list-row-sub acomp-mes-vazio">
           {{ m.emAndamento ? 'Nada registrado neste mês ainda.' : 'Avaliação mensal ainda não gerada para este mês.' }}
         </p>
       </section>
@@ -578,9 +695,10 @@ async function excluirAvaliacaoPersonal(avaliacao) {
 <style scoped>
 .acomp-cabecalho {
   display: flex;
-  align-items: baseline;
-  gap: 12px;
-  margin-bottom: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 14px;
 }
 .acomp-titulo {
   font-size: 17px;
@@ -613,28 +731,36 @@ async function excluirAvaliacaoPersonal(avaliacao) {
 .acomp-mes-aviso {
   margin: 0;
 }
+/* Filtros: discretos (texto, sem pílula cheia) para não competirem com as
+   abas Acompanhamento / Ficha / Avaliações logo acima. */
 .acomp-filtros {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 14px;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+.acomp-filtros-rotulo {
+  font-size: 12px;
+  color: var(--color-text-faint);
+  margin-right: 4px;
 }
 .acomp-chip {
   font-size: 12.5px;
-  font-weight: 700;
-  padding: 5px 12px;
-  border-radius: var(--radius-full);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: var(--radius-sm, 6px);
+  background: none;
+  border: none;
   color: var(--color-text-secondary);
+  cursor: pointer;
 }
 .acomp-chip:hover {
-  border-color: var(--color-border-strong);
+  background: var(--color-surface-alt);
 }
 .acomp-chip.ativo {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: #fff;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
 }
 .acomp-chip-num {
   margin-left: 6px;
@@ -712,9 +838,58 @@ async function excluirAvaliacaoPersonal(avaliacao) {
   padding: 14px 16px;
 }
 .acomp-chevron {
+  display: inline-block;
   color: var(--color-text-faint);
-  font-size: 11px;
+  font-size: 13px;
   flex: none;
+  transition: transform 0.15s ease;
+}
+.acomp-chevron.aberto {
+  transform: rotate(180deg);
+}
+/* "Abrir ▾" à direita das linhas expansíveis - deixa claro que a linha abre. */
+.acomp-abrir {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+.row-clickable:hover .list-row-title,
+.row-clickable:hover .acomp-grupo-titulo {
+  color: var(--color-primary);
+}
+/* Leitura em destaque do mês (mensal ou análise intermediária mais recente) */
+.acomp-destaque {
+  background: var(--color-primary-light);
+  box-shadow: inset 3px 0 0 var(--color-primary);
+}
+.acomp-destaque-titulo {
+  font-size: 14.5px;
+}
+.acomp-destaque .acomp-detalhe-box {
+  background: var(--color-surface);
+}
+/* Cabeçalho de grupo recolhível (relatos confirmados / análises anteriores) */
+.acomp-grupo-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.acomp-grupo-titulo {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+.acomp-linha-aninhada {
+  padding-left: 32px;
+  background: var(--color-surface-alt);
+}
+.acomp-linha-aninhada :deep(.acomp-detalhe-box) {
+  background: var(--color-surface);
 }
 /* Detalhe da avaliação da IA: texto normal (não é transcrição - não usa o
    cinza/itálico do .transcript-box). */

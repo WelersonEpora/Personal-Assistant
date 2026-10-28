@@ -115,7 +115,10 @@ test("confirmar: caminho de sucesso cria Validacao e avança o status para confi
 // docs/adr/0019 - a data do atendimento é ajustada no "Editar" da revisão e
 // vem junto no payload da confirmação (mesma transação da Validacao).
 test("confirmar: dataAtendimento no payload ajusta registro.data_atendimento na mesma transação", async (t) => {
-  const registro = await criarRegistro(Registro.STATUS.AGUARDANDO_REVISAO, "2026-08-20");
+  // Datas relativas a hoje: a janela de 60 dias anda com o calendário.
+  const dezDiasAtras = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const dezesseisDiasAtras = new Date(Date.now() - 16 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const registro = await criarRegistro(Registro.STATUS.AGUARDANDO_REVISAO, dezDiasAtras);
   t.after(() => Registro.destroy({ where: { id: registro.id } }));
   await ResultadoIa.create({ registro_id: registro.id, payload_json: { itens: [] }, status: "concluido" });
 
@@ -123,11 +126,11 @@ test("confirmar: dataAtendimento no payload ajusta registro.data_atendimento na 
     usuarioId: usuario.id,
     equipeId: equipe.id,
     registroId: registro.id,
-    payload: { itens: [], notaGeral: "", dataAtendimento: "2026-08-14" }
+    payload: { itens: [], notaGeral: "", dataAtendimento: dezesseisDiasAtras }
   });
 
   const atualizado = await Registro.findByPk(registro.id);
-  assert.equal(atualizado.data_atendimento, "2026-08-14");
+  assert.equal(atualizado.data_atendimento, dezesseisDiasAtras);
   assert.equal(atualizado.status, Registro.STATUS.CONFIRMADO);
 });
 

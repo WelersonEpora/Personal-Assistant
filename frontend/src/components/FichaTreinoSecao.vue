@@ -233,9 +233,12 @@ function alternarExpandido(ficha) {
   <div>
     <div class="secao-cabecalho">
       <h2 class="secao-titulo">Ficha de Treino</h2>
-      <button v-if="!editando && !dispensaFicha" type="button" class="btn btn-primary" @click="iniciarNovaFicha">
-        + Nova ficha
-      </button>
+      <div v-if="!editando && !dispensaFicha" class="secao-acoes">
+        <button type="button" class="btn btn-primary btn-sm" @click="iniciarNovaFicha">
+          <span aria-hidden="true">📋</span>
+          Nova ficha
+        </button>
+      </div>
     </div>
 
     <div v-if="carregando" class="empty-state">Carregando…</div>
@@ -282,12 +285,15 @@ function alternarExpandido(ficha) {
             />
             <button type="button" class="btn btn-secondary" :disabled="link.status !== 'ativo'" @click="copiarLink">Copiar</button>
           </div>
-          <div style="display: flex; gap: 10px;">
-            <button type="button" class="btn btn-ghost" :disabled="linkOcupado" @click="gerarLink">Gerar novo link</button>
+          <div class="secao-acoes">
+            <button type="button" class="btn btn-ghost btn-sm" :disabled="linkOcupado" @click="gerarLink">
+              <span aria-hidden="true">🔗</span>
+              Gerar novo link
+            </button>
             <button
               v-if="link.status === 'ativo'"
               type="button"
-              class="btn btn-danger-ghost"
+              class="btn btn-danger-ghost btn-sm"
               :disabled="linkOcupado"
               @click="revogarLink"
             >
@@ -295,9 +301,12 @@ function alternarExpandido(ficha) {
             </button>
           </div>
         </template>
-        <button v-else type="button" class="btn btn-primary" :disabled="linkOcupado" @click="gerarLink">
-          Gerar link para o aluno
-        </button>
+        <div v-else class="secao-acoes">
+          <button type="button" class="btn btn-primary btn-sm" :disabled="linkOcupado" @click="gerarLink">
+            <span aria-hidden="true">🔗</span>
+            Gerar link para o aluno
+          </button>
+        </div>
       </div>
 
       <template v-if="!editando">
@@ -390,6 +399,16 @@ function alternarExpandido(ficha) {
 .secao-titulo {
   font-size: 17px;
   font-weight: 800;
+}
+/* mesmo padrão dos botões da Linha do Tempo (acomp-acoes-grupo) */
+.secao-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.secao-acoes .btn {
+  font-weight: 400;
 }
 .dispensa-toggle {
   display: flex;

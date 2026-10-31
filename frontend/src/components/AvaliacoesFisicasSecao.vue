@@ -8,7 +8,10 @@ import ToastStack from './ToastStack.vue'
 import AvaliacaoFisicaDetalhe from './avaliacaoFisica/AvaliacaoFisicaDetalhe.vue'
 import AvaliacaoFisicaForm from './avaliacaoFisica/AvaliacaoFisicaForm.vue'
 import AvaliacaoFisicaComparar from './avaliacaoFisica/AvaliacaoFisicaComparar.vue'
+import SeloReferencia from './avaliacaoFisica/SeloReferencia.vue'
+import ChevronExpandir from './ChevronExpandir.vue'
 import { formatarDataAvaliacao } from '../utils/avaliacaoFisica.js'
+import { classificar, contextoDoAluno } from '../utils/referenciasAvaliacaoFisica.js'
 
 // Seção "Avaliações Físicas" da tela do aluno (docs/adr/0015 estendida, 0016):
 // deixou de ser tela própria - vive num slot com abas no AlunoDetalheView. O
@@ -85,21 +88,38 @@ const RESUMO_CAMPOS = [
   { codigo: 'massa_magra', rotulo: 'Massa magra', unidade: 'kg' },
   { codigo: 'massa_gorda', rotulo: 'Massa gorda', unidade: 'kg' }
 ]
+// docs/adr/0031 - IMC e % de gordura levam a etiqueta da referência já no
+// card fechado.
+const RESUMO_COM_SELO = ['imc', 'percentual_gordura']
 function resumoLinha(av) {
+  const ctx = contextoDoAluno(aluno.value, av.data)
   return RESUMO_CAMPOS.map((c) => {
     const v = valorResumo(av, c.codigo)
-    if (v === '—') return `${c.rotulo} —`
+    if (v === '—') return { codigo: c.codigo, texto: `${c.rotulo} —`, classificacao: null }
     const unidade = c.unidade ? ` ${c.unidade}` : ''
-    return `${c.rotulo} ${v}${unidade}`
-  }).join(' · ')
+    const classificacao = RESUMO_COM_SELO.includes(c.codigo) ? classificar(c.codigo, v, ctx) : null
+    return { codigo: c.codigo, texto: `${c.rotulo} ${v}${unidade}`, classificacao }
+  })
 }
 
 const listaOrdenada = computed(() =>
   [...avaliacoes.value].sort((a, b) => String(b.data).localeCompare(String(a.data)))
 )
+// a lista é da mais recente para a mais antiga: a anterior é a seguinte
+function anteriorDe(av) {
+  const i = listaOrdenada.value.findIndex((x) => x.id === av.id)
+  return listaOrdenada.value[i + 1] || null
+}
 
 function alternarExpandido(av) {
   expandidoId.value = expandidoId.value === av.id ? null : av.id
+  abrirCodigo.value = null
+}
+// toque no selo do card fechado: abre o card já com a explicação da medida
+const abrirCodigo = ref(null)
+function abrirNaMedida(av, codigo) {
+  expandidoId.value = av.id
+  abrirCodigo.value = codigo
 }
 function abrirNovo() {
   selecionada.value = null
@@ -144,16 +164,20 @@ async function excluir(av) {
     <template v-if="modo === 'lista'">
       <div class="secao-cabecalho">
         <h2 class="secao-titulo">Avaliações Físicas</h2>
-        <div style="display: flex; gap: 8px;">
+        <div class="secao-acoes">
           <button
             v-if="listaOrdenada.length >= 2"
             type="button"
-            class="btn btn-primary"
+            class="btn btn-primary btn-sm"
             @click="modo = 'comparar'"
           >
+            <span aria-hidden="true">📊</span>
             Comparar
           </button>
-          <button v-if="!dispensaAvaliacao" type="button" class="btn btn-primary" @click="abrirNovo">＋ Nova avaliação</button>
+          <button v-if="!dispensaAvaliacao" type="button" class="btn btn-primary btn-sm" @click="abrirNovo">
+            <span aria-hidden="true">📏</span>
+            Nova avaliação
+          </button>
         </div>
       </div>
 
@@ -175,11 +199,23 @@ async function excluir(av) {
           <div class="registro-card-head row-clickable" @click="alternarExpandido(av)">
             <div class="registro-card-who">
               <span class="list-row-title">{{ formatarDataAvaliacao(av.data) }}</span>
-              <span class="list-row-sub">{{ resumoLinha(av) }}</span>
+              <span class="list-row-sub af-resumo">
+                <span v-for="(item, i) in resumoLinha(av)" :key="item.codigo" class="af-resumo-item">
+                  <template v-if="i > 0">· </template>{{ item.texto }}
+                  <SeloReferencia
+                    :classificacao="item.classificacao"
+                    expansivel
+                    @click.stop="abrirNaMedida(av, item.codigo)"
+                  />
+                </span>
+              </span>
             </div>
-            <span class="badge" :class="av.origem === 'legado_bodymove' ? 'badge-neutral' : 'badge-success'">
-              {{ av.origem === 'legado_bodymove' ? 'Importada' : 'Manual' }}
-            </span>
+            <div class="af-card-fim">
+              <span class="badge" :class="av.origem === 'legado_bodymove' ? 'badge-neutral' : 'badge-success'">
+                {{ av.origem === 'legado_bodymove' ? 'Importada' : 'Manual' }}
+              </span>
+              <ChevronExpandir :aberto="expandidoId === av.id" />
+            </div>
           </div>
 
           <div v-if="expandidoId === av.id" class="af-expandido" @click.stop>
@@ -187,7 +223,13 @@ async function excluir(av) {
               <button type="button" class="btn btn-primary btn-sm" @click="abrirEditar(av)">Editar</button>
               <button type="button" class="btn btn-danger-ghost btn-sm" @click="excluir(av)">Excluir</button>
             </div>
-            <AvaliacaoFisicaDetalhe :avaliacao="av" compacto />
+            <AvaliacaoFisicaDetalhe
+              :avaliacao="av"
+              :aluno="aluno"
+              :anterior="anteriorDe(av)"
+              :abrir-codigo="abrirCodigo"
+              compacto
+            />
           </div>
         </div>
       </div>
@@ -198,7 +240,7 @@ async function excluir(av) {
       <button type="button" class="detail-back" style="background: none; border: none; cursor: pointer;" @click="voltarLista">
         ← Voltar para a lista
       </button>
-      <AvaliacaoFisicaComparar :avaliacoes="avaliacoes" :metricas="metricas" />
+      <AvaliacaoFisicaComparar :avaliacoes="avaliacoes" :metricas="metricas" :aluno="aluno" />
     </template>
 
     <!-- NOVO / EDITAR -->
@@ -233,6 +275,16 @@ async function excluir(av) {
   font-size: 17px;
   font-weight: 800;
 }
+/* mesmo padrão dos botões da Linha do Tempo (acomp-acoes-grupo) */
+.secao-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.secao-acoes .btn {
+  font-weight: 400;
+}
 .dispensa-toggle {
   display: flex;
   align-items: center;
@@ -256,6 +308,9 @@ async function excluir(av) {
   margin-bottom: 16px;
 }
 .af-acoes { display: flex; gap: 6px; margin-bottom: 14px; }
+.af-card-fim { display: flex; align-items: center; gap: 8px; flex: none; }
+.af-resumo { display: flex; flex-wrap: wrap; gap: 2px 6px; align-items: center; }
+.af-resumo-item { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .af-expandido {
   margin-top: 12px;
   padding-top: 4px;

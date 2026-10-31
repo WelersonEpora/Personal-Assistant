@@ -382,6 +382,13 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
   sem id). Envio por colar/arrastar/arquivo, reduzido a 512 px PNG no navegador
   (`utils/logoEquipe.js`), com preview antes de salvar. Tema/cores por equipe
   continuam fora.
+- **Referências de leitura da avaliação física (ADR-0031) são calculadas na
+  hora, nunca gravadas** — só frontend (`utils/referenciasAvaliacaoFisica.js`),
+  tabelas fixas com a fonte citada (IMC OMS / Lipschitz 60+, % de gordura
+  Gallagher 2000, cintura e RCQ OMS, cintura-estatura Ashwell, pressão
+  Diretriz SBC 2020, FC de repouso AHA). Linguagem de referência, nunca de
+  diagnóstico. Ainda **não** vão ao prompt do Acompanhamento Mensal nem ao PDF
+  do aluno — decisão própria.
 - Toda decisão arquitetural relevante e difícil de reverter vira ADR em
   `docs/adr/`, numerada sequencialmente, com Contexto/Decisão/Alternativas
   consideradas/Consequências. Decisões operacionais ou de baixa relevância
@@ -436,6 +443,7 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
 | 0028 | Ficha de Treino por captura (áudio/texto) + interpretação da IA |
 | 0029 | Avaliação física no PDF do Acompanhamento Mensal |
 | 0030 | Identidade visual da equipe (logo no que chega ao aluno) |
+| 0031 | Referências de leitura das medidas da avaliação física |
 
 ## Estado atual
 
@@ -669,12 +677,18 @@ MVP completo e verificado de ponta a ponta:
   / "Substituir" sugerido pelo nome, avisos da IA, ouvir áudio.
   Logo da equipe (docs/adr/0030): quadro na tela Equipe (colar/arrastar/
   arquivo + preview), logo no topo do PDF e no cabeçalho da `FichaPublicaView`.
-  129 testes automatizados (`node --test` + `fake-indexeddb`; +
+  Referências da avaliação física (docs/adr/0031): `SeloReferencia.vue` (selo
+  com "i", ou bolinha no Comparar) ao lado do valor no detalhe, no card fechado
+  (IMC e % de gordura — o toque abre o card na medida), no formulário (ao vivo)
+  e no Comparar; toque na linha abre `ReferenciaMedida.vue` (o que é, régua de
+  faixas, faixas em texto, fonte, aviso, variação para a avaliação anterior do
+  mesmo método). Toda métrica tem explicação, mesmo sem faixa.
+  146 testes automatizados (`node --test` + `fake-indexeddb`; +
   `echarts-option-builder.test.js`, `echarts-bar-option-builder.test.js`,
   `periodos.test.js`, `avaliacaoFisica.test.js`, `gravacaoVoz.test.js`,
   `avaliacaoMensalCompartilhada.test.js`, `registroStatus.test.js`,
-  `protocolosGordura.test.js`, `linhaDoTempo.test.js`, `fichaTreino.test.js` e
-  `buscaExercicio.test.js` puros).
+  `protocolosGordura.test.js`, `linhaDoTempo.test.js`, `fichaTreino.test.js`,
+  `buscaExercicio.test.js` e `referenciasAvaliacaoFisica.test.js` puros).
 - **Docker**: `compose.dev.yml` (Postgres + pgAdmin) e `compose.prod.yml`
   (Postgres + backend + frontend) validados; Dockerfiles com healthcheck
   em ambos os serviços da aplicação.

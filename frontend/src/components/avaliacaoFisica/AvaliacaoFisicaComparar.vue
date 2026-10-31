@@ -6,11 +6,15 @@ import {
   PERIODOS_COMPARACAO,
   filtrarPorPeriodo
 } from '../../utils/avaliacaoFisica.js'
+import { classificar, contextoDoAluno } from '../../utils/referenciasAvaliacaoFisica.js'
 import AvaliacaoFisicaGraficos from './AvaliacaoFisicaGraficos.vue'
+import SeloReferencia from './SeloReferencia.vue'
 
 const props = defineProps({
   avaliacoes: { type: Array, required: true },
-  metricas: { type: Array, required: true }
+  metricas: { type: Array, required: true },
+  // docs/adr/0031 - sexo/nascimento para a bolinha de referência das células
+  aluno: { type: Object, default: null }
 })
 
 const verTodas = ref(false)
@@ -36,6 +40,22 @@ function celula(av, codigo) {
   const casas = metricaPorCodigo.value[codigo]?.casas_decimais ?? 1
   const n = Number(m.valor)
   return Number.isFinite(n) ? n.toFixed(casas) : m.valor
+}
+
+// classificação da célula, com o contexto da própria avaliação (idade na data,
+// sistólica × diastólica daquele dia)
+const contextoPorAvaliacao = computed(() => {
+  const mapa = {}
+  for (const av of colunas.value) {
+    const valores = {}
+    for (const m of av.medidas || []) if (m.principal) valores[m.metrica_codigo] = Number(m.valor)
+    mapa[av.id] = contextoDoAluno(props.aluno, av.data, valores)
+  }
+  return mapa
+})
+function classificacaoCelula(av, codigo) {
+  const m = principal(av, codigo)
+  return m ? classificar(codigo, m.valor, contextoPorAvaliacao.value[av.id]) : null
 }
 
 function codigosPrincipais(lista) {
@@ -111,7 +131,13 @@ const avisoVazio = computed(() =>
               <th class="af-col-metrica">
                 {{ metrica.rotulo }} <span class="af-unidade">({{ metrica.unidade }})</span>
               </th>
-              <td v-for="av in colunas" :key="av.id" class="af-num">{{ celula(av, metrica.codigo) }}</td>
+              <td v-for="av in colunas" :key="av.id" class="af-num">
+                {{ celula(av, metrica.codigo) }}<SeloReferencia
+                  :classificacao="classificacaoCelula(av, metrica.codigo)"
+                  :casas="metrica.casas_decimais ?? 1"
+                  forma="ponto"
+                />
+              </td>
             </tr>
           </tbody>
         </table>

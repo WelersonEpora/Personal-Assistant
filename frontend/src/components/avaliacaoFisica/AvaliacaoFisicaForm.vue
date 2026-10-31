@@ -24,6 +24,8 @@ import {
   descreverFaltando,
   ehProtocoloCalculado
 } from '../../utils/protocolosGordura.js'
+import { classificar, contextoDoAluno } from '../../utils/referenciasAvaliacaoFisica.js'
+import SeloReferencia from './SeloReferencia.vue'
 
 const props = defineProps({
   alunoId: { type: String, required: true },
@@ -148,6 +150,21 @@ function alternarTrecho(codigo) {
   trechosAbertos[codigo] = !trechosAbertos[codigo]
 }
 const ROTULO_CONFIANCA = { alta: 'alta', media: 'média', baixa: 'baixa' }
+
+// --- referência ao vivo (docs/adr/0031) - só a etiqueta; a explicação com
+// régua fica no detalhe da avaliação salva ---
+const contextoReferencia = computed(() => {
+  const nums = {}
+  for (const [codigo, v] of Object.entries(valores)) {
+    const n = Number(v)
+    if (v !== '' && Number.isFinite(n) && n > 0) nums[codigo] = n
+  }
+  return contextoDoAluno(alunoDados.value, data.value, nums)
+})
+function classificacaoAoVivo(codigo, valor) {
+  if (valor === '' || valor == null) return null
+  return classificar(codigo, valor, contextoReferencia.value)
+}
 
 // --- derivadas ao vivo (só exibição; o backend recalcula na gravação, ver
 // backend/src/services/avaliacao-fisica/metricas-derivadas.js) ---
@@ -477,6 +494,12 @@ async function salvar() {
             </template>
           </label>
           <input v-model="valores[m.codigo]" type="number" step="any" min="0" inputmode="decimal" />
+          <div v-if="classificacaoAoVivo(m.codigo, valores[m.codigo])" class="af-ref-campo">
+            <SeloReferencia :classificacao="classificacaoAoVivo(m.codigo, valores[m.codigo])" :casas="m.casas_decimais ?? 1" />
+            <span v-if="classificacaoAoVivo(m.codigo, valores[m.codigo]).semReferencia" class="af-unidade">
+              {{ classificacaoAoVivo(m.codigo, valores[m.codigo]).motivo }}
+            </span>
+          </div>
           <p v-if="trechosAbertos[m.codigo] && confiancas[m.codigo]?.trecho_origem" class="af-trecho-texto">
             ↳ “{{ confiancas[m.codigo].trecho_origem }}”
           </p>
@@ -508,6 +531,10 @@ async function salvar() {
             {{ valorPercentualDaLinha(linha) ? `${valorPercentualDaLinha(linha)} % · calculado` : 'aguardando dados' }}
           </span>
           <input v-else v-model="linha.valor" type="number" step="any" min="0" inputmode="decimal" placeholder="valor" />
+          <SeloReferencia
+            v-if="codigo === 'percentual_gordura'"
+            :classificacao="classificacaoAoVivo(codigo, valorPercentualDaLinha(linha))"
+          />
           <button type="button" class="btn btn-ghost btn-sm" @click="removerMetodo(codigo, i)">Remover</button>
         </div>
         <div v-if="linha.calcular && faltandoDaLinha(linha).length" class="af-aviso-calculo">
@@ -533,7 +560,10 @@ async function salvar() {
     <div class="card card-pad" style="margin-bottom: 16px;">
       <div style="font-size: 15px; font-weight: 700; margin-bottom: 4px;">Calculado automaticamente</div>
       <p class="list-row-sub">
-        IMC {{ previewDerivadas.imc || '—' }} · RCQ {{ previewDerivadas.rcq || '—' }}
+        IMC {{ previewDerivadas.imc || '—' }}
+        <SeloReferencia :classificacao="classificacaoAoVivo('imc', previewDerivadas.imc)" />
+        · RCQ {{ previewDerivadas.rcq || '—' }}
+        <SeloReferencia :classificacao="classificacaoAoVivo('rcq', previewDerivadas.rcq)" :casas="2" />
         · Massa gorda {{ previewDerivadas.massa_gorda ? previewDerivadas.massa_gorda + ' kg' : '—' }}
         · Massa magra {{ previewDerivadas.massa_magra ? previewDerivadas.massa_magra + ' kg' : '—' }}
         <template v-if="previewDerivadas.densidade">· Densidade corporal {{ previewDerivadas.densidade }} g/mL</template>
@@ -646,6 +676,7 @@ async function salvar() {
   font-size: 12px; margin-left: 2px; padding: 0; line-height: 1;
 }
 .af-trecho-toggle:hover { color: var(--color-primary); }
+.af-ref-campo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
 .af-trecho-texto { font-size: 12px; color: var(--color-text-faint); font-style: italic; margin: 4px 0 0; }
 .af-metodo-bloco { margin-bottom: 8px; }
 .af-metodo-linha { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }

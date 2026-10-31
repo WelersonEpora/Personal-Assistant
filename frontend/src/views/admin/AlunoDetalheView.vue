@@ -404,8 +404,11 @@ async function excluirAluno() {
   gap: 10px;
   flex-wrap: wrap;
 }
+/* linha separando as abas do conteúdo da aba */
 .aluno-abas {
   margin-bottom: 20px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid var(--color-border-strong);
 }
 .aluno-menu {
   position: relative;

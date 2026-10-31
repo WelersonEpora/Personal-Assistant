@@ -49,7 +49,7 @@ async function atualizar(equipeId, alunoId, avaliacaoId, { texto }) {
   await verificarAluno(equipeId, alunoId);
   const avaliacao = await avaliacaoPersonalRepository.obterPorId({ id: avaliacaoId, equipeId });
   if (!avaliacao || avaliacao.aluno_id !== alunoId) {
-    throw new NotFoundError("Avaliação não encontrada.");
+    throw new NotFoundError("Observação não encontrada.");
   }
   await avaliacaoPersonalRepository.atualizar(avaliacao, { texto: normalizarTexto(texto) });
   return avaliacaoPersonalRepository.obterPorId({ id: avaliacaoId, equipeId });
@@ -59,7 +59,7 @@ async function excluir(equipeId, alunoId, avaliacaoId) {
   await verificarAluno(equipeId, alunoId);
   const avaliacao = await avaliacaoPersonalRepository.obterPorId({ id: avaliacaoId, equipeId });
   if (!avaliacao || avaliacao.aluno_id !== alunoId) {
-    throw new NotFoundError("Avaliação não encontrada.");
+    throw new NotFoundError("Observação não encontrada.");
   }
   await avaliacaoPersonalRepository.excluir(avaliacao);
 }

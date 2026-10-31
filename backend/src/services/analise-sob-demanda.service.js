@@ -111,7 +111,7 @@ async function solicitar({ equipeId, alunoId, usuarioId }) {
     const proxima = proximaDisponivelApos(ultima.solicitada_em);
     if (Date.now() < proxima.getTime()) {
       throw new ConflictError(
-        `Já houve uma análise sob demanda para este aluno nos últimos ${INTERVALO_DIAS} dias. ` +
+        `Já houve uma análise intermediária de IA para este aluno nos últimos ${INTERVALO_DIAS} dias. ` +
           `Uma nova estará disponível em ${proxima.toLocaleDateString("pt-BR")}.`,
         { proxima_disponivel_em: proxima.toISOString() }
       );
@@ -157,8 +157,8 @@ async function solicitar({ equipeId, alunoId, usuarioId }) {
     return resultadoInsuficiente({
       relatosConsiderados: 0,
       mensagem:
-        "Não há relatos confirmados nem avaliações suas recentes para analisar. " +
-        "Registre novos relatos ou escreva uma avaliação e solicite novamente - nada foi consumido."
+        "Não há relatos confirmados nem observações suas recentes para analisar. " +
+        "Registre novos relatos ou escreva uma observação e solicite novamente - nada foi consumido."
     });
   }
 

@@ -39,8 +39,8 @@ function ehPossibilidade(item) {
 function rotuloOrigem(origem) {
   if (!origem) return ''
   if (origem.startsWith('relato:')) return 'relato'
-  if (origem.startsWith('personal:')) return 'avaliação do personal'
-  if (origem.startsWith('revisao_mensal:')) return 'revisão da avaliação anterior'
+  if (origem.startsWith('personal:')) return 'observação do personal'
+  if (origem.startsWith('revisao_mensal:')) return 'comentário do personal no mês anterior'
   if (origem === 'contexto') return 'ciclo anterior'
   if (origem === 'interpretacao') return 'interpretação da IA'
   return origem

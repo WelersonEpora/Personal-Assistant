@@ -57,7 +57,7 @@ async function verificarAluno(equipeId, alunoId) {
 async function obterAvaliacaoCompartilhavel(equipeId, alunoId, anoMes) {
   const avaliacao = await avaliacaoMensalRepository.obterPorMes({ alunoId, equipeId, anoMes });
   if (!avaliacao) {
-    throw new NotFoundError("Nenhuma avaliação mensal para este aluno neste mês.");
+    throw new NotFoundError("Nenhum Acompanhamento Mensal para este aluno neste mês.");
   }
   return avaliacao;
 }
@@ -81,7 +81,7 @@ async function salvar(equipeId, alunoId, anoMes, autorId, corpo) {
   const avaliacao = await obterAvaliacaoCompartilhavel(equipeId, alunoId, anoMes);
   if (avaliacao.status !== "gerada") {
     throw new ValidationError(
-      "Só é possível compartilhar uma avaliação mensal que a IA conseguiu gerar " +
+      "Só é possível compartilhar um Acompanhamento Mensal que a IA conseguiu gerar " +
         `(status atual: ${avaliacao.status}).`
     );
   }
@@ -107,7 +107,7 @@ async function excluir(equipeId, alunoId, anoMes) {
   const avaliacao = await obterAvaliacaoCompartilhavel(equipeId, alunoId, anoMes);
   const revisao = await revisaoRepository.obterPorAvaliacao(avaliacao.id);
   if (!revisao) {
-    throw new NotFoundError("Esta avaliação ainda não foi preparada para compartilhamento.");
+    throw new NotFoundError("Este Acompanhamento Mensal ainda não foi preparado para compartilhamento.");
   }
   await revisaoRepository.excluir(revisao);
 }

@@ -119,7 +119,7 @@ function descricaoEvento(ev) {
   }
   if (ev.tipo === 'avaliacao_fisica') return `Avaliação física de ${formatarDataAvaliacao(ev.dados.data)}`
   if (ev.tipo === 'ficha_treino') return ev.dados.ativo ? 'Nova ficha de treino' : 'Ficha de treino substituída'
-  if (ev.tipo === 'avaliacao_mensal') return `Acompanhamento Individual de ${rotuloMesAno(`${ev.dados.ano_mes}-01`)}`
+  if (ev.tipo === 'avaliacao_mensal') return `Acompanhamento Mensal de ${rotuloMesAno(`${ev.dados.ano_mes}-01`)}`
   return ''
 }
 // O feed é um log cronológico, não uma lista de tarefas - não mostra o status
@@ -188,7 +188,7 @@ function relatoComErro(ev) {
         >
           <span class="acao-row-icone">📊</span>
           <span class="list-row-body">
-            <span class="list-row-title">{{ acao.avaliacoes_mensais_falha.total }} acompanhamento(s) mensal(is) falharam</span>
+            <span class="list-row-title">{{ acao.avaliacoes_mensais_falha.total }} Acompanhamento(s) Mensal(is) falharam</span>
             <span class="list-row-sub">{{ acao.avaliacoes_mensais_falha.itens.map((a) => a.aluno?.nome).filter(Boolean).join(', ') }} — gerar de novo na tela do aluno</span>
           </span>
         </router-link>
@@ -232,7 +232,7 @@ function relatoComErro(ev) {
           <div class="kpi-sub">Registros recebidos do celular</div>
         </div>
         <div class="card kpi-card">
-          <div class="kpi-label">Acompanhamento Individual {{ cicloMesRotulo }}</div>
+          <div class="kpi-label">Acompanhamento Mensal · {{ cicloMesRotulo }}</div>
           <div class="kpi-value">{{ resumo.ciclo_mensal.gerados }}<span class="kpi-value-sub">/{{ resumo.ciclo_mensal.alunos_ativos }}</span></div>
           <div class="kpi-sub" :class="{ warn: resumo.ciclo_mensal.pendentes }">
             {{ resumo.ciclo_mensal.pendentes }} pendente(s) ·
@@ -274,13 +274,13 @@ function relatoComErro(ev) {
             vazio="Nenhuma avaliação vencida."
           />
           <PainelListaAlunos
-            titulo="Acompanhamento mensal sem dados"
+            titulo="Acompanhamento Mensal sem dados"
             icone="📊"
             :descricao="legendas.acompanhamentoSemDados"
             :itens="panorama.acompanhamento_sem_dados.itens"
             :total="panorama.acompanhamento_sem_dados.total"
             :sub="textoSemDados"
-            vazio="Nenhum acompanhamento pendente por falta de dados."
+            vazio="Nenhum Acompanhamento Mensal pendente por falta de dados."
           />
           <PainelListaAlunos
             titulo="Aniversariantes"

@@ -51,7 +51,7 @@ const tituloOriginal = document.title
 const nomeArquivo = computed(() => {
   if (!aluno.value?.nome) return null
   const [ano, mes] = String(props.anoMes).split('-')
-  const nome = `${aluno.value.nome} - ${NOMES_MES[Number(mes) - 1]} ${ano}`
+  const nome = `Acompanhamento Mensal - ${aluno.value.nome} - ${NOMES_MES[Number(mes) - 1]} ${ano}`
   return nome.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim()
 })
 watch(nomeArquivo, (nome) => {
@@ -103,11 +103,11 @@ async function carregar() {
 
     if (dadosAvaliacao.status !== 'gerada') {
       erro.value = {
-        titulo: 'Esta avaliação ainda não pode ser compartilhada',
+        titulo: 'Este Acompanhamento Mensal ainda não pode ser compartilhado',
         mensagem:
           dadosAvaliacao.status === 'dados_insuficientes'
-            ? 'O mês foi fechado com dados insuficientes — não há avaliação para enviar ao aluno.'
-            : 'A IA não conseguiu gerar esta avaliação. Tente reprocessar antes de compartilhar.'
+            ? 'O mês foi fechado com dados insuficientes — não há Acompanhamento Mensal para enviar ao aluno.'
+            : 'A IA não conseguiu gerar este Acompanhamento Mensal. Tente gerar de novo antes de compartilhar.'
       }
       return
     }
@@ -120,7 +120,7 @@ async function carregar() {
   } catch (e) {
     const status = e.response?.status
     if (status === 404) {
-      erro.value = { titulo: 'Avaliação não encontrada', mensagem: 'Volte ao acompanhamento do aluno e tente de novo.' }
+      erro.value = { titulo: 'Acompanhamento Mensal não encontrado', mensagem: 'Volte à Linha do Tempo do aluno e tente de novo.' }
     } else {
       erro.value = { titulo: 'Não foi possível carregar', mensagem: 'Verifique a conexão e tente novamente.' }
     }
@@ -205,7 +205,7 @@ function voltar() {
         </p>
 
         <div v-if="desatualizada" class="prep-aviso">
-          A avaliação foi <strong>regerada</strong> depois da sua última revisão. Confira o texto atualizado e salve de novo
+          O Acompanhamento Mensal foi <strong>regerado</strong> depois da sua última revisão. Confira o texto atualizado e salve de novo
           antes de gerar o PDF.
         </div>
 
@@ -218,7 +218,7 @@ function voltar() {
             maxlength="5000"
             placeholder="Ex.: Mês muito bom! A constância nos treinos apareceu na força. Vamos focar na mobilidade de quadril no próximo ciclo."
           ></textarea>
-          <p class="list-row-sub">Também entra no próximo acompanhamento mensal como a sua leitura (peso alto).</p>
+          <p class="list-row-sub">Também entra no próximo Acompanhamento Mensal como a sua leitura (peso alto).</p>
         </div>
 
         <div v-for="secao in ['dimensao', 'destaque', 'recomendacao']" :key="secao" class="prep-bloco">
@@ -238,7 +238,7 @@ function voltar() {
       <!-- ===== Documento (tela + PDF) ===== -->
       <article class="documento">
         <header class="doc-head">
-          <div class="doc-eyebrow">Avaliação de acompanhamento</div>
+          <div class="doc-eyebrow">Acompanhamento Mensal</div>
           <h1>{{ aluno?.nome }}</h1>
           <div class="doc-mes">{{ rotuloMes }}</div>
         </header>

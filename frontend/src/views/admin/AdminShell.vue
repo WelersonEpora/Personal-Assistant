@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth.store.js'
 import { useEquipeStore } from '../../stores/equipe.store.js'
@@ -53,8 +53,9 @@ onMounted(() => equipe.carregar())
 const menuAberto = ref(false)
 watch(() => route.fullPath, () => { menuAberto.value = false })
 
-// Desktop: o ☰ do topo da sidebar recolhe para só os ícones. Preferência de
-// cada navegador (localStorage é só conveniência - sem ele, abre expandida).
+// O ☰ da topbar: no desktop recolhe a sidebar para só os ícones; no mobile
+// abre/fecha o drawer. Preferência de recolher é de cada navegador
+// (localStorage é só conveniência - sem ele, abre expandida).
 const CHAVE_RECOLHIDA = 'pa.sidebar.recolhida'
 function lerRecolhida() {
   try {
@@ -65,10 +66,19 @@ function lerRecolhida() {
 }
 const sidebarRecolhida = ref(lerRecolhida())
 const MOBILE = '(max-width: 760px)'
-function alternarSidebar() {
-  // no celular a sidebar é o drawer: o mesmo ☰ fecha
-  if (window.matchMedia(MOBILE).matches) {
-    menuAberto.value = false
+const ehMobile = ref(window.matchMedia(MOBILE).matches)
+const consultaMobile = window.matchMedia(MOBILE)
+const aoMudarLargura = (e) => { ehMobile.value = e.matches }
+onMounted(() => consultaMobile.addEventListener('change', aoMudarLargura))
+onBeforeUnmount(() => consultaMobile.removeEventListener('change', aoMudarLargura))
+
+const rotuloMenu = computed(() => {
+  if (ehMobile.value) return menuAberto.value ? 'Fechar menu' : 'Abrir menu'
+  return sidebarRecolhida.value ? 'Expandir menu' : 'Recolher menu'
+})
+function alternarMenu() {
+  if (ehMobile.value) {
+    menuAberto.value = !menuAberto.value
     return
   }
   sidebarRecolhida.value = !sidebarRecolhida.value
@@ -127,67 +137,65 @@ function sair() {
 
 <template>
   <div class="app-shell" :class="{ 'menu-aberto': menuAberto, 'sidebar-recolhida': sidebarRecolhida }">
-    <div class="drawer-overlay" @click="menuAberto = false"></div>
-    <aside class="sidebar" :class="{ open: menuAberto }">
-      <div class="sidebar-brand">
-        <button
-          class="sidebar-toggle"
-          type="button"
-          :aria-label="sidebarRecolhida ? 'Expandir menu' : 'Recolher menu'"
-          :aria-expanded="!sidebarRecolhida"
-          :title="sidebarRecolhida ? 'Expandir menu' : 'Recolher menu'"
-          @click="alternarSidebar"
-        >☰</button>
+    <!-- topbar escura de ponta a ponta: ☰ + marca à esquerda, usuário à direita -->
+    <header class="topbar">
+      <button
+        class="topbar-menu-btn"
+        type="button"
+        :aria-label="rotuloMenu"
+        :title="rotuloMenu"
+        @click="alternarMenu"
+      >☰</button>
+      <div class="topbar-marca">
         <div class="sidebar-brand-mark"><img src="/icons/marca-figura.png" alt="" /></div>
-        <div class="sidebar-brand-texto">
-          <div class="sidebar-brand-name">Personal Assistant</div>
+        <div class="topbar-marca-texto">
+          <div class="topbar-marca-nome">Personal Assistant</div>
+          <div class="topbar-marca-sub">Gestão Fitness Inteligente</div>
         </div>
       </div>
-
-      <nav>
-        <template v-for="(grupo, i) in NAV_ITEMS" :key="grupo.grupo || i">
-          <div v-if="grupo.grupo" class="nav-group-label">{{ grupo.grupo }}</div>
-          <router-link
-            v-for="item in grupo.itens.filter((i) => !i.somenteOwner || auth.usuario?.papel === 'owner')"
-            :key="item.nome"
-            class="nav-item"
-            :to="{ name: item.nome }"
-            :title="sidebarRecolhida ? item.label : null"
-          >
-            <span class="nav-icon">{{ item.icone }}</span><span class="nav-label">{{ item.label
-            }}</span><span v-if="item.badge && pendentesRevisao > 0" class="nav-item-badge">{{ pendentesRevisao }}</span>
-          </router-link>
-        </template>
-      </nav>
-
-      <!-- identidade da equipe (docs/adr/0030); sem logo, as iniciais -->
-      <div class="sidebar-footer" :title="sidebarRecolhida ? auth.usuario?.equipe?.nome : null">
-        <img v-if="equipe.logoUrl" :src="equipe.logoUrl" class="sidebar-equipe-logo" alt="" />
-        <span v-else class="sidebar-equipe-logo sem-logo" :style="{ background: corParaId(auth.usuario?.equipe?.id) }">
-          {{ iniciais(auth.usuario?.equipe?.nome) }}
-        </span>
-        <div class="sidebar-footer-texto sidebar-footer-name">{{ auth.usuario?.equipe?.nome }}</div>
-      </div>
-    </aside>
-
-    <div class="main-col">
-      <header class="topbar">
-        <button class="topbar-menu-btn" type="button" aria-label="Abrir menu" @click="menuAberto = true">☰</button>
-        <div class="topbar-title">{{ route.meta.titulo || '' }}</div>
-        <div class="topbar-right">
-          <div class="topbar-usuario">
-            <img v-if="fotoUrl" :src="fotoUrl" class="avatar sz-sm" alt="" />
-            <span v-else class="avatar sz-sm" :style="{ background: corParaId(auth.usuario?.id) }">{{ iniciais(auth.usuario?.nome) }}</span>
-            <span class="topbar-usuario-nome">{{ auth.usuario?.nome }}</span>
-          </div>
-          <button class="topbar-sair" type="button" title="Sair" @click="sair">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4M15 8l4 4-4 4M19 12H9" />
-            </svg>
-            <span class="topbar-sair-texto">Sair</span>
-          </button>
+      <div class="topbar-right">
+        <div class="topbar-usuario">
+          <img v-if="fotoUrl" :src="fotoUrl" class="avatar sz-sm" alt="" />
+          <span v-else class="avatar sz-sm" :style="{ background: corParaId(auth.usuario?.id) }">{{ iniciais(auth.usuario?.nome) }}</span>
+          <span class="topbar-usuario-nome">{{ auth.usuario?.nome }}</span>
         </div>
-      </header>
+        <button class="topbar-sair" type="button" title="Sair" @click="sair">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4M15 8l4 4-4 4M19 12H9" />
+          </svg>
+          <span class="topbar-sair-texto">Sair</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="app-corpo">
+      <div class="drawer-overlay" @click="menuAberto = false"></div>
+      <aside class="sidebar" :class="{ open: menuAberto }">
+        <nav>
+          <template v-for="(grupo, i) in NAV_ITEMS" :key="grupo.grupo || i">
+            <div v-if="grupo.grupo" class="nav-group-label">{{ grupo.grupo }}</div>
+            <router-link
+              v-for="item in grupo.itens.filter((i) => !i.somenteOwner || auth.usuario?.papel === 'owner')"
+              :key="item.nome"
+              class="nav-item"
+              :to="{ name: item.nome }"
+              :title="sidebarRecolhida ? item.label : null"
+            >
+              <span class="nav-icon">{{ item.icone }}</span><span class="nav-label">{{ item.label
+              }}</span><span v-if="item.badge && pendentesRevisao > 0" class="nav-item-badge">{{ pendentesRevisao }}</span>
+            </router-link>
+          </template>
+        </nav>
+
+        <!-- identidade da equipe (docs/adr/0030); sem logo, as iniciais -->
+        <div class="sidebar-footer" :title="sidebarRecolhida ? auth.usuario?.equipe?.nome : null">
+          <img v-if="equipe.logoUrl" :src="equipe.logoUrl" class="sidebar-equipe-logo" alt="" />
+          <span v-else class="sidebar-equipe-logo sem-logo" :style="{ background: corParaId(auth.usuario?.equipe?.id) }">
+            {{ iniciais(auth.usuario?.equipe?.nome) }}
+          </span>
+          <div class="sidebar-footer-texto sidebar-footer-name">{{ auth.usuario?.equipe?.nome }}</div>
+        </div>
+      </aside>
 
       <main class="content">
         <router-view @registro-processado="atualizarContadores" />

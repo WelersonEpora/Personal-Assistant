@@ -150,4 +150,62 @@ function montarBlocoAvaliacaoFisica({ doMes = [], anterior = null, fimData }) {
   return `\n\n${titulo}\n${secoes.join("\n\n")}`;
 }
 
-module.exports = { METRICAS_ACOMPANHAMENTO, montarBlocoAvaliacaoFisica };
+// docs/adr/0029: a tabela da avaliação física que vai no PDF do aluno. Mesmas
+// regras do bloco do prompt (medida principal, método comparável, diferença
+// formatada), recorte de métricas próprio: nada técnico ou sensível (dobras,
+// IMC, RCQ/RCEst, PA, FC). Vai gravada no Acompanhamento - o PDF mostra os
+// números que a IA leu.
+const METRICAS_ALUNO = [
+  "peso",
+  "percentual_gordura",
+  "massa_magra",
+  "massa_gorda",
+  "massa_muscular_esqueletica",
+  "perimetro_cintura",
+  "perimetro_abdome",
+  "perimetro_quadril",
+  "perimetro_braco_d",
+  "perimetro_coxa_d"
+];
+
+function linhaResumo(codigo, atual, base) {
+  const medida = principal(atual, codigo);
+  if (!medida) return null;
+  const casas = medida.metrica?.casas_decimais ?? 1;
+  const unidade = unidadeExibida(medida.metrica);
+  const linha = {
+    codigo,
+    // Para o aluno, o método só na % de gordura (nas massas fica redundante).
+    rotulo: codigo === "percentual_gordura" ? rotuloMetrica(medida, codigo, atual) : medida.metrica?.rotulo || codigo,
+    atual: comUnidade(formatarNumero(medida.valor, casas), unidade),
+    anterior: null,
+    diferenca: null,
+    comparavel: true
+  };
+  const anterior = base ? principal(base, codigo) : null;
+  if (!anterior) return linha;
+  linha.anterior = comUnidade(formatarNumero(anterior.valor, casas), unidade);
+  if (metodoComparavel(atual, codigo) !== metodoComparavel(base, codigo)) {
+    linha.comparavel = false;
+    return linha;
+  }
+  linha.diferenca = formatarDiferenca(medida.valor - anterior.valor, casas, unidade, codigo);
+  return linha;
+}
+
+// A mais recente do mês, comparada com a imediatamente anterior (do mesmo mês
+// ou a base `anterior`). Sem avaliação no mês -> null.
+function montarResumoParaAluno({ doMes = [], anterior = null }) {
+  if (!doMes.length) return null;
+  const ordenadas = [...doMes].sort((a, b) => String(a.data).localeCompare(String(b.data)));
+  const atual = ordenadas.at(-1);
+  const base = ordenadas.length > 1 ? ordenadas.at(-2) : anterior;
+  return {
+    avaliacao_id: atual.id,
+    data: atual.data,
+    anterior_data: base?.data || null,
+    linhas: METRICAS_ALUNO.map((codigo) => linhaResumo(codigo, atual, base)).filter(Boolean)
+  };
+}
+
+module.exports = { METRICAS_ACOMPANHAMENTO, METRICAS_ALUNO, montarBlocoAvaliacaoFisica, montarResumoParaAluno };

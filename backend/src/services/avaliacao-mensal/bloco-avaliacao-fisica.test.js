@@ -6,7 +6,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 
-const { montarBlocoAvaliacaoFisica } = require("./bloco-avaliacao-fisica");
+const { montarBlocoAvaliacaoFisica, montarResumoParaAluno } = require("./bloco-avaliacao-fisica");
 
 const METRICA = {
   peso: { rotulo: "Peso corporal", unidade: "kg", casas_decimais: 1 },
@@ -116,4 +116,65 @@ test("avaliação sem nenhuma das métricas acompanhadas não fica com seção v
   const atual = avaliacao("a1", "2026-10-18", [medida("dobra_tricipital", 18)]);
   const bloco = montarBlocoAvaliacaoFisica({ doMes: [atual], anterior: null, fimData: "2026-10-31" });
   assert.match(bloco, /nenhuma das medidas acompanhadas foi registrada/);
+});
+
+// ---- docs/adr/0029: tabela do PDF do aluno ----
+
+test("resumo do aluno: sem avaliação no mês -> null", () => {
+  assert.equal(montarResumoParaAluno({ doMes: [], anterior: avaliacao("a0", "2026-09-06", []) }), null);
+});
+
+test("resumo do aluno: só métricas do recorte, com anterior e diferença", () => {
+  const resumo = montarResumoParaAluno({
+    doMes: [
+      avaliacao("a1", "2026-10-10", [
+        medida("peso", "72.4"),
+        medida("percentual_gordura", "18.2", "pollock_7"),
+        medida("dobra_tricipital", "12"),
+        medida("rcq", "0.82"),
+        medida("pas_repouso", "120"),
+        medida("perimetro_cintura", "80")
+      ])
+    ],
+    anterior: avaliacao("a0", "2026-09-06", [
+      medida("peso", "73.1"),
+      medida("percentual_gordura", "20", "pollock_7"),
+      medida("perimetro_cintura", "80")
+    ])
+  });
+  assert.equal(resumo.avaliacao_id, "a1");
+  assert.equal(resumo.anterior_data, "2026-09-06");
+  assert.deepEqual(resumo.linhas.map((l) => l.codigo), ["peso", "percentual_gordura", "perimetro_cintura"]);
+  const [peso, gordura, cintura] = resumo.linhas;
+  assert.deepEqual(
+    { atual: peso.atual, anterior: peso.anterior, diferenca: peso.diferenca },
+    { atual: "72,4 kg", anterior: "73,1 kg", diferenca: "−0,7 kg" }
+  );
+  assert.equal(gordura.diferenca, "−1,8 p.p.");
+  assert.equal(gordura.rotulo, "% de gordura (Pollock 7 dobras)");
+  assert.equal(cintura.diferenca, "sem variação");
+});
+
+test("resumo do aluno: método diferente não compara; duas no mês usa a mais recente", () => {
+  const resumo = montarResumoParaAluno({
+    doMes: [
+      avaliacao("a2", "2026-10-25", [medida("percentual_gordura", "17", "bioimpedancia")]),
+      avaliacao("a1", "2026-10-02", [medida("percentual_gordura", "18.2", "pollock_7")])
+    ],
+    anterior: null
+  });
+  assert.equal(resumo.avaliacao_id, "a2");
+  assert.equal(resumo.anterior_data, "2026-10-02");
+  const [gordura] = resumo.linhas;
+  assert.equal(gordura.comparavel, false);
+  assert.equal(gordura.anterior, "18,2 %");
+  assert.equal(gordura.diferenca, null);
+});
+
+test("resumo do aluno: primeira avaliação, sem anterior", () => {
+  const resumo = montarResumoParaAluno({ doMes: [avaliacao("a1", "2026-10-10", [medida("peso", "70")])], anterior: null });
+  assert.equal(resumo.anterior_data, null);
+  assert.deepEqual(resumo.linhas[0], {
+    codigo: "peso", rotulo: "Peso corporal", atual: "70,0 kg", anterior: null, diferenca: null, comparavel: true
+  });
 });

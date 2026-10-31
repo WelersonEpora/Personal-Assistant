@@ -606,6 +606,7 @@ async function excluirAvaliacaoPersonal(avaliacao) {
                   <AcompanhamentoDetalhe
                     :avaliacao="m.mensal.avaliacao_json"
                     :contexto="m.mensal.contexto_consolidado_json"
+                    :resumo-fisica="m.mensal.avaliacao_fisica_resumo_json"
                     :status="m.mensal.status"
                     :erro="m.mensal.erro"
                   />

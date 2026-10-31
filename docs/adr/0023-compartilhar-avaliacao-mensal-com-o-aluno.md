@@ -1,6 +1,6 @@
 # ADR-0023: Compartilhar a avaliação mensal com o aluno (PDF com revisão do personal)
 
-**Status:** Aceita (2026-09-09)
+**Status:** Aceita (2026-09-09) — estendida pela ADR-0029 (avaliação física do mês no PDF: tabela + parágrafo da IA para o aluno).
 
 > Não altera a ADR-0007 (só `validacao` é dado oficial) nem a ADR-0015 (a
 > avaliação mensal continua "camada interpretativa derivada, sempre

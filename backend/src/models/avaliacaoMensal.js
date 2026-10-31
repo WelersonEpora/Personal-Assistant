@@ -34,6 +34,9 @@ module.exports = (sequelize) => {
       avaliacoes_personal_consideradas: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
       // Avaliações físicas do mês (docs/adr/0025) que entraram neste ciclo.
       avaliacoes_fisicas_consideradas: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+      // Tabela da avaliação física do mês para o PDF do aluno (docs/adr/0029),
+      // calculada pelo código na geração. Nula sem avaliação no mês.
+      avaliacao_fisica_resumo_json: { type: DataTypes.JSONB, allowNull: true },
       avaliacao_json: { type: DataTypes.JSONB, allowNull: true },
       contexto_consolidado_json: { type: DataTypes.JSONB, allowNull: false },
       contexto_anterior_id: { type: DataTypes.UUID, allowNull: true },

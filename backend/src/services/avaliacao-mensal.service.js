@@ -12,7 +12,7 @@
 const avaliacaoMensalRepository = require("../repositories/avaliacaoMensal.repository");
 const avaliacaoPersonalRepository = require("../repositories/avaliacaoPersonal.repository");
 const avaliacaoFisicaRepository = require("../repositories/avaliacaoFisica.repository");
-const { montarBlocoAvaliacaoFisica } = require("./avaliacao-mensal/bloco-avaliacao-fisica");
+const { montarBlocoAvaliacaoFisica, montarResumoParaAluno } = require("./avaliacao-mensal/bloco-avaliacao-fisica");
 const revisaoAvaliacaoMensalRepository = require("../repositories/revisaoAvaliacaoMensal.repository");
 const alunoRepository = require("../repositories/aluno.repository");
 const geminiService = require("./ia/gemini.service");
@@ -240,6 +240,7 @@ async function gerarParaAluno({ equipeId, alunoId, anoMes, origem = "automatica"
     // Só as que realmente foram para a IA (preenchido no caminho "gerada").
     avaliacoes_personal_consideradas: [],
     avaliacoes_fisicas_consideradas: [],
+    avaliacao_fisica_resumo_json: null,
     contexto_anterior_id: anterior?.id || null,
     provedor: "gemini"
   };
@@ -265,6 +266,7 @@ async function gerarParaAluno({ equipeId, alunoId, anoMes, origem = "automatica"
       fimData: limites.fimData
     });
     const avaliacoesFisicasDoMes = fisicas.doMes.map((avaliacao) => avaliacao.get({ plain: true }));
+    const avaliacaoFisicaAnterior = fisicas.anterior ? fisicas.anterior.get({ plain: true }) : null;
 
     const promptContexto = montarPromptAvaliacao({
       alunoId,
@@ -275,7 +277,7 @@ async function gerarParaAluno({ equipeId, alunoId, anoMes, origem = "automatica"
       revisaoAnterior,
       avaliacaoFisica: {
         doMes: avaliacoesFisicasDoMes,
-        anterior: fisicas.anterior ? fisicas.anterior.get({ plain: true }) : null,
+        anterior: avaliacaoFisicaAnterior,
         fimData: limites.fimData
       }
     });
@@ -292,6 +294,11 @@ async function gerarParaAluno({ equipeId, alunoId, anoMes, origem = "automatica"
       erro: null,
       avaliacoes_personal_consideradas: avaliacoesPersonal.map((avaliacao) => avaliacao.id),
       avaliacoes_fisicas_consideradas: avaliacoesFisicasDoMes.map((avaliacao) => avaliacao.id),
+      // docs/adr/0029: a tabela do PDF do aluno, com os números que a IA leu.
+      avaliacao_fisica_resumo_json: montarResumoParaAluno({
+        doMes: avaliacoesFisicasDoMes,
+        anterior: avaliacaoFisicaAnterior
+      }),
       avaliacao_json: avaliacaoMensal,
       contexto_consolidado_json: {
         ...contextoConsolidado,

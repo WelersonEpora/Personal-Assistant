@@ -9,6 +9,11 @@
 // regerada, os índices mudam - mas aí a revisão fica "desatualizada" e o
 // personal é obrigado a revisar de novo antes de gerar o PDF, então uma
 // chave órfã só faz o item voltar a aparecer (lado seguro).
+//
+// docs/adr/0029: avaliação física do mês - a tabela (calculada pelo código,
+// `avaliacao_fisica_resumo_json`) e o parágrafo da IA para o aluno
+// (`avaliacao_json.leitura_avaliacao_fisica`), com chaves fixas
+// "avaliacao_fisica:tabela" / "avaliacao_fisica:leitura".
 
 const SECOES = [
   { secao: 'dimensao', campo: 'dimensoes', rotulo: (d) => d?.nome || 'Dimensão', texto: (d) => d?.evolucao_no_mes || d?.situacao_atual || '' },
@@ -20,10 +25,28 @@ export function chaveItem(secao, indice) {
   return `${secao}:${indice}`
 }
 
+const CHAVE_TABELA_FISICA = 'avaliacao_fisica:tabela'
+const CHAVE_LEITURA_FISICA = 'avaliacao_fisica:leitura'
+
+function temTabelaFisica(resumoFisica) {
+  return Array.isArray(resumoFisica?.linhas) && resumoFisica.linhas.length > 0
+}
+function leituraFisica(avaliacaoJson) {
+  const texto = avaliacaoJson?.leitura_avaliacao_fisica
+  return typeof texto === 'string' ? texto.trim() : ''
+}
+
 // [{ chave, secao, rotulo, texto }] - alimenta o checklist "incluir no PDF".
-export function listarItensExcluiveis(avaliacaoJson) {
+export function listarItensExcluiveis(avaliacaoJson, resumoFisica = null) {
   const av = avaliacaoJson || {}
   const itens = []
+  if (temTabelaFisica(resumoFisica)) {
+    itens.push({ chave: CHAVE_TABELA_FISICA, secao: 'avaliacao_fisica', rotulo: 'Tabela das medidas', texto: `${resumoFisica.linhas.length} medida(s)` })
+  }
+  const leitura = leituraFisica(av)
+  if (leitura) {
+    itens.push({ chave: CHAVE_LEITURA_FISICA, secao: 'avaliacao_fisica', rotulo: 'Leitura da avaliação', texto: leitura })
+  }
   for (const { secao, campo, rotulo, texto } of SECOES) {
     const lista = Array.isArray(av[campo]) ? av[campo] : []
     lista.forEach((item, indice) => {
@@ -35,7 +58,7 @@ export function listarItensExcluiveis(avaliacaoJson) {
 
 // Avaliação -> objeto pronto para renderizar no documento do aluno, já sem os
 // itens excluídos e sem os campos internos das dimensões.
-export function filtrarAvaliacaoParaAluno(avaliacaoJson, itensExcluidos = []) {
+export function filtrarAvaliacaoParaAluno(avaliacaoJson, itensExcluidos = [], resumoFisica = null) {
   const av = avaliacaoJson || {}
   const excluidos = new Set(itensExcluidos || [])
   const incluir = (secao, indice) => !excluidos.has(chaveItem(secao, indice))
@@ -63,12 +86,42 @@ export function filtrarAvaliacaoParaAluno(avaliacaoJson, itensExcluidos = []) {
     .filter(({ i }) => incluir('recomendacao', i))
     .map(({ t }) => t)
 
+  // Só os campos de exibição da tabela (lista branca, como o resto).
+  const tabela =
+    temTabelaFisica(resumoFisica) && !excluidos.has(CHAVE_TABELA_FISICA)
+      ? {
+          data: resumoFisica.data || null,
+          anterior_data: resumoFisica.anterior_data || null,
+          linhas: resumoFisica.linhas.map((l) => ({
+            rotulo: l.rotulo,
+            atual: l.atual,
+            anterior: l.anterior ?? null,
+            diferenca: l.diferenca ?? null,
+            comparavel: l.comparavel !== false
+          }))
+        }
+      : null
+  const leitura = excluidos.has(CHAVE_LEITURA_FISICA) ? '' : leituraFisica(av)
+
   return {
     resumo_geral: av.resumo_geral || '',
     dimensoes,
     destaques,
-    recomendacoes
+    recomendacoes,
+    avaliacao_fisica: tabela || leitura ? { tabela, leitura } : null
   }
+}
+
+// Exclusões sugeridas na primeira preparação: com o parágrafo da avaliação
+// física, a dimensão "Composição corporal" diria o mesmo duas vezes no PDF.
+// Só um padrão - o personal pode marcar de volta.
+export function exclusoesPadrao(avaliacaoJson) {
+  if (!leituraFisica(avaliacaoJson)) return []
+  const normalizar = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
+  const dimensoes = Array.isArray(avaliacaoJson.dimensoes) ? avaliacaoJson.dimensoes : []
+  return dimensoes
+    .map((d, i) => (normalizar(d?.nome) === 'composicao corporal' ? chaveItem('dimensao', i) : null))
+    .filter(Boolean)
 }
 
 // A avaliação da IA foi regerada depois da última revisão? (trava o PDF)

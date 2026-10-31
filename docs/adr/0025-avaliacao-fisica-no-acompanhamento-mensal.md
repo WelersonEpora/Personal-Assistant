@@ -1,6 +1,6 @@
 # ADR-0025: Avaliação física do mês como contexto do Acompanhamento Mensal
 
-**Status:** Aceita (2026-10-31)
+**Status:** Aceita (2026-10-31) — estendida pela ADR-0029 (a avaliação do mês passa a ir ao PDF do aluno).
 
 > Complementa a ADR-0015 (Acompanhamento Mensal) e a ADR-0016 (avaliação
 > física). Não altera a ADR-0007: a avaliação física continua dado do personal,

@@ -8,8 +8,16 @@ defineProps({
   avaliacao: { type: Object, default: null },
   contexto: { type: Object, default: null },
   status: { type: String, default: 'gerada' },
-  erro: { type: String, default: '' }
+  erro: { type: String, default: '' },
+  // docs/adr/0029: tabela da avaliação física do mês (só a mensal).
+  resumoFisica: { type: Object, default: null }
 })
+
+function formatarDia(ymd) {
+  if (!ymd) return ''
+  const [ano, mes, dia] = String(ymd).slice(0, 10).split('-')
+  return `${dia}/${mes}/${ano}`
+}
 
 // O contexto consolidado (entrada da IA no próximo ciclo) é secundário para a
 // leitura do personal - entra colapsado.
@@ -62,6 +70,36 @@ function rotuloMes(anoMes) {
 
     <template v-else-if="avaliacao">
       <div class="exercise-obs" style="margin-bottom: 16px;">{{ avaliacao.resumo_geral }}</div>
+
+      <!-- docs/adr/0029: o que vai no PDF do aluno sobre a avaliação física -->
+      <template v-if="resumoFisica?.linhas?.length || avaliacao.leitura_avaliacao_fisica">
+        <p class="acomp-section">Avaliação física do mês — como o aluno vê no PDF</p>
+        <table v-if="resumoFisica?.linhas?.length" class="acomp-tabela-fisica">
+          <thead>
+            <tr>
+              <th>Medida</th>
+              <th>{{ formatarDia(resumoFisica.data) }}</th>
+              <template v-if="resumoFisica.anterior_data">
+                <th>Anterior ({{ formatarDia(resumoFisica.anterior_data) }})</th>
+                <th>Diferença</th>
+              </template>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="linha in resumoFisica.linhas" :key="linha.codigo">
+              <td>{{ linha.rotulo }}</td>
+              <td>{{ linha.atual }}</td>
+              <template v-if="resumoFisica.anterior_data">
+                <td>{{ linha.anterior || '—' }}</td>
+                <td>{{ linha.comparavel ? linha.diferenca || '—' : 'outro método' }}</td>
+              </template>
+            </tr>
+          </tbody>
+        </table>
+        <div v-if="avaliacao.leitura_avaliacao_fisica" class="exercise-obs" style="margin-top: 10px;">
+          {{ avaliacao.leitura_avaliacao_fisica }}
+        </div>
+      </template>
 
       <template v-if="!avaliacao.dados_insuficientes">
         <p class="acomp-section">Evolução por dimensão</p>
@@ -250,6 +288,23 @@ function rotuloMes(anoMes) {
   font-size: 13px;
   line-height: 1.6;
   padding: 3px 0;
+}
+.acomp-tabela-fisica {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.acomp-tabela-fisica th {
+  text-align: left;
+  font-size: 11.5px;
+  color: var(--color-text-secondary);
+  border-bottom: 1px solid var(--color-border);
+  padding: 5px 8px 5px 0;
+}
+.acomp-tabela-fisica td {
+  border-bottom: 1px solid var(--color-border);
+  padding: 5px 8px 5px 0;
+  font-variant-numeric: tabular-nums;
 }
 .acomp-selo-possibilidade {
   margin-left: 6px;

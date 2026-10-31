@@ -399,6 +399,12 @@ test("inclui a avaliação física do mês no prompt, com a diferença para a an
   assert.match(promptRecebido, /Peso corporal: 68,4 kg \(−1,6 kg\)/);
   assert.doesNotMatch(promptRecebido, /60,0 kg/);
   assert.deepEqual(avaliacao.avaliacoes_fisicas_consideradas, [doMes.id]);
+  // docs/adr/0029: tabela do PDF do aluno gravada junto, com os mesmos números
+  const resumo = avaliacao.avaliacao_fisica_resumo_json;
+  assert.equal(resumo.avaliacao_id, doMes.id);
+  assert.equal(resumo.anterior_data, "2026-03-06");
+  const peso = resumo.linhas.find((l) => l.codigo === "peso");
+  assert.deepEqual([peso.atual, peso.diferenca], ["68,4 kg", "−1,6 kg"]);
 
   // só leitura: nada mudou nas avaliações físicas
   const medidasDepois = await AvaliacaoFisicaMedida.count({ where: { avaliacao_fisica_id: [anterior.id, doMes.id] } });
@@ -423,6 +429,7 @@ test("mês sem avaliação física: uma linha com a última, nenhum id registrad
   assert.match(promptRecebido, /Nenhuma avaliação física neste mês\. Última: 10\/02\/2026 \(há 79 dias no fim do mês\)\./);
   assert.doesNotMatch(promptRecebido, /70,0 kg/);
   assert.deepEqual(avaliacao.avaliacoes_fisicas_consideradas, []);
+  assert.equal(avaliacao.avaliacao_fisica_resumo_json, null);
 });
 
 test("avaliação física sozinha não destrava mês com menos de 3 relatos", async (t) => {

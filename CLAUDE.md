@@ -366,6 +366,22 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
   `alertas`, `pendencias_confirmacao`, `mudancas_vs_mes_anterior` nem o
   contexto consolidado. Regerar a avaliação depois da revisão a marca como
   desatualizada e trava o PDF até revisar de novo.
+  Avaliação física no PDF (ADR-0029): só no fechamento do mês, junto do
+  Acompanhamento (sem envio avulso; o mínimo de 3 relatos continua). Tabela
+  calculada pelo código na geração (`avaliacao_mensal.avaliacao_fisica_resumo_json`,
+  recorte sem dobras/IMC/RCQ/PA/FC) + parágrafo da IA escrito para o aluno
+  (`avaliacao_json.leitura_avaliacao_fisica`); chaves `avaliacao_fisica:tabela`
+  / `avaliacao_fisica:leitura` em `itens_excluidos`.
+- **Identidade da equipe (ADR-0030): o logo aparece só no que chega ao aluno**
+  (topo do PDF do Acompanhamento Mensal e cabeçalho do link da ficha; sem logo,
+  aparece o nome). `equipe.logo_caminho` no `storage-foto.service` (chave
+  `equipe-<id>`), PNG/JPEG/WebP, **nunca SVG** (é servido em rota pública).
+  `GET /api/v1/equipe/identidade` e `/logo` qualquer membro lê; `POST/DELETE
+  /logo` só o owner. No link público, a equipe sai do token
+  (`GET /ficha-publica/:token/logo`, resposta com `equipe: { nome, temLogo }`,
+  sem id). Envio por colar/arrastar/arquivo, reduzido a 512 px PNG no navegador
+  (`utils/logoEquipe.js`), com preview antes de salvar. Tema/cores por equipe
+  continuam fora.
 - Toda decisão arquitetural relevante e difícil de reverter vira ADR em
   `docs/adr/`, numerada sequencialmente, com Contexto/Decisão/Alternativas
   consideradas/Consequências. Decisões operacionais ou de baixa relevância
@@ -418,6 +434,8 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
 | 0026 | Exercícios conjugados na Ficha de Treino e várias fichas ativas por aluno |
 | 0027 | Apelidos de exercício e catálogo global revisado |
 | 0028 | Ficha de Treino por captura (áudio/texto) + interpretação da IA |
+| 0029 | Avaliação física no PDF do Acompanhamento Mensal |
+| 0030 | Identidade visual da equipe (logo no que chega ao aluno) |
 
 ## Estado atual
 
@@ -457,7 +475,9 @@ MVP completo e verificado de ponta a ponta:
   `avaliacao_fisica_medida.valor` em `NUMERIC(10,4)`).
   Tabela comparativa (métricas × avaliações no tempo) e gráficos já existem; a
   IA usa a avaliação do mês no Acompanhamento Mensal (docs/adr/0025 —
-  `avaliacao_mensal.avaliacoes_fisicas_consideradas`); a análise de evolução de
+  `avaliacao_mensal.avaliacoes_fisicas_consideradas`) e a leva ao PDF do aluno
+  (docs/adr/0029 — tabela `avaliacao_fisica_resumo_json` gravada na geração por
+  `montarResumoParaAluno` + `leitura_avaliacao_fisica` da IA); a análise de evolução de
   todas as avaliações ainda não. Dashboard do `/admin` servido por um endpoint agregado
   `GET /api/v1/painel` (docs/adr/0017 — ação necessária, KPIs, panorama dos
   alunos, feed de atividade; somente leitura, não toca `resultado_ia`/`validacao`).
@@ -531,7 +551,9 @@ MVP completo e verificado de ponta a ponta:
   `POST /registros/:id/confirmar-ficha-treino` (`fichas[]`, todas ou nenhuma;
   `fichaTreino.service.criarNovaVersao` aceita transação externa). "Refazer
   interpretação" vale também a partir de `aguardando_revisao`.
-  384 testes automatizados (`node --test`, unitários +
+  Logo da equipe (docs/adr/0030): `equipe.logo_caminho`, endpoints
+  `/api/v1/equipe/{identidade,logo}` e `/ficha-publica/:token/logo`.
+  394 testes automatizados (`node --test`, unitários +
   integração contra banco de teste dedicado).
 - **Frontend**: app Vue 3 + Vite + PWA único (`/captura` mobile-first
   offline, `/admin` gestão/validação), IndexedDB + fila de sincronização
@@ -573,7 +595,11 @@ MVP completo e verificado de ponta a ponta:
   tela, documento (o que vira PDF) em tela e no `@media print`; "Gerar PDF"
   salva a revisão e chama `window.print()`. Selo "Compartilhada em DD/MM" /
   "Revisão desatualizada" no card. Util puro `utils/avaliacaoMensalCompartilhada.js`
-  (`listarItensExcluiveis`, `filtrarAvaliacaoParaAluno`, `revisaoDesatualizada`).
+  (`listarItensExcluiveis`, `filtrarAvaliacaoParaAluno`, `revisaoDesatualizada`,
+  `exclusoesPadrao`). Seção "Sua avaliação física" no documento (ADR-0029):
+  tabela + parágrafo, cada um desmarcável; com o parágrafo, a dimensão
+  "Composição corporal" vem desmarcada na primeira preparação. O detalhe do
+  Acompanhamento no `/admin` mostra os dois ("como o aluno vê no PDF").
   Captura de Avaliação Física por voz (docs/adr/0018): seletor de tipo
   (Atendimento / Avaliação física) ao iniciar o Registro (persistido; um
   `em_andamento` por aluno **por tipo**), roteiro de ditado opcional, acento
@@ -641,7 +667,9 @@ MVP completo e verificado de ponta a ponta:
   "salvar como apelido", ou cadastro rápido (nome + grupo). Revisão em
   `components/revisao/RevisaoFichaTreino.vue`: uma seção por ficha, "Nova ficha"
   / "Substituir" sugerido pelo nome, avisos da IA, ouvir áudio.
-  119 testes automatizados (`node --test` + `fake-indexeddb`; +
+  Logo da equipe (docs/adr/0030): quadro na tela Equipe (colar/arrastar/
+  arquivo + preview), logo no topo do PDF e no cabeçalho da `FichaPublicaView`.
+  129 testes automatizados (`node --test` + `fake-indexeddb`; +
   `echarts-option-builder.test.js`, `echarts-bar-option-builder.test.js`,
   `periodos.test.js`, `avaliacaoFisica.test.js`, `gravacaoVoz.test.js`,
   `avaliacaoMensalCompartilhada.test.js`, `registroStatus.test.js`,

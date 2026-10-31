@@ -21,4 +21,11 @@ async function streamImagem(req, res) {
   res.send(buffer);
 }
 
-module.exports = { obterFicha, streamImagem };
+async function streamLogo(req, res) {
+  const { buffer, mimeType } = await fichaPublicaService.obterLogo(req.params.token);
+  res.set("Content-Type", mimeType);
+  res.set("Cache-Control", "private, max-age=300");
+  res.send(buffer);
+}
+
+module.exports = { obterFicha, streamImagem, streamLogo };

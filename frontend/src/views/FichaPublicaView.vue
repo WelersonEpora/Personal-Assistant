@@ -15,6 +15,8 @@ const props = defineProps({ token: { type: String, required: true } })
 const carregando = ref(true)
 const erro = ref(null) // { titulo, mensagem }
 const aluno = ref(null)
+const equipe = ref(null) // docs/adr/0030: { nome, temLogo }
+const logoFalhou = ref(false)
 const fichas = ref([])
 const indiceFicha = ref(0)
 
@@ -47,6 +49,7 @@ onMounted(async () => {
   try {
     const dados = await fichaPublicaService.obterFicha(props.token)
     aluno.value = dados.aluno
+    equipe.value = dados.equipe || null
     fichas.value = dados.fichas || []
   } catch (e) {
     const status = e.response?.status
@@ -77,6 +80,16 @@ onMounted(async () => {
 
       <template v-else>
         <header class="fp-header">
+          <div v-if="equipe" class="fp-marca">
+            <img
+              v-if="equipe.temLogo && !logoFalhou"
+              :src="fichaPublicaService.urlLogo(token)"
+              :alt="equipe.nome"
+              class="fp-logo"
+              @error="logoFalhou = true"
+            />
+            <div v-else class="fp-marca-nome">{{ equipe.nome }}</div>
+          </div>
           <div class="fp-eyebrow">{{ fichas.length > 1 ? 'Fichas de treino' : 'Ficha de treino' }}</div>
           <h1>{{ aluno?.nome }}</h1>
         </header>
@@ -179,6 +192,9 @@ onMounted(async () => {
 .fp-estado { text-align: center; color: var(--color-text-secondary); padding: 60px 0; }
 
 .fp-header { padding: 12px 4px 18px; }
+.fp-marca { margin-bottom: 14px; }
+.fp-logo { display: block; max-height: 56px; max-width: 200px; object-fit: contain; }
+.fp-marca-nome { font-size: 14px; font-weight: 700; color: var(--color-text-secondary); }
 .fp-eyebrow {
   font-size: 12px; font-weight: 700; text-transform: uppercase;
   letter-spacing: .06em; color: var(--color-primary);

@@ -26,4 +26,11 @@ async function obterImagem(token, exercicioId, posicao) {
   return data
 }
 
-export default { obterFicha, urlImagem, obterImagem }
+// docs/adr/0030: logo da equipe dona do link (o backend resolve a equipe pelo
+// token). Sem Authorization, então dá para usar direto no <img>.
+function urlLogo(token) {
+  const base = import.meta.env?.VITE_API_BASE_URL || ''
+  return `${base}/api/v1/ficha-publica/${encodeURIComponent(token)}/logo`
+}
+
+export default { obterFicha, urlImagem, obterImagem, urlLogo }

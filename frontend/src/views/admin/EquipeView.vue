@@ -5,6 +5,7 @@ import membrosService from '../../services/membros.service.js'
 import { useAuthStore } from '../../stores/auth.store.js'
 import { corParaId, iniciais } from '../../utils/registroStatus.js'
 import { useToasts } from '../../composables/useToasts.js'
+import { imagemDoDataTransfer, reduzirLogo } from '../../utils/logoEquipe.js'
 import ToastStack from '../../components/ToastStack.vue'
 
 const { toasts, showToast } = useToasts()
@@ -35,7 +36,7 @@ async function carregar() {
     const [dadosEquipe, listaMembros] = await Promise.all([equipeService.obter(), membrosService.listar()])
     equipe.value = dadosEquipe
     membros.value = listaMembros
-    await carregarFotos()
+    await Promise.all([carregarFotos(), carregarLogo()])
   } finally {
     carregando.value = false
   }
@@ -48,6 +49,113 @@ function revogarFotos() {
   })
 }
 onBeforeUnmount(revogarFotos)
+
+// --- logo da equipe (docs/adr/0030) ---
+// Três entradas: Ctrl+V em qualquer lugar da tela, arrastar e soltar no
+// quadro ou "Escolher arquivo". Nada é salvo direto: a imagem (já reduzida)
+// fica em preview até "Salvar", porque é fácil colar a coisa errada.
+const logoUrl = ref(null)
+const logoPendente = ref(null) // { blob, url }
+const arrastandoLogo = ref(false)
+const salvandoLogo = ref(false)
+const removendoLogo = ref(false)
+const logoInput = ref(null)
+
+async function carregarLogo() {
+  if (!equipe.value?.temLogo) return
+  try {
+    const blob = await equipeService.obterLogo()
+    if (logoUrl.value) URL.revokeObjectURL(logoUrl.value)
+    logoUrl.value = URL.createObjectURL(blob)
+  } catch (_err) {
+    // sem logo disponível - fica o quadro vazio
+  }
+}
+
+function descartarLogoPendente() {
+  if (logoPendente.value) URL.revokeObjectURL(logoPendente.value.url)
+  logoPendente.value = null
+}
+
+async function prepararLogo(arquivo) {
+  if (!arquivo) {
+    showToast('Não encontrei imagem no que foi colado (use PNG, JPEG ou WebP).', 'warning')
+    return
+  }
+  try {
+    const blob = await reduzirLogo(arquivo)
+    descartarLogoPendente()
+    logoPendente.value = { blob, url: URL.createObjectURL(blob) }
+  } catch (_err) {
+    showToast('Não foi possível ler essa imagem.', 'warning')
+  }
+}
+
+function emCampoDeTexto(alvo) {
+  return alvo instanceof HTMLElement && (alvo.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(alvo.tagName))
+}
+
+function onColar(evento) {
+  // Colar dentro de um campo de texto (ou com um modal aberto) é colar texto,
+  // não trocar o logo.
+  if (emCampoDeTexto(evento.target) || modalEquipeAberto.value || modalMembroAberto.value) return
+  const arquivo = imagemDoDataTransfer(evento.clipboardData)
+  const temTexto = Array.from(evento.clipboardData?.items || []).some((item) => item.kind === 'string')
+  if (!arquivo && temTexto && !document.activeElement?.closest?.('.logo-quadro')) return
+  evento.preventDefault()
+  prepararLogo(arquivo)
+}
+onMounted(() => document.addEventListener('paste', onColar))
+onBeforeUnmount(() => {
+  document.removeEventListener('paste', onColar)
+  if (logoUrl.value) URL.revokeObjectURL(logoUrl.value)
+  descartarLogoPendente()
+})
+
+function onSoltarLogo(evento) {
+  arrastandoLogo.value = false
+  prepararLogo(imagemDoDataTransfer(evento.dataTransfer))
+}
+
+function selecionarLogo() {
+  logoInput.value?.click()
+}
+
+function onLogoSelecionado(evento) {
+  const arquivo = evento.target.files?.[0]
+  evento.target.value = ''
+  if (arquivo) prepararLogo(arquivo)
+}
+
+async function salvarLogo() {
+  if (!logoPendente.value) return
+  salvandoLogo.value = true
+  try {
+    equipe.value = await equipeService.enviarLogo(logoPendente.value.blob)
+    if (logoUrl.value) URL.revokeObjectURL(logoUrl.value)
+    logoUrl.value = logoPendente.value.url
+    logoPendente.value = null
+    showToast('Logo atualizado.', 'success')
+  } catch (err) {
+    showToast(mensagemErro(err, 'Não foi possível enviar o logo.'), 'warning')
+  } finally {
+    salvandoLogo.value = false
+  }
+}
+
+async function removerLogo() {
+  removendoLogo.value = true
+  try {
+    equipe.value = await equipeService.removerLogo()
+    if (logoUrl.value) URL.revokeObjectURL(logoUrl.value)
+    logoUrl.value = null
+    showToast('Logo removido.', 'neutral')
+  } catch (err) {
+    showToast(mensagemErro(err, 'Não foi possível remover o logo.'), 'warning')
+  } finally {
+    removendoLogo.value = false
+  }
+}
 
 function papelLabel(papel) {
   return { owner: 'Owner', colaborador: 'Colaborador' }[papel] || papel
@@ -210,6 +318,39 @@ async function salvarMembro() {
         </div>
         <button class="btn btn-secondary" type="button" @click="abrirModalEquipe">Editar nome</button>
       </div>
+
+      <div class="logo-secao">
+        <div
+          class="logo-quadro"
+          :class="{ arrastando: arrastandoLogo, pendente: logoPendente }"
+          tabindex="0"
+          aria-label="Logo da equipe: cole (Ctrl+V), arraste uma imagem ou escolha um arquivo"
+          @dragover.prevent="arrastandoLogo = true"
+          @dragleave="arrastandoLogo = false"
+          @drop.prevent="onSoltarLogo"
+        >
+          <img v-if="logoPendente || logoUrl" :src="logoPendente?.url || logoUrl" alt="Logo da equipe" />
+          <span v-else class="logo-vazio">Sem logo</span>
+        </div>
+        <div class="logo-info">
+          <div style="font-weight: 700;">Logo da equipe</div>
+          <p class="logo-dica">
+            Aparece para o aluno no PDF do Acompanhamento Mensal e no link da ficha de treino.
+            <strong>Cole a imagem (Ctrl+V)</strong>, arraste para o quadro ou escolha um arquivo — PNG com fundo
+            transparente fica melhor.
+          </p>
+          <div v-if="logoPendente" class="logo-acoes">
+            <span class="badge badge-warning">Pré-visualização — ainda não salvo</span>
+            <button class="btn btn-ghost" type="button" :disabled="salvandoLogo" @click="descartarLogoPendente">Cancelar</button>
+            <button class="btn btn-primary" type="button" :disabled="salvandoLogo" @click="salvarLogo">Salvar logo</button>
+          </div>
+          <div v-else class="logo-acoes">
+            <button class="btn btn-secondary" type="button" @click="selecionarLogo">{{ logoUrl ? 'Trocar arquivo' : 'Escolher arquivo' }}</button>
+            <button v-if="logoUrl" class="btn btn-ghost" type="button" :disabled="removendoLogo" @click="removerLogo">Remover</button>
+          </div>
+          <input ref="logoInput" type="file" accept="image/png,image/jpeg,image/webp" style="display: none;" @change="onLogoSelecionado" />
+        </div>
+      </div>
     </div>
 
     <div class="card">
@@ -340,3 +481,63 @@ async function salvarMembro() {
     <ToastStack :toasts="toasts" />
   </div>
 </template>
+
+<style scoped>
+.logo-secao {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--color-border);
+  flex-wrap: wrap;
+}
+/* Fundo branco de propósito: é onde o logo aparece para o aluno (PDF e ficha). */
+.logo-quadro {
+  width: 160px;
+  height: 96px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  background: #fff;
+  border: 2px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  cursor: copy;
+}
+.logo-quadro:focus-visible,
+.logo-quadro.arrastando {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+.logo-quadro.pendente {
+  border-style: solid;
+  border-color: var(--color-warning);
+}
+.logo-quadro img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.logo-vazio {
+  font-size: 13px;
+  color: var(--color-text-faint);
+}
+.logo-info {
+  flex: 1;
+  min-width: 240px;
+}
+.logo-dica {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin: 4px 0 10px;
+}
+.logo-acoes {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+</style>

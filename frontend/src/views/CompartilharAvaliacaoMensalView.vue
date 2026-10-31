@@ -4,9 +4,10 @@ import { useRouter } from 'vue-router'
 import alunosService from '../services/alunos.service.js'
 import avaliacoesMensaisService from '../services/avaliacoesMensais.service.js'
 import compartilhadaService from '../services/avaliacaoMensalCompartilhada.service.js'
+import equipeService from '../services/equipe.service.js'
 import { useAuthStore } from '../stores/auth.store.js'
 import { useToasts } from '../composables/useToasts.js'
-import { listarItensExcluiveis, filtrarAvaliacaoParaAluno } from '../utils/avaliacaoMensalCompartilhada.js'
+import { listarItensExcluiveis, filtrarAvaliacaoParaAluno, exclusoesPadrao } from '../utils/avaliacaoMensalCompartilhada.js'
 import ToastStack from '../components/ToastStack.vue'
 
 // docs/adr/0023-compartilhar-avaliacao-mensal-com-o-aluno.md: tela de
@@ -34,6 +35,23 @@ const desatualizada = ref(false)
 
 const comentario = ref('')
 const excluidos = ref(new Set())
+
+// docs/adr/0030: identidade da equipe no topo do documento. Falhar aqui não
+// impede o PDF - sem logo fica só o nome (ou nada).
+const equipe = ref(null)
+const logoUrl = ref(null)
+
+async function carregarIdentidade() {
+  try {
+    equipe.value = await equipeService.obterIdentidade()
+    if (equipe.value.temLogo) logoUrl.value = URL.createObjectURL(await equipeService.obterLogo())
+  } catch (_err) {
+    equipe.value = auth.usuario?.equipe ? { nome: auth.usuario.equipe.nome, temLogo: false } : null
+  }
+}
+onBeforeUnmount(() => {
+  if (logoUrl.value) URL.revokeObjectURL(logoUrl.value)
+})
 
 const NOMES_MES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -68,17 +86,26 @@ function formatarData(iso) {
 
 const hoje = computed(() => new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }))
 
-const itensExcluiveis = computed(() => listarItensExcluiveis(avaliacao.value?.avaliacao_json))
+// docs/adr/0029: tabela da avaliação física do mês (calculada pelo código na
+// geração) + parágrafo da IA para o aluno.
+const resumoFisica = computed(() => avaliacao.value?.avaliacao_fisica_resumo_json || null)
+const itensExcluiveis = computed(() => listarItensExcluiveis(avaliacao.value?.avaliacao_json, resumoFisica.value))
 const grupos = computed(() => {
-  const g = { dimensao: [], destaque: [], recomendacao: [] }
+  const g = { avaliacao_fisica: [], dimensao: [], destaque: [], recomendacao: [] }
   for (const item of itensExcluiveis.value) g[item.secao].push(item)
   return g
 })
-const TITULO_GRUPO = { dimensao: 'Evolução por dimensão', destaque: 'Destaques', recomendacao: 'Recomendações' }
+const TITULO_GRUPO = { avaliacao_fisica: 'Avaliação física', dimensao: 'Evolução por dimensão', destaque: 'Destaques', recomendacao: 'Recomendações' }
 
 const documento = computed(() =>
-  filtrarAvaliacaoParaAluno(avaliacao.value?.avaliacao_json, [...excluidos.value])
+  filtrarAvaliacaoParaAluno(avaliacao.value?.avaliacao_json, [...excluidos.value], resumoFisica.value)
 )
+
+function formatarDia(ymd) {
+  if (!ymd) return ''
+  const [ano, mes, dia] = String(ymd).slice(0, 10).split('-')
+  return `${dia}/${mes}/${ano}`
+}
 
 function incluido(chave) {
   return !excluidos.value.has(chave)
@@ -116,7 +143,11 @@ async function carregar() {
     revisao.value = compart.revisao
     desatualizada.value = compart.desatualizada
     comentario.value = compart.revisao?.comentario || ''
-    excluidos.value = new Set(compart.revisao?.itens_excluidos || [])
+    // Primeira preparação: sugestões padrão (docs/adr/0029); depois, o que o
+    // personal salvou.
+    excluidos.value = new Set(
+      compart.revisao ? compart.revisao.itens_excluidos || [] : exclusoesPadrao(dadosAvaliacao.avaliacao_json)
+    )
   } catch (e) {
     const status = e.response?.status
     if (status === 404) {
@@ -128,7 +159,10 @@ async function carregar() {
     carregando.value = false
   }
 }
-onMounted(carregar)
+onMounted(() => {
+  carregar()
+  carregarIdentidade()
+})
 
 async function salvar({ silencioso = false } = {}) {
   if (!comentario.value.trim()) {
@@ -200,8 +234,8 @@ function voltar() {
       <aside class="preparacao">
         <h2 class="prep-titulo">Preparar para o aluno</h2>
         <p class="list-row-sub">
-          O aluno recebe um PDF com o resumo, a evolução por dimensão, os destaques e as recomendações abaixo — mais o seu
-          comentário. Alertas, pendências e o contexto interno da IA nunca vão no PDF.
+          O aluno recebe um PDF com o resumo, a avaliação física do mês (quando houver), a evolução por dimensão, os
+          destaques e as recomendações abaixo — mais o seu comentário. Alertas, pendências e o contexto interno da IA nunca vão no PDF.
         </p>
 
         <div v-if="desatualizada" class="prep-aviso">
@@ -221,7 +255,7 @@ function voltar() {
           <p class="list-row-sub">Também entra no próximo Acompanhamento Mensal como a sua leitura (peso alto).</p>
         </div>
 
-        <div v-for="secao in ['dimensao', 'destaque', 'recomendacao']" :key="secao" class="prep-bloco">
+        <div v-for="secao in ['avaliacao_fisica', 'dimensao', 'destaque', 'recomendacao']" :key="secao" class="prep-bloco">
           <template v-if="grupos[secao].length">
             <div class="prep-rotulo">{{ TITULO_GRUPO[secao] }} no PDF</div>
             <label v-for="item in grupos[secao]" :key="item.chave" class="prep-item">
@@ -238,13 +272,51 @@ function voltar() {
       <!-- ===== Documento (tela + PDF) ===== -->
       <article class="documento">
         <header class="doc-head">
-          <div class="doc-eyebrow">Acompanhamento Mensal</div>
-          <h1>{{ aluno?.nome }}</h1>
-          <div class="doc-mes">{{ rotuloMes }}</div>
+          <div class="doc-head-texto">
+            <div class="doc-eyebrow">Acompanhamento Mensal</div>
+            <h1>{{ aluno?.nome }}</h1>
+            <div class="doc-mes">{{ rotuloMes }}</div>
+          </div>
+          <div v-if="logoUrl || equipe?.nome" class="doc-marca">
+            <img v-if="logoUrl" :src="logoUrl" :alt="equipe?.nome || 'Logo da equipe'" class="doc-logo" />
+            <div v-else class="doc-marca-nome">{{ equipe.nome }}</div>
+          </div>
         </header>
 
         <section v-if="documento.resumo_geral" class="doc-secao">
           <p class="doc-resumo">{{ documento.resumo_geral }}</p>
+        </section>
+
+        <section v-if="documento.avaliacao_fisica" class="doc-secao">
+          <h2>Sua avaliação física</h2>
+          <template v-if="documento.avaliacao_fisica.tabela">
+            <table class="doc-tabela">
+              <thead>
+                <tr>
+                  <th>Medida</th>
+                  <th>{{ formatarDia(documento.avaliacao_fisica.tabela.data) }}</th>
+                  <template v-if="documento.avaliacao_fisica.tabela.anterior_data">
+                    <th>Anterior ({{ formatarDia(documento.avaliacao_fisica.tabela.anterior_data) }})</th>
+                    <th>Diferença</th>
+                  </template>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(linha, i) in documento.avaliacao_fisica.tabela.linhas" :key="i">
+                  <td>{{ linha.rotulo }}</td>
+                  <td class="doc-num">{{ linha.atual }}</td>
+                  <template v-if="documento.avaliacao_fisica.tabela.anterior_data">
+                    <td class="doc-num">{{ linha.anterior || '—' }}</td>
+                    <td class="doc-num">{{ linha.comparavel ? linha.diferenca || '—' : '—*' }}</td>
+                  </template>
+                </tr>
+              </tbody>
+            </table>
+            <p v-if="documento.avaliacao_fisica.tabela.linhas.some((l) => !l.comparavel)" class="doc-nota">
+              * Medido por outro método na avaliação anterior — os valores não são comparáveis.
+            </p>
+          </template>
+          <p v-if="documento.avaliacao_fisica.leitura" class="doc-leitura-fisica">{{ documento.avaliacao_fisica.leitura }}</p>
         </section>
 
         <section v-if="documento.dimensoes.length" class="doc-secao">
@@ -383,9 +455,33 @@ function voltar() {
   line-height: 1.65;
 }
 .doc-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 20px;
   border-bottom: 2px solid #18181b;
   padding-bottom: 14px;
   margin-bottom: 22px;
+}
+.doc-head-texto {
+  min-width: 0;
+}
+.doc-marca {
+  flex: none;
+  max-width: 40%;
+  text-align: right;
+}
+.doc-logo {
+  display: block;
+  max-height: 64px;
+  max-width: 180px;
+  margin-left: auto;
+  object-fit: contain;
+}
+.doc-marca-nome {
+  font-size: 13px;
+  font-weight: 700;
+  color: #3f3f46;
 }
 .doc-eyebrow {
   font-size: 11px;
@@ -416,6 +512,36 @@ function voltar() {
 }
 .doc-resumo {
   font-size: 15px;
+  line-height: 1.6;
+}
+.doc-tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.doc-tabela th {
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #71717a;
+  border-bottom: 1px solid #d4d4d8;
+  padding: 6px 8px 6px 0;
+}
+.doc-tabela td {
+  border-bottom: 1px solid #ececee;
+  padding: 6px 8px 6px 0;
+}
+.doc-num {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.doc-nota {
+  font-size: 11.5px;
+  color: #71717a;
+  margin-top: 6px;
+}
+.doc-leitura-fisica {
+  margin-top: 12px;
   line-height: 1.6;
 }
 .doc-dimensao {

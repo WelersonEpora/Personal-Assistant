@@ -3,6 +3,7 @@
 const fichaAcessoLinkRepository = require("../repositories/fichaAcessoLink.repository");
 const fichaTreinoRepository = require("../repositories/fichaTreino.repository");
 const storageExercicioImagem = require("./storage-exercicio-imagem.service");
+const equipeService = require("./equipe.service");
 const { AppError, NotFoundError } = require("../shared/errors");
 
 // docs/adr/0014-acesso-aluno-ficha-por-link.md - endpoint PÚBLICO (sem
@@ -88,12 +89,15 @@ async function obterFicha(token) {
   const aluno = await link.getAluno();
   // Aluno excluído (soft-delete) - trata como link sem conteúdo, não expõe nada.
   if (!aluno || aluno.deletado_em) {
-    return { aluno: null, fichas: [] };
+    return { aluno: null, equipe: null, fichas: [] };
   }
 
-  const fichas = await listarAtivasDoLink(link);
+  const [fichas, equipe] = await Promise.all([listarAtivasDoLink(link), link.getEquipe()]);
   return {
     aluno: { nome: aluno.nome },
+    // docs/adr/0030: identidade visual de quem atende o aluno - nome e se há
+    // logo (servido por obterLogo, escopado pelo mesmo token). Sem id.
+    equipe: equipeService.projetarIdentidade(equipe),
     fichas: fichas.map(projetarFicha)
   };
 }
@@ -126,4 +130,15 @@ async function obterImagemDoExercicio(token, exercicioId, posicao) {
   return storageExercicioImagem.ler(caminho);
 }
 
-module.exports = { obterFicha, obterImagemDoExercicio };
+// docs/adr/0030: logo da equipe dona do link. A equipe sai do token, nunca
+// da URL - mesmas regras de utilização do link (expirado/revogado não serve).
+async function obterLogo(token) {
+  const link = await resolverLinkUtilizavel(token);
+  const aluno = await link.getAluno();
+  if (!aluno || aluno.deletado_em) {
+    throw new NotFoundError("Logo não encontrado.");
+  }
+  return equipeService.lerLogo(await link.getEquipe());
+}
+
+module.exports = { obterFicha, obterImagemDoExercicio, obterLogo };

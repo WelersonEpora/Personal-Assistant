@@ -12,6 +12,7 @@ const { Usuario, Equipe, Aluno, Exercicio, FichaTreino, FichaAcessoLink } = requ
 const fichaTreinoService = require("./fichaTreino.service");
 const fichaAcessoLinkService = require("./fichaAcessoLink.service");
 const fichaPublicaService = require("./ficha-publica.service");
+const equipeService = require("./equipe.service");
 
 let usuario;
 let equipeA;
@@ -268,4 +269,41 @@ test("obterImagemDoExercicio: rejeita exercício que não está na ficha do toke
     () => fichaPublicaService.obterImagemDoExercicio(token, supino.id, "inicio"),
     /Imagem não encontrada/
   );
+});
+
+// docs/adr/0030 - identidade da equipe no link do aluno.
+test("obterFicha: traz nome e presença de logo da equipe do token, sem id", async (t) => {
+  const token = await gerarTokenPara(equipeB.id, alunoDeB.id);
+  t.after(() => FichaAcessoLink.destroy({ where: { aluno_id: alunoDeB.id } }));
+
+  const resultado = await fichaPublicaService.obterFicha(token);
+  assert.deepEqual(resultado.equipe, { nome: equipeB.nome, temLogo: false });
+});
+
+test("obterLogo: serve o logo da equipe do token e nunca o de outra equipe", async (t) => {
+  await equipeService.atualizarLogo(equipeA.id, { buffer: Buffer.from("logo-de-A"), mimeType: "image/png" });
+  const tokenA = await gerarTokenPara(equipeA.id, alunoDeA.id);
+  const tokenB = await gerarTokenPara(equipeB.id, alunoDeB.id);
+  t.after(async () => {
+    await equipeService.removerLogo(equipeA.id);
+    await FichaAcessoLink.destroy({ where: { aluno_id: [alunoDeA.id, alunoDeB.id] } });
+  });
+
+  const { buffer, mimeType } = await fichaPublicaService.obterLogo(tokenA);
+  assert.equal(buffer.toString(), "logo-de-A");
+  assert.equal(mimeType, "image/png");
+  assert.equal((await fichaPublicaService.obterFicha(tokenA)).equipe.temLogo, true);
+  await assert.rejects(() => fichaPublicaService.obterLogo(tokenB), /não tem logo/);
+});
+
+test("obterLogo: token revogado não serve o logo", async (t) => {
+  await equipeService.atualizarLogo(equipeA.id, { buffer: Buffer.from("logo-de-A"), mimeType: "image/png" });
+  const token = await gerarTokenPara(equipeA.id, alunoDeA.id);
+  t.after(async () => {
+    await equipeService.removerLogo(equipeA.id);
+    await FichaAcessoLink.destroy({ where: { aluno_id: alunoDeA.id } });
+  });
+
+  await fichaAcessoLinkService.revogar(equipeA.id, alunoDeA.id);
+  await assert.rejects(() => fichaPublicaService.obterLogo(token), (err) => err.code === "LINK_REVOGADO");
 });

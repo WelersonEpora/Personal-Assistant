@@ -9,6 +9,7 @@ const fichaPublicaController = require("../controllers/ficha-publica.controller"
 const router = Router();
 
 router.get("/:token", fichaPublicaController.obterFicha);
+router.get("/:token/logo", fichaPublicaController.streamLogo);
 router.get("/:token/exercicios/:exercicioId/imagem/:posicao", fichaPublicaController.streamImagem);
 
 module.exports = router;

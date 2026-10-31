@@ -16,6 +16,12 @@ module.exports = (sequelize) => {
       nome: {
         type: DataTypes.STRING(120),
         allowNull: false
+      },
+      // Nome do arquivo em storage/fotos (docs/adr/0030), não a imagem em si -
+      // mesmo padrão de usuario.foto_caminho.
+      logo_caminho: {
+        type: DataTypes.STRING(255),
+        allowNull: true
       }
     },
     {

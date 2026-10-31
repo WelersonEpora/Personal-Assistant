@@ -31,7 +31,7 @@ async function entrar() {
   <div class="login-screen">
     <form class="login-card card" @submit.prevent="entrar">
       <div class="login-brand">
-        <div class="sidebar-brand-mark">🏋️</div>
+        <div class="sidebar-brand-mark"><img src="/icons/marca-figura.png" alt="" /></div>
         <div>
           <div class="login-brand-name">Personal Assistant</div>
           <div class="login-brand-sub">Entrar na sua conta</div>

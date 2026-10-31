@@ -138,7 +138,7 @@ function sair() {
           :title="sidebarRecolhida ? 'Expandir menu' : 'Recolher menu'"
           @click="alternarSidebar"
         >☰</button>
-        <div class="sidebar-brand-mark">🏋️</div>
+        <div class="sidebar-brand-mark"><img src="/icons/marca-figura.png" alt="" /></div>
         <div class="sidebar-brand-texto">
           <div class="sidebar-brand-name">Personal Assistant</div>
         </div>

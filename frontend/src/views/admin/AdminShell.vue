@@ -2,6 +2,7 @@
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth.store.js'
+import { useEquipeStore } from '../../stores/equipe.store.js'
 import registrosService from '../../services/registros.service.js'
 import usuariosService from '../../services/usuarios.service.js'
 import { iniciais, corParaId } from '../../utils/registroStatus.js'
@@ -42,6 +43,8 @@ const NAV_ITEMS = [
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const equipe = useEquipeStore()
+onMounted(() => equipe.carregar())
 
 // Navegação em drawer no mobile (desktop mantém a sidebar fixa) — fecha ao
 // trocar de rota e ao tocar no overlay.
@@ -99,7 +102,8 @@ function sair() {
     <div class="drawer-overlay" @click="menuAberto = false"></div>
     <aside class="sidebar" :class="{ open: menuAberto }">
       <div class="sidebar-brand">
-        <div class="sidebar-brand-mark">🏋️</div>
+        <img v-if="equipe.logoUrl" :src="equipe.logoUrl" class="sidebar-brand-logo" :alt="auth.usuario?.equipe?.nome || 'Logo da equipe'" />
+        <div v-else class="sidebar-brand-mark">🏋️</div>
         <div>
           <div class="sidebar-brand-name">Personal Assistant</div>
           <div class="sidebar-brand-sub">Painel de gestão</div>

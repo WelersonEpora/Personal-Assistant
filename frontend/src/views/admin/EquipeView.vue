@@ -3,6 +3,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import equipeService from '../../services/equipe.service.js'
 import membrosService from '../../services/membros.service.js'
 import { useAuthStore } from '../../stores/auth.store.js'
+import { useEquipeStore } from '../../stores/equipe.store.js'
 import { corParaId, iniciais } from '../../utils/registroStatus.js'
 import { useToasts } from '../../composables/useToasts.js'
 import { imagemDoDataTransfer, reduzirLogo } from '../../utils/logoEquipe.js'
@@ -10,6 +11,7 @@ import ToastStack from '../../components/ToastStack.vue'
 
 const { toasts, showToast } = useToasts()
 const auth = useAuthStore()
+const equipeStore = useEquipeStore() // ícone do topo da sidebar reflete na hora
 
 const equipe = ref(null)
 const membros = ref([])
@@ -134,6 +136,7 @@ async function salvarLogo() {
     equipe.value = await equipeService.enviarLogo(logoPendente.value.blob)
     if (logoUrl.value) URL.revokeObjectURL(logoUrl.value)
     logoUrl.value = logoPendente.value.url
+    equipeStore.definirLogo(logoPendente.value.blob)
     logoPendente.value = null
     showToast('Logo atualizado.', 'success')
   } catch (err) {
@@ -149,6 +152,7 @@ async function removerLogo() {
     equipe.value = await equipeService.removerLogo()
     if (logoUrl.value) URL.revokeObjectURL(logoUrl.value)
     logoUrl.value = null
+    equipeStore.definirLogo(null)
     showToast('Logo removido.', 'neutral')
   } catch (err) {
     showToast(mensagemErro(err, 'Não foi possível remover o logo.'), 'warning')

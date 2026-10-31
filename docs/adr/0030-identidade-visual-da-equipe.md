@@ -64,3 +64,13 @@ material como sendo do personal dele.
   como uma imagem comum do documento.
 - Um logo trocado aparece no próximo carregamento do link. A rota pública
   manda `Cache-Control: private, max-age=300`.
+
+## Adendo (2026-10-31): logo no ícone da sidebar do `/admin`
+
+O logo, quando existe, substitui só o ícone do topo da sidebar (64px, cantos
+arredondados, sem placa nem borda). O texto "Personal Assistant / Painel de
+gestão" continua igual, e os avatares do rodapé e da topbar continuam sendo
+do usuário. O estado fica em `stores/equipe.store.js`: o `AdminShell` carrega
+o logo e a tela Equipe atualiza o store quando o logo é trocado. Uma versão
+anterior, com placa branca e layout por formato do logo, foi descartada por
+ficar ruim visualmente.

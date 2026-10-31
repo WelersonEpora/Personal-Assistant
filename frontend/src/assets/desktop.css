@@ -28,6 +28,13 @@ html, body { height: 100%; }
   display: flex; align-items: center; justify-content: center;
   font-size: 15px; flex: none;
 }
+/* Logo da equipe no lugar do ícone (docs/adr/0030). 64px, ocupando 44px na
+   altura (cresce 10px para cima/baixo, margens negativas) e avançando 14px
+   sobre o padding à esquerda - o texto anda só 6px para a direita. */
+.sidebar-brand-logo {
+  width: 64px; height: 64px; flex: none;
+  margin: -10px 0 -10px -14px;  border-radius: 12px; object-fit: contain;
+}
 .sidebar-brand-name { font-size: 14.5px; font-weight: 700; line-height: 1.2; }
 .sidebar-brand-sub { font-size: 11px; color: #7d8093; }
 /* botão de fechar do drawer - só aparece no mobile (ver media query) */

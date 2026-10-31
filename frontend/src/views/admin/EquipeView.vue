@@ -11,7 +11,7 @@ import ToastStack from '../../components/ToastStack.vue'
 
 const { toasts, showToast } = useToasts()
 const auth = useAuthStore()
-const equipeStore = useEquipeStore() // ícone do topo da sidebar reflete na hora
+const equipeStore = useEquipeStore() // rodapé da sidebar reflete na hora
 
 const equipe = ref(null)
 const membros = ref([])

@@ -10,8 +10,9 @@ import ConfirmDialog from '../../components/ConfirmDialog.vue'
 
 const NAV_ITEMS = [
   {
-    // "olhar" - panoramas de leitura: o meu dia, a minha atividade, a área
-    grupo: 'Visão geral',
+    // "olhar" - panoramas de leitura: o meu dia, a minha atividade, a área.
+    // Sem rótulo: é o primeiro bloco do menu, o título seria redundante.
+    grupo: null,
     itens: [
       { nome: 'admin-dashboard', icone: '📊', label: 'Dashboard' },
       { nome: 'admin-atendimentos', icone: '📈', label: 'Atendimentos' },
@@ -43,6 +44,7 @@ const NAV_ITEMS = [
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+// rodapé da sidebar: identidade da equipe (o usuário fica na topbar)
 const equipe = useEquipeStore()
 onMounted(() => equipe.carregar())
 
@@ -50,6 +52,32 @@ onMounted(() => equipe.carregar())
 // trocar de rota e ao tocar no overlay.
 const menuAberto = ref(false)
 watch(() => route.fullPath, () => { menuAberto.value = false })
+
+// Desktop: o ☰ do topo da sidebar recolhe para só os ícones. Preferência de
+// cada navegador (localStorage é só conveniência - sem ele, abre expandida).
+const CHAVE_RECOLHIDA = 'pa.sidebar.recolhida'
+function lerRecolhida() {
+  try {
+    return localStorage.getItem(CHAVE_RECOLHIDA) === '1'
+  } catch {
+    return false
+  }
+}
+const sidebarRecolhida = ref(lerRecolhida())
+const MOBILE = '(max-width: 760px)'
+function alternarSidebar() {
+  // no celular a sidebar é o drawer: o mesmo ☰ fecha
+  if (window.matchMedia(MOBILE).matches) {
+    menuAberto.value = false
+    return
+  }
+  sidebarRecolhida.value = !sidebarRecolhida.value
+  try {
+    localStorage.setItem(CHAVE_RECOLHIDA, sidebarRecolhida.value ? '1' : '0')
+  } catch {
+    // sem storage: vale só nesta sessão
+  }
+}
 
 const pendentesRevisao = ref(0)
 let intervalId = null
@@ -98,42 +126,47 @@ function sair() {
 </script>
 
 <template>
-  <div class="app-shell" :class="{ 'menu-aberto': menuAberto }">
+  <div class="app-shell" :class="{ 'menu-aberto': menuAberto, 'sidebar-recolhida': sidebarRecolhida }">
     <div class="drawer-overlay" @click="menuAberto = false"></div>
     <aside class="sidebar" :class="{ open: menuAberto }">
       <div class="sidebar-brand">
-        <img v-if="equipe.logoUrl" :src="equipe.logoUrl" class="sidebar-brand-logo" :alt="auth.usuario?.equipe?.nome || 'Logo da equipe'" />
-        <div v-else class="sidebar-brand-mark">🏋️</div>
-        <div>
+        <button
+          class="sidebar-toggle"
+          type="button"
+          :aria-label="sidebarRecolhida ? 'Expandir menu' : 'Recolher menu'"
+          :aria-expanded="!sidebarRecolhida"
+          :title="sidebarRecolhida ? 'Expandir menu' : 'Recolher menu'"
+          @click="alternarSidebar"
+        >☰</button>
+        <div class="sidebar-brand-mark">🏋️</div>
+        <div class="sidebar-brand-texto">
           <div class="sidebar-brand-name">Personal Assistant</div>
-          <div class="sidebar-brand-sub">Painel de gestão</div>
         </div>
-        <button class="sidebar-close" type="button" aria-label="Fechar menu" @click="menuAberto = false">✕</button>
       </div>
 
       <nav>
-        <template v-for="grupo in NAV_ITEMS" :key="grupo.grupo">
-          <div class="nav-group-label">{{ grupo.grupo }}</div>
+        <template v-for="(grupo, i) in NAV_ITEMS" :key="grupo.grupo || i">
+          <div v-if="grupo.grupo" class="nav-group-label">{{ grupo.grupo }}</div>
           <router-link
             v-for="item in grupo.itens.filter((i) => !i.somenteOwner || auth.usuario?.papel === 'owner')"
             :key="item.nome"
             class="nav-item"
             :to="{ name: item.nome }"
+            :title="sidebarRecolhida ? item.label : null"
           >
-            <span class="nav-icon">{{ item.icone }}</span>{{ item.label
-            }}<span v-if="item.badge && pendentesRevisao > 0" class="nav-item-badge">{{ pendentesRevisao }}</span>
+            <span class="nav-icon">{{ item.icone }}</span><span class="nav-label">{{ item.label
+            }}</span><span v-if="item.badge && pendentesRevisao > 0" class="nav-item-badge">{{ pendentesRevisao }}</span>
           </router-link>
         </template>
       </nav>
 
-      <div class="sidebar-footer">
-        <img v-if="fotoUrl" :src="fotoUrl" class="avatar" alt="" />
-        <span v-else class="avatar" :style="{ background: corParaId(auth.usuario?.id) }">{{ iniciais(auth.usuario?.nome) }}</span>
-        <div>
-          <div class="sidebar-footer-name">{{ auth.usuario?.nome }}</div>
-          <div class="sidebar-footer-team">{{ auth.usuario?.equipe?.nome }}</div>
-          <button class="sidebar-footer-role" type="button" @click="sair">Sair</button>
-        </div>
+      <!-- identidade da equipe (docs/adr/0030); sem logo, as iniciais -->
+      <div class="sidebar-footer" :title="sidebarRecolhida ? auth.usuario?.equipe?.nome : null">
+        <img v-if="equipe.logoUrl" :src="equipe.logoUrl" class="sidebar-equipe-logo" alt="" />
+        <span v-else class="sidebar-equipe-logo sem-logo" :style="{ background: corParaId(auth.usuario?.equipe?.id) }">
+          {{ iniciais(auth.usuario?.equipe?.nome) }}
+        </span>
+        <div class="sidebar-footer-texto sidebar-footer-name">{{ auth.usuario?.equipe?.nome }}</div>
       </div>
     </aside>
 
@@ -142,8 +175,17 @@ function sair() {
         <button class="topbar-menu-btn" type="button" aria-label="Abrir menu" @click="menuAberto = true">☰</button>
         <div class="topbar-title">{{ route.meta.titulo || '' }}</div>
         <div class="topbar-right">
-          <img v-if="fotoUrl" :src="fotoUrl" class="avatar sz-sm" alt="" />
-          <span v-else class="avatar sz-sm" :style="{ background: corParaId(auth.usuario?.id) }">{{ iniciais(auth.usuario?.nome) }}</span>
+          <div class="topbar-usuario">
+            <img v-if="fotoUrl" :src="fotoUrl" class="avatar sz-sm" alt="" />
+            <span v-else class="avatar sz-sm" :style="{ background: corParaId(auth.usuario?.id) }">{{ iniciais(auth.usuario?.nome) }}</span>
+            <span class="topbar-usuario-nome">{{ auth.usuario?.nome }}</span>
+          </div>
+          <button class="topbar-sair" type="button" title="Sair" @click="sair">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4M15 8l4 4-4 4M19 12H9" />
+            </svg>
+            <span class="topbar-sair-texto">Sair</span>
+          </button>
         </div>
       </header>
 

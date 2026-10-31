@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import equipeService from '../services/equipe.service.js'
 
-// docs/adr/0030: logo da equipe no lugar do ícone do topo da sidebar.
+// docs/adr/0030: logo da equipe no rodapé da sidebar do /admin.
 // Compartilhado para que a troca na tela Equipe apareça na hora no AdminShell.
 export const useEquipeStore = defineStore('equipe', {
   state: () => ({

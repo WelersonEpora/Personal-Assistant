@@ -74,3 +74,10 @@ do usuário. O estado fica em `stores/equipe.store.js`: o `AdminShell` carrega
 o logo e a tela Equipe atualiza o store quando o logo é trocado. Uma versão
 anterior, com placa branca e layout por formato do logo, foi descartada por
 ficar ruim visualmente.
+
+**Movido para o rodapé no mesmo dia (2026-10-31).** O topo da sidebar ganhou
+o ☰ que recolhe o menu no desktop e voltou ao ícone original 🏋️. O usuário
+(avatar, nome, Sair) foi para a topbar, e o rodapé da sidebar passou a ser só
+a identidade da equipe: logo (44px; sem logo, as iniciais da equipe) + nome.
+Com o menu recolhido, fica só o logo. O `stores/equipe.store.js` continua
+fazendo a troca na tela Equipe aparecer na hora.

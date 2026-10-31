@@ -1,5 +1,6 @@
 "use strict";
 
+const { Op } = require("sequelize");
 const { sequelize, AvaliacaoFisica, AvaliacaoFisicaMedida, MetricaAvaliacaoFisica } = require("../models");
 
 // docs/adr/0016: CRUD direto do personal, escopado por equipe. Não é dado
@@ -86,4 +87,21 @@ function listarCatalogo() {
   return MetricaAvaliacaoFisica.findAll({ order: [["ordem", "ASC"]] });
 }
 
-module.exports = { listarPorAluno, obterPorId, criar, atualizar, excluir, listarCatalogo };
+// docs/adr/0025: insumo do Acompanhamento Mensal (só leitura). Avaliações com
+// `data` no mês [inicioData, fimData] + a última antes do mês (base de
+// comparação das diferenças).
+async function listarParaAcompanhamento({ alunoId, equipeId, inicioData, fimData }) {
+  const doMes = await AvaliacaoFisica.findAll({
+    where: { aluno_id: alunoId, equipe_id: equipeId, data: { [Op.between]: [inicioData, fimData] } },
+    include: [INCLUDE_MEDIDAS],
+    order: [["data", "ASC"], ["created_at", "ASC"], ...ORDER_MEDIDAS]
+  });
+  const anterior = await AvaliacaoFisica.findOne({
+    where: { aluno_id: alunoId, equipe_id: equipeId, data: { [Op.lt]: inicioData } },
+    include: [INCLUDE_MEDIDAS],
+    order: [["data", "DESC"], ["created_at", "DESC"], ...ORDER_MEDIDAS]
+  });
+  return { doMes, anterior };
+}
+
+module.exports = { listarPorAluno, obterPorId, criar, atualizar, excluir, listarCatalogo, listarParaAcompanhamento };

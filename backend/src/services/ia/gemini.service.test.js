@@ -162,6 +162,14 @@ test("avaliação mensal: instrui tipo obrigatório, dor sem regra rígida de co
   assert.match(INSTRUCAO_AVALIACAO_MENSAL, /responsabilidade de outra parte do sistema/);
 });
 
+test("avaliação mensal: avaliação física como fato que prevalece, sem recalcular nem comparar métodos diferentes (ADR-0025)", () => {
+  assert.match(INSTRUCAO_AVALIACAO_MENSAL, /5\. AVALIAÇÃO FÍSICA DO MÊS/);
+  assert.match(INSTRUCAO_AVALIACAO_MENSAL, /PREVALECEM sobre impressões dos relatos/);
+  assert.match(INSTRUCAO_AVALIACAO_MENSAL, /não recalcule/);
+  assert.match(INSTRUCAO_AVALIACAO_MENSAL, /Nunca compare valores marcados "não comparar"/);
+  assert.match(INSTRUCAO_AVALIACAO_MENSAL, /é ESTABILIDADE/);
+});
+
 test("análise sob demanda: mesmas guardas de dor e faltas da avaliação mensal", () => {
   assert.match(INSTRUCAO_ANALISE_SOB_DEMANDA, /preencha "tipo"/);
   assert.match(INSTRUCAO_ANALISE_SOB_DEMANDA, /NUNCA conclua ou insinue em "alertas" que o aluno faltou/);

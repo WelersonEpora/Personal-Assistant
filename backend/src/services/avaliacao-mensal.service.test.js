@@ -20,7 +20,9 @@ const {
   ResultadoIa,
   Validacao,
   AvaliacaoMensal,
-  AvaliacaoPersonal
+  AvaliacaoPersonal,
+  AvaliacaoFisica,
+  AvaliacaoFisicaMedida
 } = require("../models");
 const geminiService = require("./ia/gemini.service");
 const avaliacaoMensalService = require("./avaliacao-mensal.service");
@@ -347,6 +349,96 @@ test("mês 'dados insuficientes' não envia a avaliação do personal e não a m
   assert.equal(avaliacao.status, "dados_insuficientes");
   assert.equal(spy.mock.callCount(), 0);
   assert.deepEqual(avaliacao.avaliacoes_personal_consideradas, []);
+});
+
+// docs/adr/0025: a avaliação física do mês entra no prompt (com a anterior só
+// como base das diferenças), os ids do mês ficam registrados e o
+// Acompanhamento nunca escreve em avaliacao_fisica*.
+async function criarAvaliacaoFisica(data, medidas) {
+  const avaliacao = await AvaliacaoFisica.create({ aluno_id: aluno.id, equipe_id: equipe.id, data, origem: "manual" });
+  await AvaliacaoFisicaMedida.bulkCreate(
+    medidas.map(([metrica_codigo, valor, metodo = "direto"]) => ({
+      avaliacao_fisica_id: avaliacao.id,
+      metrica_codigo,
+      metodo,
+      principal: true,
+      valor,
+      origem_valor: "medido"
+    }))
+  );
+  return avaliacao;
+}
+
+async function limparAvaliacoesFisicas() {
+  const avaliacoes = await AvaliacaoFisica.findAll({ where: { aluno_id: aluno.id } });
+  const ids = avaliacoes.map((a) => a.id);
+  await AvaliacaoFisicaMedida.destroy({ where: { avaliacao_fisica_id: ids } });
+  await AvaliacaoFisica.destroy({ where: { id: ids } });
+}
+
+test("inclui a avaliação física do mês no prompt, com a diferença para a anterior, e registra só os ids do mês", async (t) => {
+  let promptRecebido = null;
+  t.mock.method(geminiService, "gerarAvaliacaoMensal", async ({ promptContexto }) => {
+    promptRecebido = promptContexto;
+    return RESPOSTA_IA_FAKE;
+  });
+  for (let i = 0; i < 3; i += 1) await criarRelatoConfirmado(new Date(2026, 3, 4 + i));
+  const anterior = await criarAvaliacaoFisica("2026-03-06", [["peso", 70], ["percentual_gordura", 28.3, "pollock_7"]]);
+  const doMes = await criarAvaliacaoFisica("2026-04-17", [["peso", 68.4], ["percentual_gordura", 27.1, "pollock_7"]]);
+  await criarAvaliacaoFisica("2026-05-02", [["peso", 60]]); // depois do mês: fora
+  t.after(async () => {
+    await limpar();
+    await limparAvaliacoesFisicas();
+  });
+  const medidasAntes = await AvaliacaoFisicaMedida.count({ where: { avaliacao_fisica_id: [anterior.id, doMes.id] } });
+
+  const avaliacao = await avaliacaoMensalService.gerarParaAluno({ equipeId: equipe.id, alunoId: aluno.id, anoMes: "2026-04" });
+
+  assert.match(promptRecebido, /AVALIAÇÃO FÍSICA DO MÊS/);
+  assert.match(promptRecebido, new RegExp(`avaliacao_fisica:${doMes.id} \\| em 2026-04-17 \\| anterior: 2026-03-06, 42 dias antes`));
+  assert.match(promptRecebido, /Peso corporal: 68,4 kg \(−1,6 kg\)/);
+  assert.doesNotMatch(promptRecebido, /60,0 kg/);
+  assert.deepEqual(avaliacao.avaliacoes_fisicas_consideradas, [doMes.id]);
+
+  // só leitura: nada mudou nas avaliações físicas
+  const medidasDepois = await AvaliacaoFisicaMedida.count({ where: { avaliacao_fisica_id: [anterior.id, doMes.id] } });
+  assert.equal(medidasDepois, medidasAntes);
+});
+
+test("mês sem avaliação física: uma linha com a última, nenhum id registrado", async (t) => {
+  let promptRecebido = null;
+  t.mock.method(geminiService, "gerarAvaliacaoMensal", async ({ promptContexto }) => {
+    promptRecebido = promptContexto;
+    return RESPOSTA_IA_FAKE;
+  });
+  for (let i = 0; i < 3; i += 1) await criarRelatoConfirmado(new Date(2026, 3, 4 + i));
+  await criarAvaliacaoFisica("2026-02-10", [["peso", 70]]);
+  t.after(async () => {
+    await limpar();
+    await limparAvaliacoesFisicas();
+  });
+
+  const avaliacao = await avaliacaoMensalService.gerarParaAluno({ equipeId: equipe.id, alunoId: aluno.id, anoMes: "2026-04" });
+
+  assert.match(promptRecebido, /Nenhuma avaliação física neste mês\. Última: 10\/02\/2026 \(há 79 dias no fim do mês\)\./);
+  assert.doesNotMatch(promptRecebido, /70,0 kg/);
+  assert.deepEqual(avaliacao.avaliacoes_fisicas_consideradas, []);
+});
+
+test("avaliação física sozinha não destrava mês com menos de 3 relatos", async (t) => {
+  const spy = t.mock.method(geminiService, "gerarAvaliacaoMensal");
+  await criarRelatoConfirmado(new Date(2026, 3, 5));
+  await criarAvaliacaoFisica("2026-04-17", [["peso", 68.4]]);
+  t.after(async () => {
+    await limpar();
+    await limparAvaliacoesFisicas();
+  });
+
+  const avaliacao = await avaliacaoMensalService.gerarParaAluno({ equipeId: equipe.id, alunoId: aluno.id, anoMes: "2026-04" });
+
+  assert.equal(avaliacao.status, "dados_insuficientes");
+  assert.equal(spy.mock.callCount(), 0);
+  assert.deepEqual(avaliacao.avaliacoes_fisicas_consideradas, []);
 });
 
 test("rejeita mês em formato inválido", async () => {

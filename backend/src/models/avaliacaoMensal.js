@@ -32,6 +32,8 @@ module.exports = (sequelize) => {
       baseada_em_registro_ids: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
       // Avaliações do personal (docs/adr/0015) que entraram neste ciclo.
       avaliacoes_personal_consideradas: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+      // Avaliações físicas do mês (docs/adr/0025) que entraram neste ciclo.
+      avaliacoes_fisicas_consideradas: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
       avaliacao_json: { type: DataTypes.JSONB, allowNull: true },
       contexto_consolidado_json: { type: DataTypes.JSONB, allowNull: false },
       contexto_anterior_id: { type: DataTypes.UUID, allowNull: true },

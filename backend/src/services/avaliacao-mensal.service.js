@@ -11,6 +11,8 @@
 // algo, o personal registra um novo relato, que entra no ciclo seguinte.
 const avaliacaoMensalRepository = require("../repositories/avaliacaoMensal.repository");
 const avaliacaoPersonalRepository = require("../repositories/avaliacaoPersonal.repository");
+const avaliacaoFisicaRepository = require("../repositories/avaliacaoFisica.repository");
+const { montarBlocoAvaliacaoFisica } = require("./avaliacao-mensal/bloco-avaliacao-fisica");
 const revisaoAvaliacaoMensalRepository = require("../repositories/revisaoAvaliacaoMensal.repository");
 const alunoRepository = require("../repositories/aluno.repository");
 const geminiService = require("./ia/gemini.service");
@@ -100,9 +102,18 @@ function blocoRevisaoAnterior(revisaoAnterior) {
 }
 
 // Monta o texto enviado à IA: contexto anterior + relatos do mês + avaliações
-// do personal do mês. Avaliação física ainda NÃO entra aqui (fora do escopo
-// atual); quando entrar, será outro bloco e uma dimensão em "estado_atual".
-function montarPromptAvaliacao({ alunoId, anoMes, contextoAnterior, relatos, avaliacoesPersonal = [], revisaoAnterior = null }) {
+// do personal do mês + revisão do mês anterior + avaliação física do mês
+// (docs/adr/0025 - `avaliacaoFisica`: { doMes, anterior, fimData }, objetos
+// planos; null omite o bloco).
+function montarPromptAvaliacao({
+  alunoId,
+  anoMes,
+  contextoAnterior,
+  relatos,
+  avaliacoesPersonal = [],
+  revisaoAnterior = null,
+  avaliacaoFisica = null
+}) {
   const blocoContexto = contextoAnterior
     ? JSON.stringify(contextoAnterior, null, 2)
     : "Nenhum - este é o primeiro ciclo de acompanhamento deste aluno.";
@@ -139,7 +150,8 @@ function montarPromptAvaliacao({ alunoId, anoMes, contextoAnterior, relatos, ava
       blocoRelatos
     ].join("\n") +
     blocoAvaliacoesPersonal(avaliacoesPersonal) +
-    blocoRevisaoAnterior(revisaoAnterior)
+    blocoRevisaoAnterior(revisaoAnterior) +
+    (avaliacaoFisica ? montarBlocoAvaliacaoFisica(avaliacaoFisica) : "")
   );
 }
 
@@ -195,7 +207,7 @@ async function gerarParaAluno({ equipeId, alunoId, anoMes, origem = "automatica"
       minimo_relatos: MINIMO_RELATOS,
       mensagem:
         `Apenas ${relatos.length} relato(s) confirmado(s) em ${anoMes} - o mínimo para gerar a ` +
-        `avaliação mensal é ${MINIMO_RELATOS}. Nada foi alterado; confirme (ou registre) mais ` +
+        `Acompanhamento Mensal é ${MINIMO_RELATOS}. Nada foi alterado; confirme (ou registre) mais ` +
         "relatos e gere de novo."
     };
   }
@@ -227,6 +239,7 @@ async function gerarParaAluno({ equipeId, alunoId, anoMes, origem = "automatica"
     baseada_em_registro_ids: relatos.map((registro) => registro.id),
     // Só as que realmente foram para a IA (preenchido no caminho "gerada").
     avaliacoes_personal_consideradas: [],
+    avaliacoes_fisicas_consideradas: [],
     contexto_anterior_id: anterior?.id || null,
     provedor: "gemini"
   };
@@ -243,13 +256,28 @@ async function gerarParaAluno({ equipeId, alunoId, anoMes, origem = "automatica"
   }
 
   try {
+    // docs/adr/0025: avaliação física do mês (por `data`) + a anterior como
+    // base das diferenças. Só leitura - o Acompanhamento nunca escreve nela.
+    const fisicas = await avaliacaoFisicaRepository.listarParaAcompanhamento({
+      alunoId,
+      equipeId,
+      inicioData: limites.inicioData,
+      fimData: limites.fimData
+    });
+    const avaliacoesFisicasDoMes = fisicas.doMes.map((avaliacao) => avaliacao.get({ plain: true }));
+
     const promptContexto = montarPromptAvaliacao({
       alunoId,
       anoMes,
       contextoAnterior,
       relatos,
       avaliacoesPersonal,
-      revisaoAnterior
+      revisaoAnterior,
+      avaliacaoFisica: {
+        doMes: avaliacoesFisicasDoMes,
+        anterior: fisicas.anterior ? fisicas.anterior.get({ plain: true }) : null,
+        fimData: limites.fimData
+      }
     });
     const { avaliacaoMensal, contextoConsolidado } = await geminiService.gerarAvaliacaoMensal({ promptContexto });
 
@@ -263,6 +291,7 @@ async function gerarParaAluno({ equipeId, alunoId, anoMes, origem = "automatica"
       modelo: env.gemini.model,
       erro: null,
       avaliacoes_personal_consideradas: avaliacoesPersonal.map((avaliacao) => avaliacao.id),
+      avaliacoes_fisicas_consideradas: avaliacoesFisicasDoMes.map((avaliacao) => avaliacao.id),
       avaliacao_json: avaliacaoMensal,
       contexto_consolidado_json: {
         ...contextoConsolidado,

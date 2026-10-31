@@ -41,6 +41,22 @@ novos.
 
 Detalhes e alternativas consideradas: `docs/adr/0002-conceito-de-registro.md`.
 
+## Glossário de tela (nome visível × nome no código)
+
+Regra: o que vai para o aluno tem nome de entrega; o que fica só com o personal
+tem nome de ferramenta. "Avaliação" na tela é **só** Avaliação Física. Os nomes
+de código (tabelas, rotas, componentes, ADRs) não mudam — o glossário vale para
+textos de UI, PDF e mensagens de erro que chegam à tela.
+
+| Na tela | No código | Observação |
+|---|---|---|
+| **Acompanhamento Mensal** | `avaliacao_mensal` | único item enviado ao aluno (PDF, ADR-0023). Nunca "avaliação mensal", "análise mensal" ou só "mensal" |
+| **Análise intermediária de IA** | `analise_sob_demanda` | só o personal vê; forma curta "análise intermediária" em contadores/textos repetidos e "Nova análise de IA" no botão (nome completo no `title`) |
+| **Observação do personal** | `avaliacao_personal` | nunca "avaliação do personal"/"sua avaliação" |
+| **Comentário do personal** | `revisao_avaliacao_mensal.comentario` | o que o aluno lê no PDF |
+| **Avaliação Física** | `avaliacao_fisica*` | o único uso de "avaliação" na UI |
+| **Linha do Tempo** (aba do aluno) | aba `acompanhamento`, `AcompanhamentoAluno.vue` | reúne os itens acima mês a mês; não chamar a aba de "Acompanhamento" |
+
 ## Funcionamento offline (celular)
 
 O app de captura funciona 100% offline: abrir, selecionar aluno, iniciar
@@ -276,6 +292,12 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
   `avaliacao_fisica` em si continua nascendo só do `avaliacao-fisica.service`,
   acionada pelo personal na revisão (`origem = captura_ia`, endpoint
   `POST /api/v1/registros/:id/confirmar-avaliacao-fisica`).
+  O Acompanhamento Mensal **lê** a avaliação física do mês (ADR-0025): bloco
+  pronto montado pelo código (`avaliacao-mensal/bloco-avaliacao-fisica.js` —
+  métricas principais, diferença para a anterior só entre o mesmo método,
+  massas herdam o método da %), a IA só interpreta (fato que prevalece sobre
+  relato; não recalcula). Avaliação física sozinha não destrava o mínimo de 3
+  relatos; a análise intermediária de IA ainda não a usa.
 - **`registro.id` sempre nasce no cliente.** Qualquer endpoint que receba um
   Registro precisa ser idempotente por esse id.
 - **`registro.data_atendimento` (ADR-0019) é o DIA do atendimento, separado de
@@ -286,7 +308,9 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
   (gravada na mesma transação da `validacao` — que continua o único dado
   oficial), com janela `[iniciado_em::date − 60, hoje]`. Histórico, painel e prompts
   da IA usam `data_atendimento` quando o objetivo é "quando o atendimento
-  aconteceu"; **o bucketing mensal continua por `confirmado_em` (ADR-0015)** e o
+  aconteceu" — inclusive a **Linha do Tempo do aluno** (`utils/linhaDoTempo.js`),
+  que posiciona o relato no mês do atendimento e marca o confirmado depois de o
+  mês virar com o mês em que ele conta; **o bucketing mensal continua por `confirmado_em` (ADR-0015)** e o
   feed de atividade por `created_at` (ADR-0017). A tela **Atendimentos** (ADR-0020,
   `GET /api/v1/atividades`, `/admin/atendimentos`) agrega a `registro` por
   `data_atendimento` — somente leitura, sem tabela nova, sem tocar
@@ -379,6 +403,7 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
 | 0022 | Radar — atualização profissional ("fofoqueira científica") |
 | 0023 | Compartilhar a avaliação mensal com o aluno (PDF com revisão do personal) |
 | 0024 | Cálculo da % de gordura por protocolo de dobras (Pollock 7) |
+| 0025 | Avaliação física do mês como contexto do Acompanhamento Mensal |
 
 ## Estado atual
 
@@ -408,13 +433,17 @@ MVP completo e verificado de ponta a ponta:
   de anamnese/postural (§5) e recálculo no service das derivadas `imc`, `rcq`,
   `massa_gorda` e `massa_magra` (2 compartimentos, a partir da % de gordura
   acompanhada; `scripts/recalcular-derivadas-avaliacao-fisica.js` fez o backfill
-  das importadas); `data_nascimento` e `sexo` no cadastro do aluno.
+  das importadas); `data_nascimento` e `sexo` no cadastro do aluno
+  (obrigatórios só no front — criação e edição; o backend aceita nulo por causa
+  dos alunos antigos/importados, que mostram "cadastro incompleto" no detalhe).
   % de gordura Pollock 7 calculada pelo service (docs/adr/0024 —
   `avaliacao-fisica/protocolos-gordura.js`, conferido contra as 319 avaliações
   Pollock 7 do BodyMove; grava também `densidade_corporal`, g/mL, com
   `avaliacao_fisica_medida.valor` em `NUMERIC(10,4)`).
-  Tabela comparativa (métricas × avaliações no tempo) já existe; gráficos e uso
-  pela IA ainda não. Dashboard do `/admin` servido por um endpoint agregado
+  Tabela comparativa (métricas × avaliações no tempo) e gráficos já existem; a
+  IA usa a avaliação do mês no Acompanhamento Mensal (docs/adr/0025 —
+  `avaliacao_mensal.avaliacoes_fisicas_consideradas`); a análise de evolução de
+  todas as avaliações ainda não. Dashboard do `/admin` servido por um endpoint agregado
   `GET /api/v1/painel` (docs/adr/0017 — ação necessária, KPIs, panorama dos
   alunos, feed de atividade; somente leitura, não toca `resultado_ia`/`validacao`).
   `aluno.dispensa_ficha_treino` e `aluno.dispensa_avaliacao_fisica` (opt-out,
@@ -460,7 +489,7 @@ MVP completo e verificado de ponta a ponta:
   **Relatos** (`/admin/registros`) virou a caixa de entrada do pipeline (só não
   confirmados; confirmado vive só no Histórico), sem filtro de tempo e sem a aba
   "Confirmados".
-  343 testes automatizados (`node --test`, unitários +
+  355 testes automatizados (`node --test`, unitários +
   integração contra banco de teste dedicado).
 - **Frontend**: app Vue 3 + Vite + PWA único (`/captura` mobile-first
   offline, `/admin` gestão/validação), IndexedDB + fila de sincronização
@@ -541,11 +570,20 @@ MVP completo e verificado de ponta a ponta:
   ao vivo pelo espelho `utils/protocolosGordura.js` e aviso do que falta
   (sexo/nascimento no cadastro, dobras em branco); o form recebe o `aluno` ou
   o busca sozinho (revisão da captura).
-  85 testes automatizados (`node --test` + `fake-indexeddb`; +
+  Linha do Tempo do aluno (aba `acompanhamento` do detalhe do aluno,
+  `AcompanhamentoAluno.vue`): feed único por mês, em ordem cronológica (mais
+  recente primeiro), com relatos, avaliações físicas, análises intermediárias
+  de IA e observações marcados por tipo (data à esquerda + marcador no trilho
+  + etiqueta `.tipo-*` de `tokens.css`); o Acompanhamento Mensal abre o mês
+  como "fechamento" (previsto/pendente quando ainda não gerado); "Mostrar"
+  liga/desliga tipos; meses antigos recolhidos. Montagem pura em
+  `utils/linhaDoTempo.js` (testada); avaliação física capturada por voz e
+  confirmada aparece uma vez só (pela avaliação, via `registro_id`).
+  95 testes automatizados (`node --test` + `fake-indexeddb`; +
   `echarts-option-builder.test.js`, `echarts-bar-option-builder.test.js`,
   `periodos.test.js`, `avaliacaoFisica.test.js`, `gravacaoVoz.test.js`,
-  `avaliacaoMensalCompartilhada.test.js`, `registroStatus.test.js` e
-  `protocolosGordura.test.js` puros).
+  `avaliacaoMensalCompartilhada.test.js`, `registroStatus.test.js`,
+  `protocolosGordura.test.js` e `linhaDoTempo.test.js` puros).
 - **Docker**: `compose.dev.yml` (Postgres + pgAdmin) e `compose.prod.yml`
   (Postgres + backend + frontend) validados; Dockerfiles com healthcheck
   em ambos os serviços da aplicação.

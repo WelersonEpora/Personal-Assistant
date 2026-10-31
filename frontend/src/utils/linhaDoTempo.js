@@ -67,6 +67,9 @@ export function montarLinhaDoTempo({
 
   for (const r of registros) {
     if (registrosComAvaliacao.has(r.id)) continue
+    // Ficha ditada (docs/adr/0028) é prescrição, não relato: fica fora da Linha
+    // do Tempo e das contagens do mês.
+    if (r.tipo === 'ficha_treino') continue
     const dia = diaDe(r.data_atendimento || r.created_at)
     const alvo = mes(dia.slice(0, 7))
     const confirmacao = confirmadoEm(r)

@@ -88,6 +88,14 @@ async function confirmarAvaliacaoFisica(id, payload) {
   return data.data
 }
 
+// docs/adr/0028 - fichas de treino ditadas; endpoint próprio, NUNCA escreve
+// `validacao`. `fichas`: [{ nome, observacoes, substituiFichaId, grupos }], o
+// mesmo formato do editor manual - todas são criadas juntas, ou nenhuma.
+async function confirmarFichaTreino(id, { fichas }) {
+  const { data } = await http.post(`/api/v1/registros/${id}/confirmar-ficha-treino`, { fichas })
+  return data.data
+}
+
 // Soft-delete (docs/adr/0007) - o backend rejeita quando o Registro já está
 // confirmado, ver comentário em registro.service.js.
 async function excluir(id) {
@@ -109,6 +117,7 @@ export default {
   sincronizar,
   confirmar,
   confirmarAvaliacaoFisica,
+  confirmarFichaTreino,
   excluir,
   reprocessar
 }

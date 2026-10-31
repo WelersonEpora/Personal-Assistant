@@ -33,6 +33,12 @@
   --color-avaliacao-dark: #0f766e;
   --color-avaliacao-light: #ccfbf1;
 
+  /* docs/adr/0028 - Registro tipo "ficha de treino" (laranja, distinto do
+     indigo do atendimento, do teal da avaliação e do âmbar de aviso). */
+  --color-ficha: #ea580c;
+  --color-ficha-dark: #c2410c;
+  --color-ficha-light: #ffedd5;
+
   --color-text: #12141c;
   --color-text-secondary: #6b7280;
   --color-text-faint: #9ca3af;
@@ -88,6 +94,7 @@ img { max-width: 100%; display: block; }
 .badge-neutral { background: #eef0f4; color: var(--color-text-secondary); }
 .badge-primary { background: var(--color-primary-light); color: var(--color-primary-dark); }
 .badge-avaliacao { background: var(--color-avaliacao-light); color: var(--color-avaliacao-dark); }
+.badge-ficha { background: var(--color-ficha-light); color: var(--color-ficha-dark); }
 
 /* ---- tipo de evento da Linha do Tempo do aluno: etiqueta + marcador ---- */
 .tipo-tag {
@@ -102,6 +109,7 @@ img { max-width: 100%; display: block; }
 }
 .tipo-relato     { background: #eef0f4; color: #374151; }
 .tipo-fisica     { background: var(--color-avaliacao-light); color: var(--color-avaliacao-dark); }
+.tipo-ficha      { background: var(--color-ficha-light); color: var(--color-ficha-dark); }
 .tipo-analise    { background: #f3e8ff; color: #6b21a8; }
 .tipo-observacao { background: var(--color-info-light); color: #075985; }
 .tipo-mensal     { background: var(--color-primary-light); color: var(--color-primary-dark); }

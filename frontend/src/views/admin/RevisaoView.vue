@@ -17,6 +17,7 @@ import { useConfirm } from '../../composables/useConfirm.js'
 import ToastStack from '../../components/ToastStack.vue'
 import CampoData from '../../components/CampoData.vue'
 import RevisaoAvaliacaoFisica from '../../components/revisao/RevisaoAvaliacaoFisica.vue'
+import RevisaoFichaTreino from '../../components/revisao/RevisaoFichaTreino.vue'
 
 const props = defineProps({ id: { type: String, default: null } })
 const emit = defineEmits(['registro-processado'])
@@ -194,6 +195,16 @@ async function excluirRegistro() {
         @processado="aoProcessarRegistro"
       />
 
+      <!-- docs/adr/0028 - ficha de treino ditada: editor da ficha pré-preenchido;
+           a confirmação cria as fichas, NÃO validacao. :key recria a tela ao
+           trocar de Registro (o formulário nasce da proposta no mount). -->
+      <RevisaoFichaTreino
+        v-else-if="selecionado.tipo === 'ficha_treino'"
+        :key="selecionado.id"
+        :registro="selecionado"
+        @processado="aoProcessarRegistro"
+      />
+
       <div v-else class="card revisao-card">
         <div class="detail-header" style="margin-bottom: 14px;">
           <span class="avatar sz-md" :style="{ background: corParaId(selecionado.aluno?.id) }">{{ iniciais(selecionado.aluno?.nome) }}</span>
@@ -320,7 +331,7 @@ async function excluirRegistro() {
           <span class="queue-item-body">
             <span class="queue-item-title">
               {{ registro.aluno?.nome }} — {{ registro.titulo || 'Registro' }}
-              <span v-if="registro.tipo === 'avaliacao_fisica'" class="badge badge-avaliacao" style="font-size: 10px;">{{ tipoMeta(registro.tipo).icon }} {{ tipoMeta(registro.tipo).chip }}</span>
+              <span v-if="tipoMeta(registro.tipo).chip" class="badge" :class="'badge-' + tipoMeta(registro.tipo).badge" style="font-size: 10px;">{{ tipoMeta(registro.tipo).icon }} {{ tipoMeta(registro.tipo).chip }}</span>
             </span>
             <span class="queue-item-sub">
               Atendimento {{ formatarDataAtendimento(registro.data_atendimento) }}

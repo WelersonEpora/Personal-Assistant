@@ -54,8 +54,15 @@ function obterPorIdEquipe({ id, equipeId }) {
 // substituída só é marcada ativo=false, nunca editada ou apagada; a nova nasce
 // como uma linha própria, com seus próprios grupos e itens. Sem
 // `substituiFichaId`, a ficha nova soma às ativas (docs/adr/0026).
-async function criarNovaVersao({ alunoId, equipeId, criadoPor, nome, observacoes, substituiFichaId, grupos }) {
-  return sequelize.transaction(async (transaction) => {
+//
+// `transaction` externa (docs/adr/0028): a confirmação da ficha por voz cria
+// várias fichas e avança o Registro numa transação só. Sem ela, abre a própria.
+async function criarNovaVersao(
+  { alunoId, equipeId, criadoPor, nome, observacoes, substituiFichaId, grupos, registroId },
+  { transaction: externa } = {}
+) {
+  const executar = (fn) => (externa ? fn(externa) : sequelize.transaction(fn));
+  return executar(async (transaction) => {
     if (substituiFichaId) {
       const [desativadas] = await FichaTreino.update(
         { ativo: false },
@@ -74,6 +81,7 @@ async function criarNovaVersao({ alunoId, equipeId, criadoPor, nome, observacoes
         nome: nome || null,
         observacoes: observacoes || null,
         substitui_id: substituiFichaId || null,
+        registro_id: registroId || null,
         ativo: true
       },
       { transaction }

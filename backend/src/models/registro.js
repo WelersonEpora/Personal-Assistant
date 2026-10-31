@@ -18,8 +18,9 @@ const STATUS_VALIDOS = [
 // docs/adr/0018: o tipo é escolhido no cliente ao iniciar o Registro e é
 // imutável depois. `atendimento` = fluxo atual (relato -> resultado_ia ->
 // validacao); `avaliacao_fisica` bifurca o pipeline de IA para um
-// interpretador próprio e uma proposta_avaliacao_fisica.
-const TIPOS_VALIDOS = ["atendimento", "avaliacao_fisica"];
+// interpretador próprio e uma proposta_avaliacao_fisica. `ficha_treino`
+// (docs/adr/0028) faz o mesmo com proposta_ficha_treino.
+const TIPOS_VALIDOS = ["atendimento", "avaliacao_fisica", "ficha_treino"];
 
 module.exports = (sequelize) => {
   const Registro = sequelize.define(
@@ -115,6 +116,9 @@ module.exports = (sequelize) => {
     // docs/adr/0018 - só para tipo = avaliacao_fisica.
     Registro.hasOne(models.PropostaAvaliacaoFisica, { foreignKey: "registro_id", as: "propostaAvaliacaoFisica" });
     Registro.hasOne(models.AvaliacaoFisica, { foreignKey: "registro_id", as: "avaliacaoFisica" });
+    // docs/adr/0028 - só para tipo = ficha_treino (um ditado pode gerar várias fichas).
+    Registro.hasOne(models.PropostaFichaTreino, { foreignKey: "registro_id", as: "propostaFichaTreino" });
+    Registro.hasMany(models.FichaTreino, { foreignKey: "registro_id", as: "fichasTreino" });
   };
 
   return Registro;

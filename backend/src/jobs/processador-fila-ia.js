@@ -7,6 +7,9 @@
 const registroRepository = require("../repositories/registro.repository");
 const propostaAvaliacaoFisicaRepository = require("../repositories/proposta-avaliacao-fisica.repository");
 const avaliacaoFisicaRepository = require("../repositories/avaliacaoFisica.repository");
+const propostaFichaTreinoRepository = require("../repositories/proposta-ficha-treino.repository");
+const exercicioRepository = require("../repositories/exercicio.repository");
+const fichaTreinoInterpretacao = require("../services/ficha-treino/interpretacao");
 const storageAudio = require("../services/storage-audio.service");
 const geminiService = require("../services/ia/gemini.service");
 const env = require("../config/env");
@@ -112,6 +115,35 @@ async function interpretarAvaliacaoFisica(registroId) {
   }
 }
 
+// docs/adr/0028: Registro `tipo = ficha_treino`. Mesmo desenho da avaliação
+// física: o catálogo visível da equipe (com apelidos, docs/adr/0027) vai no
+// prompt com referências curtas, a resposta é traduzida para exercicio_id e
+// gravada como PROPOSTA. A ficha_treino só nasce da confirmação humana.
+async function interpretarFichaTreino(registroId) {
+  const registro = await registroRepository.obterParaProcessamento(registroId);
+  const contexto = montarContextoConsolidado(registro.entradas);
+  const exercicios = await exercicioRepository.findAllVisiveisParaEquipe(registro.equipe_id);
+  const { texto: catalogoTexto, porRef } = fichaTreinoInterpretacao.montarCatalogoParaPrompt(exercicios);
+
+  await registroRepository.atualizarStatus(registroId, Registro.STATUS.INTERPRETANDO);
+  try {
+    const bruto = await geminiService.interpretarFichaTreino({ contextoConsolidado: contexto, catalogoTexto });
+    const { fichas, avisos } = fichaTreinoInterpretacao.traduzirProposta(bruto, porRef);
+    await propostaFichaTreinoRepository.salvarProposta(registroId, {
+      payload_json: { fichas },
+      avisos_json: avisos,
+      status: "concluido",
+      erro: null,
+      modelo: env.gemini.model
+    });
+    await registroRepository.atualizarStatus(registroId, Registro.STATUS.AGUARDANDO_REVISAO);
+  } catch (err) {
+    await propostaFichaTreinoRepository.salvarProposta(registroId, { status: "falha", erro: err.message });
+    await registroRepository.atualizarStatus(registroId, Registro.STATUS.ERRO_INTERPRETACAO);
+    throw err;
+  }
+}
+
 async function interpretarConteudoConsolidado(registroId) {
   const registroAtualizado = await registroRepository.obterParaProcessamento(registroId);
   const contexto = comCabecalhoDeData(
@@ -147,6 +179,8 @@ async function processarRegistro(registroId) {
   // interpretação bifurca.
   if (registro.tipo === Registro.TIPOS.AVALIACAO_FISICA) {
     await interpretarAvaliacaoFisica(registroId);
+  } else if (registro.tipo === Registro.TIPOS.FICHA_TREINO) {
+    await interpretarFichaTreino(registroId);
   } else {
     await interpretarConteudoConsolidado(registroId);
   }

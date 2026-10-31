@@ -108,7 +108,18 @@ function normalizarGrupos(grupos) {
 // preservada como histórico, nunca sobrescrita (docs/adr/0013). Com
 // `substituiFichaId`, a nova versão desativa só aquela ficha; sem, a ficha
 // nova soma às ativas do aluno (docs/adr/0026).
-async function criarNovaVersao(equipeId, usuarioId, alunoId, { nome, observacoes, substituiFichaId, grupos }) {
+//
+// docs/adr/0028: a confirmação da ficha por voz passa `transaction` (várias
+// fichas + avanço do Registro numa transação só) e `registroId` (rastreio).
+// Com transação externa devolve a linha criada, sem reler - a leitura fora da
+// transação ainda não enxergaria a ficha.
+async function criarNovaVersao(
+  equipeId,
+  usuarioId,
+  alunoId,
+  { nome, observacoes, substituiFichaId, grupos },
+  { transaction, registroId } = {}
+) {
   await verificarAluno(equipeId, alunoId);
 
   const gruposNormalizados = normalizarGrupos(grupos);
@@ -141,10 +152,11 @@ async function criarNovaVersao(equipeId, usuarioId, alunoId, { nome, observacoes
     nome: nome ? String(nome).trim() : null,
     observacoes: observacoes ? String(observacoes).trim() : null,
     substituiFichaId: substituiFichaId || null,
-    grupos: gruposNormalizados
-  });
+    grupos: gruposNormalizados,
+    registroId: registroId || null
+  }, { transaction });
 
-  return obterDetalhe(equipeId, ficha.id);
+  return transaction ? ficha : obterDetalhe(equipeId, ficha.id);
 }
 
 // Desliga a ficha sem substituta - a divisão encolheu (docs/adr/0026). A ficha

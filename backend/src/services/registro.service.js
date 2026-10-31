@@ -31,7 +31,7 @@ async function listar(equipeId, { status, de, ate, alunoId, tipo } = {}) {
     throw new ValidationError('"de" não pode ser depois de "ate".');
   }
   if (tipo && !Registro.TIPOS[tipo.toUpperCase()]) {
-    throw new ValidationError('"tipo" deve ser "atendimento" ou "avaliacao_fisica".');
+    throw new ValidationError(`"tipo" deve ser um de: ${Object.values(Registro.TIPOS).join(", ")}.`);
   }
   return registroRepository.listarPorEquipe({
     equipeId,
@@ -84,9 +84,13 @@ async function excluir(equipeId, registroId) {
 // oficial foi criado ainda (a avaliacao_fisica só nasce da confirmação), então
 // regenerar a proposta é seguro. Para tipo = atendimento isso fica fora de
 // escopo - um relato aguardando revisão não volta para a fila por aqui.
+// docs/adr/0028 - mesmo vale para tipo = ficha_treino (a ficha só nasce da
+// confirmação).
+const TIPOS_COM_REFAZER_NA_REVISAO = new Set([Registro.TIPOS.AVALIACAO_FISICA, Registro.TIPOS.FICHA_TREINO]);
+
 function podeReprocessar(registro) {
   if (STATUS_REPROCESSAVEIS.has(registro.status)) return true;
-  return registro.tipo === Registro.TIPOS.AVALIACAO_FISICA && registro.status === Registro.STATUS.AGUARDANDO_REVISAO;
+  return TIPOS_COM_REFAZER_NA_REVISAO.has(registro.tipo) && registro.status === Registro.STATUS.AGUARDANDO_REVISAO;
 }
 
 async function reprocessar(equipeId, registroId) {

@@ -2,7 +2,16 @@
 import { ref, computed, onMounted } from 'vue'
 import painelService from '../../services/painel.service.js'
 import registrosService from '../../services/registros.service.js'
-import { statusMeta, corParaId, formatarDataHora } from '../../utils/registroStatus.js'
+import { statusMeta, corParaId, formatarDataHora, tipoMeta } from '../../utils/registroStatus.js'
+
+// "Ana (ficha)" - marca avaliação e ficha ditadas na lista de pendências
+// (docs/adr/0018/0028); atendimento fica só com o nome.
+function nomeComTipo(registro) {
+  const nome = registro.aluno?.nome
+  if (!nome) return null
+  const chip = tipoMeta(registro.tipo).chip
+  return chip ? `${nome} (${chip.toLowerCase()})` : nome
+}
 import { formatarDataAvaliacao, rotuloMesAno } from '../../utils/avaliacaoFisica.js'
 import { useToasts } from '../../composables/useToasts.js'
 import ToastStack from '../../components/ToastStack.vue'
@@ -153,8 +162,8 @@ function relatoComErro(ev) {
         >
           <span class="acao-row-icone">📝</span>
           <span class="list-row-body">
-            <span class="list-row-title">{{ acao.relatos_aguardando_revisao.total }} relato(s) aguardando revisão</span>
-            <span class="list-row-sub">{{ acao.relatos_aguardando_revisao.itens.map((r) => r.aluno?.nome).filter(Boolean).join(', ') }}</span>
+            <span class="list-row-title">{{ acao.relatos_aguardando_revisao.total }} registro(s) aguardando revisão</span>
+            <span class="list-row-sub">{{ acao.relatos_aguardando_revisao.itens.map(nomeComTipo).filter(Boolean).join(', ') }}</span>
           </span>
           <span class="badge badge-primary">Revisar</span>
         </router-link>
@@ -164,7 +173,7 @@ function relatoComErro(ev) {
           <span class="list-row-body">
             <span class="list-row-title">{{ relato.aluno?.nome }} — {{ statusMeta(relato.status).label }}</span>
             <span class="list-row-sub">
-              {{ relato.titulo || 'Relato' }}
+              {{ relato.titulo || (tipoMeta(relato.tipo).chip ? tipoMeta(relato.tipo).label : 'Relato') }}
               <template v-if="mostrarPersonal && relato.usuario?.nome"> · por {{ relato.usuario.nome }}</template>
             </span>
           </span>

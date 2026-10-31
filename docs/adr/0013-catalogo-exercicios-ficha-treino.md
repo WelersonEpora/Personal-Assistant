@@ -2,7 +2,9 @@
 
 **Status:** Aceita (2026-08-26) — estendida pela ADR-0026 (exercícios
 conjugados em grupos; várias fichas ativas por aluno, com `substitui_id`) e
-pela ADR-0027 (apelidos de exercício; catálogo global revisado).
+pela ADR-0027 (apelidos de exercício; catálogo global revisado) e pela ADR-0028
+(ficha ditada por voz: a IA estrutura, o personal revisa e só a confirmação
+grava — o padrão de proposta previsto na seção "Preparação para IA").
 
 ## Contexto
 

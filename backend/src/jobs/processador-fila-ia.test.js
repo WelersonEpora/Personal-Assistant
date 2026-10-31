@@ -11,7 +11,19 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const { randomUUID } = require("node:crypto");
 
-const { Usuario, Equipe, Aluno, Registro, RegistroEntrada, ResultadoIa, PropostaAvaliacaoFisica } = require("../models");
+const {
+  Usuario,
+  Equipe,
+  Aluno,
+  Registro,
+  RegistroEntrada,
+  ResultadoIa,
+  PropostaAvaliacaoFisica,
+  PropostaFichaTreino,
+  FichaTreino,
+  Exercicio,
+  ExercicioApelido
+} = require("../models");
 const geminiService = require("../services/ia/gemini.service");
 const { montarContextoConsolidado, processarRegistro } = require("./processador-fila-ia");
 
@@ -169,4 +181,69 @@ test("processarRegistro: contexto do relato leva a data do atendimento no cabeç
 
   assert.match(contextoRecebido, /Data do atendimento: 2026-08-24/);
   assert.match(contextoRecebido, /treino de pernas/);
+});
+
+// ---- ficha por voz (docs/adr/0028) ----
+
+test("processarRegistro: tipo ficha_treino manda o catálogo com referências curtas e grava proposta traduzida", async (t) => {
+  const exercicio = await Exercicio.create({ equipe_id: equipe.id, nome: `Serrote ${randomUUID()}` });
+  await ExercicioApelido.create({
+    exercicio_id: exercicio.id,
+    equipe_id: equipe.id,
+    apelido: "remada no banco",
+    apelido_normalizado: "remada no banco"
+  });
+  t.after(() => Exercicio.destroy({ where: { id: exercicio.id } }));
+
+  let catalogoRecebido = null;
+  t.mock.method(geminiService, "interpretarFichaTreino", async ({ catalogoTexto }) => {
+    catalogoRecebido = catalogoTexto;
+    const ref = catalogoTexto.split("\n").find((linha) => linha.includes(exercicio.nome)).split(":")[0];
+    return {
+      fichas: [
+        {
+          nome: "Treino A",
+          grupos: [
+            { tipo: "simples", series: 4, itens: [{ exercicio_ref: ref, nome_ouvido: "remada no banco", repeticoes: "10", confianca: "alta" }] },
+            { tipo: "simples", series: 3, itens: [{ exercicio_ref: "E9999", nome_ouvido: "puxada no triângulo", confianca: "media" }] }
+          ]
+        }
+      ],
+      avisos: ["carga do supino ambígua"]
+    };
+  });
+
+  const registro = await criarRegistroTexto(Registro.TIPOS.FICHA_TREINO, "treino A, remada no banco quatro de dez, puxada no triângulo três séries");
+  t.after(() => Registro.destroy({ where: { id: registro.id } }));
+
+  await processarRegistro(registro.id);
+
+  assert.match(catalogoRecebido, /também chamado: remada no banco/, "apelidos da equipe vão no prompt");
+  assert.doesNotMatch(catalogoRecebido, new RegExp(exercicio.id), "o prompt nunca leva UUID");
+
+  const proposta = await PropostaFichaTreino.findOne({ where: { registro_id: registro.id } });
+  assert.equal(proposta.status, "concluido");
+  const [primeiro, segundo] = proposta.payload_json.fichas[0].grupos;
+  assert.equal(primeiro.itens[0].exercicio_id, exercicio.id);
+  assert.equal(segundo.itens[0].exercicio_id, null, "referência inexistente vira não reconhecido");
+  assert.deepEqual(proposta.avisos_json, ["carga do supino ambígua"]);
+
+  assert.equal((await Registro.findByPk(registro.id)).status, Registro.STATUS.AGUARDANDO_REVISAO);
+  assert.equal(await ResultadoIa.count({ where: { registro_id: registro.id } }), 0, "ficha nunca cria resultado_ia");
+  assert.equal(await FichaTreino.count({ where: { registro_id: registro.id } }), 0, "o worker nunca escreve ficha_treino");
+});
+
+test("processarRegistro: falha do interpretador de ficha -> erro_interpretacao + proposta 'falha'", async (t) => {
+  t.mock.method(geminiService, "interpretarFichaTreino", async () => {
+    throw new Error("cota excedida");
+  });
+
+  const registro = await criarRegistroTexto(Registro.TIPOS.FICHA_TREINO, "supino quatro de dez");
+  t.after(() => Registro.destroy({ where: { id: registro.id } }));
+
+  await assert.rejects(() => processarRegistro(registro.id), /cota excedida/);
+
+  const proposta = await PropostaFichaTreino.findOne({ where: { registro_id: registro.id } });
+  assert.equal(proposta.status, "falha");
+  assert.equal((await Registro.findByPk(registro.id)).status, Registro.STATUS.ERRO_INTERPRETACAO);
 });

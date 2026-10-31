@@ -40,9 +40,16 @@ function previaItens() {
 function ehAvaliacaoFisica() {
   return props.registro.tipo === 'avaliacao_fisica'
 }
+// docs/adr/0028 - ficha ditada não tem validação: a prévia de itens não se aplica.
+function ehFichaTreino() {
+  return props.registro.tipo === 'ficha_treino'
+}
 function titulo() {
-  if (confirmado() && !ehAvaliacaoFisica()) return previaItens()
-  return props.registro.titulo || (ehAvaliacaoFisica() ? 'Avaliação física capturada por voz' : 'Relato')
+  if (confirmado() && !ehAvaliacaoFisica() && !ehFichaTreino()) return previaItens()
+  if (props.registro.titulo) return props.registro.titulo
+  if (ehAvaliacaoFisica()) return 'Avaliação física capturada por voz'
+  if (ehFichaTreino()) return 'Ficha de treino ditada'
+  return 'Relato'
 }
 function subLinha() {
   const partes = []
@@ -104,8 +111,8 @@ onBeforeUnmount(() => {
     <div class="registro-card-head row-clickable" @click="emit('toggle')">
       <div class="acomp-feed-cab">
         <span class="registro-card-etiquetas">
-          <span class="tipo-tag" :class="ehAvaliacaoFisica() ? 'tipo-fisica' : 'tipo-relato'">
-            {{ ehAvaliacaoFisica() ? 'Avaliação física' : 'Relato' }}
+          <span class="tipo-tag" :class="ehAvaliacaoFisica() ? 'tipo-fisica' : ehFichaTreino() ? 'tipo-ficha' : 'tipo-relato'">
+            {{ ehAvaliacaoFisica() ? 'Avaliação física' : ehFichaTreino() ? 'Ficha de treino' : 'Relato' }}
           </span>
           <!-- Confirmado é o caso comum: o selo só aparece quando há algo a notar. -->
           <span v-if="!confirmado()" class="badge" :class="'badge-' + statusMeta(registro.status).badge">

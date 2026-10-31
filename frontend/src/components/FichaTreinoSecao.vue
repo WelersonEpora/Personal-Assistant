@@ -5,20 +5,9 @@ import fichasTreinoService from '../services/fichasTreino.service.js'
 import alunosService from '../services/alunos.service.js'
 import { formatarData } from '../utils/registroStatus.js'
 import {
-  TIPOS_GRUPO,
-  tiposPermitidos,
-  ehConjugado,
-  itemDoExercicio,
-  grupoSimples,
   formularioDaFicha,
-  conjugarComProximo,
-  separarGrupo,
-  removerItem as removerItemDosGrupos,
-  moverGrupo as moverGrupoNaLista,
-  moverItem as moverItemNoGrupo,
   payloadDosGrupos,
   problemaDoFormulario,
-  rotuloPosicao,
   contarExercicios,
   situacaoInativa,
   ordenarPorNome
@@ -26,9 +15,8 @@ import {
 import { useToasts } from '../composables/useToasts.js'
 import { useConfirm } from '../composables/useConfirm.js'
 import ToastStack from './ToastStack.vue'
-import ExercicioMidia from './ExercicioMidia.vue'
 import FichaGruposLeitura from './FichaGruposLeitura.vue'
-import BuscaExercicio from './BuscaExercicio.vue'
+import FichaTreinoEditor from './FichaTreinoEditor.vue'
 
 // Seção "Ficha de Treino" da tela do aluno (docs/adr/0015 estendida): deixou
 // de ser tela própria - vive num slot com abas no AlunoDetalheView. O contexto
@@ -212,30 +200,6 @@ async function alternarDispensa() {
 
 // ----------------------------------------------------------- editor
 
-function adicionarExercicio(exercicio) {
-  gruposForm.value = [...gruposForm.value, grupoSimples(itemDoExercicio(exercicio))]
-}
-
-function conjugar(indice) {
-  gruposForm.value = conjugarComProximo(gruposForm.value, indice)
-}
-
-function separar(indice) {
-  gruposForm.value = separarGrupo(gruposForm.value, indice)
-}
-
-function removerItem(indiceGrupo, indiceItem) {
-  gruposForm.value = removerItemDosGrupos(gruposForm.value, indiceGrupo, indiceItem)
-}
-
-function moverGrupo(indice, direcao) {
-  gruposForm.value = moverGrupoNaLista(gruposForm.value, indice, direcao)
-}
-
-function moverItem(indiceGrupo, indiceItem, direcao) {
-  gruposForm.value = moverItemNoGrupo(gruposForm.value, indiceGrupo, indiceItem, direcao)
-}
-
 async function salvarNovaVersao() {
   const problema = problemaDoFormulario({ nome: formNome.value, grupos: gruposForm.value })
   if (problema) {
@@ -399,136 +363,7 @@ function alternarExpandido(ficha) {
             <textarea v-model="formObservacoes" rows="2"></textarea>
           </div>
 
-          <div v-if="!gruposForm.length" class="empty-state" style="padding: 24px;">Nenhum exercício adicionado ainda.</div>
-
-          <template v-for="(grupo, gi) in gruposForm" :key="grupo.chave">
-            <!-- Exercício simples: séries, repetições, descanso e carga no próprio cartão. -->
-            <div v-if="!ehConjugado(grupo)" class="exercise-card">
-              <div class="exercise-card-top">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                  <span class="posicao">{{ rotuloPosicao(grupo, gi, 0) }}</span>
-                  <ExercicioMidia
-                    :exercicio-id="grupo.itens[0].exercicioId"
-                    :tem-inicio="grupo.itens[0].temImagemInicio"
-                    :tem-fim="grupo.itens[0].temImagemFim"
-                    :video-url="grupo.itens[0].midiaVideoUrl"
-                    :instrucoes="grupo.itens[0].instrucoes"
-                    :nome="grupo.itens[0].nome"
-                    size="md"
-                  />
-                  <div>
-                    <div class="exercise-name">{{ grupo.itens[0].nome }}</div>
-                    <div class="exercise-meta">{{ grupo.itens[0].grupoMuscular }}</div>
-                  </div>
-                </div>
-                <button type="button" class="exercise-remove" @click="removerItem(gi, 0)">Remover</button>
-              </div>
-              <div class="field-row">
-                <div class="field-group">
-                  <label>Séries</label>
-                  <input v-model="grupo.series" type="number" min="1" />
-                </div>
-                <div class="field-group">
-                  <label>Repetições ou tempo</label>
-                  <input v-model="grupo.itens[0].repeticoes" type="text" placeholder="Ex.: 12 ou 30s" />
-                </div>
-                <div class="field-group">
-                  <label>Descanso</label>
-                  <input v-model="grupo.descanso" type="text" placeholder="Ex.: 60s" />
-                </div>
-                <div class="field-group obs-field">
-                  <label>Carga / observações</label>
-                  <input v-model="grupo.itens[0].cargaObs" type="text" placeholder="Ex.: 20kg, aumentar progressivamente" />
-                </div>
-              </div>
-              <div class="grupo-acoes">
-                <button type="button" class="btn btn-ghost btn-sm" :disabled="gi === 0" @click="moverGrupo(gi, -1)">↑ Subir</button>
-                <button type="button" class="btn btn-ghost btn-sm" :disabled="gi === gruposForm.length - 1" @click="moverGrupo(gi, 1)">↓ Descer</button>
-                <button
-                  v-if="gi < gruposForm.length - 1"
-                  type="button"
-                  class="btn btn-ghost btn-sm"
-                  title="Fazer este exercício em sequência com o próximo (bi-set, tri-set, circuito)"
-                  @click="conjugar(gi)"
-                >
-                  🔗 Conjugar com o próximo
-                </button>
-              </div>
-            </div>
-
-            <!-- Grupo conjugado: tipo, voltas e descanso entre voltas valem para o grupo todo. -->
-            <div v-else class="grupo-conjugado">
-              <div class="field-row">
-                <div class="field-group">
-                  <label>Tipo</label>
-                  <select v-model="grupo.tipo">
-                    <option v-for="tipo in tiposPermitidos(grupo.itens.length)" :key="tipo" :value="tipo">{{ TIPOS_GRUPO[tipo] }}</option>
-                  </select>
-                </div>
-                <div class="field-group">
-                  <label>Voltas</label>
-                  <input v-model="grupo.series" type="number" min="1" />
-                </div>
-                <div class="field-group">
-                  <label>Descanso entre voltas</label>
-                  <input v-model="grupo.descanso" type="text" placeholder="Ex.: 60s" />
-                </div>
-                <div class="field-group obs-field">
-                  <label>Observações do grupo</label>
-                  <input v-model="grupo.observacoes" type="text" placeholder="Ex.: na 2ª volta, 10 repetições no supino" />
-                </div>
-              </div>
-
-              <div v-for="(item, ii) in grupo.itens" :key="item.chave" class="grupo-item-edicao">
-                <div class="exercise-card-top" style="margin-bottom: 0;">
-                  <div style="display: flex; align-items: center; gap: 12px;">
-                    <span class="posicao">{{ rotuloPosicao(grupo, gi, ii) }}</span>
-                    <ExercicioMidia
-                      :exercicio-id="item.exercicioId"
-                      :tem-inicio="item.temImagemInicio"
-                      :tem-fim="item.temImagemFim"
-                      :video-url="item.midiaVideoUrl"
-                      :instrucoes="item.instrucoes"
-                      :nome="item.nome"
-                    />
-                    <div class="exercise-name">{{ item.nome }}</div>
-                  </div>
-                  <div style="display: flex; gap: 4px; align-items: center;">
-                    <button type="button" class="btn btn-ghost btn-sm" :disabled="ii === 0" title="Subir no grupo" @click="moverItem(gi, ii, -1)">↑</button>
-                    <button type="button" class="btn btn-ghost btn-sm" :disabled="ii === grupo.itens.length - 1" title="Descer no grupo" @click="moverItem(gi, ii, 1)">↓</button>
-                    <button type="button" class="exercise-remove" @click="removerItem(gi, ii)">Remover</button>
-                  </div>
-                </div>
-                <div class="field-row item-campos">
-                  <div class="field-group">
-                    <label>Repetições ou tempo</label>
-                    <input v-model="item.repeticoes" type="text" placeholder="Ex.: 12 ou 30s" />
-                  </div>
-                  <div class="field-group">
-                    <label>Carga / observações</label>
-                    <input v-model="item.cargaObs" type="text" placeholder="Ex.: 20kg" />
-                  </div>
-                </div>
-              </div>
-
-              <div class="grupo-acoes">
-                <button type="button" class="btn btn-ghost btn-sm" :disabled="gi === 0" @click="moverGrupo(gi, -1)">↑ Subir</button>
-                <button type="button" class="btn btn-ghost btn-sm" :disabled="gi === gruposForm.length - 1" @click="moverGrupo(gi, 1)">↓ Descer</button>
-                <button v-if="gi < gruposForm.length - 1" type="button" class="btn btn-ghost btn-sm" @click="conjugar(gi)">
-                  🔗 Incluir o próximo
-                </button>
-                <button type="button" class="btn btn-ghost btn-sm" @click="separar(gi)">Separar exercícios</button>
-              </div>
-            </div>
-          </template>
-
-          <div class="form-field" style="margin-top: 8px; max-width: 560px;">
-            <label>Adicionar exercício do catálogo</label>
-            <BuscaExercicio :catalogo="catalogo" @selecionar="adicionarExercicio" />
-          </div>
-          <p class="list-row-sub" style="margin-top: 8px;">
-            Para um bi-set, tri-set ou circuito, adicione os exercícios em sequência e use “Conjugar com o próximo”.
-          </p>
+          <FichaTreinoEditor v-model:grupos="gruposForm" :catalogo="catalogo" @exercicio-criado="(e) => catalogo.push(e)" />
 
           <div class="revisao-actions">
             <button type="button" class="btn btn-ghost" @click="cancelarEdicao">Cancelar</button>
@@ -593,41 +428,5 @@ function alternarExpandido(ficha) {
   text-transform: uppercase;
   letter-spacing: .03em;
   margin: 8px 0 10px;
-}
-.posicao {
-  flex: none;
-  min-width: 26px;
-  height: 26px;
-  padding: 0 6px;
-  border-radius: var(--radius-full);
-  background: var(--color-primary-light);
-  color: var(--color-primary-dark);
-  font-size: 12px;
-  font-weight: 700;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.grupo-conjugado {
-  border: 1px solid var(--color-border);
-  border-left: 4px solid var(--color-primary);
-  border-radius: var(--radius-md);
-  padding: 4px 18px 14px;
-  margin-bottom: 12px;
-  background: var(--color-surface);
-}
-.grupo-item-edicao {
-  border-top: 1px dashed var(--color-border);
-  margin-top: 12px;
-  padding-top: 12px;
-}
-.item-campos {
-  grid-template-columns: 1fr 2fr;
-}
-.grupo-acoes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
 }
 </style>

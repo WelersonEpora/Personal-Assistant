@@ -17,6 +17,7 @@ router.post("/:id/sincronizar", upload.any(), registroController.sincronizar);
 router.get("/:id/entradas/:entradaId/audio", registroController.streamAudio);
 router.post("/:id/confirmar", registroController.confirmar);
 router.post("/:id/confirmar-avaliacao-fisica", registroController.confirmarAvaliacaoFisica);
+router.post("/:id/confirmar-ficha-treino", registroController.confirmarFichaTreino);
 router.post("/:id/reprocessar", registroController.reprocessar);
 router.delete("/:id", registroController.excluir);
 

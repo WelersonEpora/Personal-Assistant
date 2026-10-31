@@ -20,7 +20,12 @@ import {
   rotuloPosicao,
   contarExercicios,
   situacaoInativa,
-  ordenarPorNome
+  ordenarPorNome,
+  itemNaoReconhecido,
+  formularioDaProposta,
+  definirExercicioDoItem,
+  contarSemExercicio,
+  sugerirSubstituicao
 } from './fichaTreino.js'
 
 const SUPINO = { id: 'ex-supino', nome: 'Supino' }
@@ -176,4 +181,77 @@ test('contarExercicios, situacaoInativa e ordenarPorNome', () => {
   assert.equal(situacaoInativa(fichas[2], fichas), 'arquivada')
 
   assert.deepEqual(ordenarPorNome([{ nome: 'superiores' }, { nome: 'Inferiores' }]).map((f) => f.nome), ['Inferiores', 'superiores'])
+})
+
+// ------------------------------------------- ficha por voz (docs/adr/0028)
+
+const CATALOGO_POR_ID = new Map([
+  ['ex-supino', { id: 'ex-supino', nome: 'Supino', grupo_muscular: 'Peito' }],
+  ['ex-corda', { id: 'ex-corda', nome: 'Tríceps corda', grupo_muscular: 'Tríceps' }],
+  ['ex-testa', { id: 'ex-testa', nome: 'Tríceps testa', grupo_muscular: 'Tríceps' }]
+])
+
+test('formularioDaProposta: resolve exercícios do catálogo e mantém o rastro da fala', () => {
+  const grupos = formularioDaProposta(
+    {
+      grupos: [
+        { tipo: 'simples', series: 4, descanso: '60s', itens: [{ exercicio_id: 'ex-supino', nome_ouvido: 'supino', repeticoes: '10', carga_obs: '20kg', confianca: 'alta', trecho_origem: 'supino quatro de dez' }] },
+        { tipo: 'biset', series: 3, itens: [{ exercicio_id: 'ex-corda', confianca: 'media' }, { exercicio_id: 'ex-testa', confianca: 'alta' }] }
+      ]
+    },
+    CATALOGO_POR_ID
+  )
+  assert.equal(grupos[0].itens[0].nome, 'Supino')
+  assert.deepEqual(
+    [grupos[0].series, grupos[0].descanso, grupos[0].itens[0].repeticoes, grupos[0].itens[0].cargaObs, grupos[0].itens[0].trecho],
+    [4, '60s', '10', '20kg', 'supino quatro de dez']
+  )
+  assert.equal(grupos[1].tipo, 'biset')
+  assert.equal(grupos[1].itens[0].confianca, 'media')
+})
+
+test('formularioDaProposta: sem exercício (ou fora do catálogo) vira item não reconhecido', () => {
+  const [grupo] = formularioDaProposta(
+    {
+      grupos: [
+        {
+          tipo: 'biset',
+          itens: [
+            { exercicio_id: null, nome_ouvido: 'puxada no triângulo', repeticoes: '12' },
+            { exercicio_id: 'ex-que-saiu-do-catalogo', nome_ouvido: 'remada' }
+          ]
+        }
+      ]
+    },
+    CATALOGO_POR_ID
+  )
+  assert.deepEqual(
+    grupo.itens.map((i) => [i.exercicioId, i.nomeOuvido, i.confianca]),
+    [[null, 'puxada no triângulo', 'baixa'], [null, 'remada', 'baixa']]
+  )
+  assert.equal(grupo.itens[0].repeticoes, '12')
+  assert.equal(contarSemExercicio([grupo]), 2)
+  assert.match(problemaDoFormulario({ nome: 'A', grupos: [grupo] }), /2 itens não reconhecidos/)
+})
+
+test('definirExercicioDoItem: troca o exercício e preserva repetições, carga e fala', () => {
+  const grupos = [grupoSimples(itemNaoReconhecido({ nomeOuvido: 'puxada no triângulo', repeticoes: '12', cargaObs: '30kg', trecho: 'puxada no triângulo doze' }))]
+  const chave = grupos[0].itens[0].chave
+
+  const [grupo] = definirExercicioDoItem(grupos, 0, 0, { id: 'ex-supino', nome: 'Supino', grupo_muscular: 'Peito' })
+  const item = grupo.itens[0]
+  assert.deepEqual(
+    [item.exercicioId, item.nome, item.repeticoes, item.cargaObs, item.nomeOuvido, item.confianca, item.chave],
+    ['ex-supino', 'Supino', '12', '30kg', 'puxada no triângulo', 'alta', chave]
+  )
+  assert.equal(contarSemExercicio([grupo]), 0)
+  assert.equal(grupos[0].itens[0].exercicioId, null, 'não muta o original')
+})
+
+test('sugerirSubstituicao: casa o nome ditado com uma ficha ativa, sem acento nem caixa', () => {
+  const ativas = [{ id: 'f-a', nome: 'Treino A' }, { id: 'f-inf', nome: 'Inferiores' }]
+  assert.equal(sugerirSubstituicao('treino a', ativas), 'f-a')
+  assert.equal(sugerirSubstituicao(' INFERIÓRES ', ativas), 'f-inf')
+  assert.equal(sugerirSubstituicao('Treino B', ativas), null)
+  assert.equal(sugerirSubstituicao('', ativas), null)
 })

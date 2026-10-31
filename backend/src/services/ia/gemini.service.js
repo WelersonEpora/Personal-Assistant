@@ -587,6 +587,102 @@ async function interpretarAvaliacaoFisica({ contextoConsolidado, catalogo }) {
   };
 }
 
+// docs/adr/0028-ficha-de-treino-por-captura-e-ia.md: interpretador da ficha de
+// treino DITADA. A IA estrutura a prescrição que o personal falou - não
+// escolhe exercício, série, carga nem descanso. O catálogo vai com referências
+// curtas (E1, E2…, services/ficha-treino/interpretacao.js); a tradução para
+// exercicio_id e a limpeza da resposta são feitas fora daqui. O resultado é uma
+// PROPOSTA - nunca dado oficial (docs/adr/0007).
+const SCHEMA_FICHA_TREINO_IA = {
+  type: "object",
+  properties: {
+    fichas: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          nome: { type: "string" },
+          observacoes: { type: "string" },
+          grupos: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                tipo: { type: "string", enum: ["simples", "biset", "triset", "circuito"] },
+                series: { type: "integer" },
+                descanso: { type: "string" },
+                observacoes: { type: "string" },
+                itens: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      exercicio_ref: { type: "string" },
+                      nome_ouvido: { type: "string" },
+                      repeticoes: { type: "string" },
+                      carga_obs: { type: "string" },
+                      confianca: { type: "string", enum: ["alta", "media", "baixa"] },
+                      trecho_origem: { type: "string" }
+                    },
+                    required: ["exercicio_ref", "nome_ouvido", "confianca"]
+                  }
+                }
+              },
+              required: ["tipo", "itens"]
+            }
+          }
+        },
+        required: ["nome", "grupos"]
+      }
+    },
+    avisos: { type: "array", items: { type: "string" } }
+  },
+  required: ["fichas"]
+};
+
+const INSTRUCAO_INTERPRETACAO_FICHA_TREINO = `Você ajuda um personal trainer a estruturar a FICHA DE TREINO que ele ditou para um aluno.
+Considere APENAS o que foi dito abaixo (áudios transcritos e/ou textos, na ordem de captura). Você NÃO monta treino: só organiza o que o personal prescreveu. NUNCA invente exercício, série, repetição, carga ou descanso.
+
+Estrutura da resposta:
+- "fichas": uma ficha para cada treino nomeado que o personal ditou ("Treino A", "Treino B", "Inferiores", "Superiores"…), na ordem em que foram ditados. Se ele não deu nome nenhum, devolva UMA ficha com "nome" vazio. Nunca divida em fichas o que ele não dividiu.
+- "grupos" de cada ficha, na ordem ditada. Um exercício isolado é um grupo "simples" com um item. Exercícios que o personal disse para fazer em sequência ("bi-set", "tri-set", "circuito", "conjugado com", "emenda com") formam UM grupo com vários itens, com "tipo" "biset" (2), "triset" (3) ou "circuito" (2 ou mais, quando ele disser circuito).
+- "series" do grupo: o número de séries (grupo simples) ou de voltas (grupo conjugado). Em "quatro de dez" ou "4x10", 4 são as séries e "10" as repetições. Omita se não foi dito.
+- "descanso" do grupo: como foi dito, curto ("60s", "1min30"). Vazio se não foi dito.
+- Para cada item:
+  - "exercicio_ref": a referência EXATA (E1, E2…) do exercício do catálogo abaixo que corresponde ao que foi dito - pelo nome ou por qualquer um dos nomes em "também chamado". Se nenhum corresponder com segurança, use "" (string vazia). NUNCA invente referência e nunca escolha um exercício "parecido" só para preencher.
+  - "nome_ouvido": o nome do exercício como o personal falou, curto e limpo (sem séries, cargas ou números). Ex.: "puxada no triângulo".
+  - "repeticoes": como foi dito, curto ("10", "12 a 15", "30s", "até a falha"). Vazio se não foi dito.
+  - "carga_obs": carga e observações do exercício ("20 kg", "cadência lenta", "aumentar na última série"). Vazio se não foi dito.
+  - "confianca": "alta" quando o exercício e os números estão claros; "media" quando houve inferência razoável; "baixa" quando ficou incerto.
+  - "trecho_origem": a parte da fala de onde o item saiu.
+- "observacoes" da ficha: orientação geral da ficha que não é de um exercício (vazio se não houver).
+- "avisos": frases curtas sobre o que foi dito e NÃO deu para estruturar (ex.: "carga do supino ficou ambígua"). Lista vazia se não houver.
+
+CATÁLOGO DE EXERCÍCIOS (use apenas estas referências):
+{CATALOGO}`;
+
+// Contexto consolidado + catálogo já com referências curtas -> resposta bruta
+// (traduzida e limpa por services/ficha-treino/interpretacao.js no worker).
+async function interpretarFichaTreino({ contextoConsolidado, catalogoTexto }) {
+  const instrucao = INSTRUCAO_INTERPRETACAO_FICHA_TREINO.replace("{CATALOGO}", catalogoTexto);
+
+  const resposta = await gerarConteudo({
+    model: env.gemini.model,
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: `${instrucao}\n\n---\nConteúdo do Registro (na ordem de captura):\n${contextoConsolidado}` }]
+      }
+    ],
+    // Temperatura 0: é transcrição estruturada, não criação - no teste com
+    // Gemini real, o default variava entre execuções (fichas truncadas, séries
+    // trocadas).
+    config: { responseMimeType: "application/json", responseSchema: SCHEMA_FICHA_TREINO_IA, temperature: 0 }
+  });
+
+  return JSON.parse(resposta.text);
+}
+
 // docs/adr/0022-radar-atualizacao-profissional.md: a "fofoqueira científica".
 // UMA chamada com Google Search grounding - a IA vigia as fontes da allowlist
 // e avisa quando acha algo que pode interessar a um personal. NÃO usa
@@ -699,6 +795,7 @@ module.exports = {
   transcreverAudio,
   interpretarRegistro,
   interpretarAvaliacaoFisica,
+  interpretarFichaTreino,
   gerarAvaliacaoMensal,
   gerarAnaliseSobDemanda,
   buscarRadar,

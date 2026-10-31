@@ -13,6 +13,8 @@
 const { Op, literal } = require("sequelize");
 const { Registro, Aluno, Usuario, Membro } = require("../models");
 
+const TIPOS_DE_ATIVIDADE = [Registro.TIPOS.ATENDIMENTO, Registro.TIPOS.AVALIACAO_FISICA];
+
 // Filtro base: sempre escopo de equipe + soft-delete + janela de data. `de` e
 // `ate` são "AAAA-MM-DD" (inclusive nos dois extremos).
 function construirWhere({ equipeId, de, ate, alunoId, usuarioId, tipo, somenteConfirmados }) {
@@ -25,7 +27,9 @@ function construirWhere({ equipeId, de, ate, alunoId, usuarioId, tipo, somenteCo
   // docs/adr/0020 (adendo): `usuario_id` = "quem capturou o Registro"
   // (auditoria, docs/adr/0011) - lente por personal, não controle de acesso.
   if (usuarioId) where.usuario_id = usuarioId;
-  if (tipo) where.tipo = tipo;
+  // Só as duas trilhas: a ficha ditada (docs/adr/0028) é prescrição, não
+  // atividade com o aluno - sem isto, quem só teve ficha apareceria zerado.
+  where.tipo = tipo || { [Op.in]: TIPOS_DE_ATIVIDADE };
   if (somenteConfirmados) where.status = Registro.STATUS.CONFIRMADO;
   return where;
 }

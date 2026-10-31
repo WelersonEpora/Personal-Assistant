@@ -276,6 +276,15 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
   Personal Trainer" sem decisão explícita — o modelo atual é provisório
   (ADR-0008). Já decididos e implementados: catálogo de exercícios/ficha
   (ADR-0013) e avaliação física + importação do BodyMove (ADR-0016).
+- **Ficha de treino por voz (ADR-0028): a IA estrutura, nunca prescreve.**
+  Registro `tipo = ficha_treino` → `proposta_ficha_treino` (staging, escrita só
+  pelo worker) → revisão → `POST /registros/:id/confirmar-ficha-treino`, que
+  cria as fichas pelo `fichaTreino.service` (com `registro_id`) numa transação
+  com o avanço do status — todas ou nenhuma; nunca escreve `validacao`, e nenhum
+  worker escreve `ficha_treino*`. O catálogo vai ao prompt com referências
+  curtas (E1, E2…), nunca UUID. Registro de ficha não é relato: fica fora da
+  Linha do Tempo, de Atendimentos, do "último relato"/feed do painel e do
+  Acompanhamento Mensal. "IA sugerindo/montando treinos" continua fora de escopo.
 - **Avaliação física nunca vira `validacao` e nenhum job/worker escreve em
   `avaliacao_fisica*`** (ADR-0016) — é dado objetivo do personal, CRUD direto
   como `avaliacao_personal`. Métricas derivadas (`imc`, `rcq`, `massa_gorda`,
@@ -406,6 +415,7 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
 | 0025 | Avaliação física do mês como contexto do Acompanhamento Mensal |
 | 0026 | Exercícios conjugados na Ficha de Treino e várias fichas ativas por aluno |
 | 0027 | Apelidos de exercício e catálogo global revisado |
+| 0028 | Ficha de Treino por captura (áudio/texto) + interpretação da IA |
 
 ## Estado atual
 
@@ -510,7 +520,16 @@ MVP completo e verificado de ponta a ponta:
   `…-seed-exercicios-globais-v2.js`, dados em `database/dados/`): 87 originais
   com o mesmo id e nome de academia + 25 novos = 112, ~290 apelidos; não renomeia
   global que o personal já corrigiu pela tela.
-  373 testes automatizados (`node --test`, unitários +
+  Ficha de treino por voz (docs/adr/0028): `registro.tipo = ficha_treino`,
+  `interpretarFichaTreino` no `gemini.service` (`temperature: 0`; catálogo da
+  equipe + apelidos no prompt), tradução/limpeza pura em
+  `services/ficha-treino/interpretacao.js` (referência curta → `exercicio_id`;
+  inventada → não reconhecido; tipo do grupo pela quantidade), tabela
+  `proposta_ficha_treino`, `ficha_treino.registro_id`, endpoint
+  `POST /registros/:id/confirmar-ficha-treino` (`fichas[]`, todas ou nenhuma;
+  `fichaTreino.service.criarNovaVersao` aceita transação externa). "Refazer
+  interpretação" vale também a partir de `aguardando_revisao`.
+  384 testes automatizados (`node --test`, unitários +
   integração contra banco de teste dedicado).
 - **Frontend**: app Vue 3 + Vite + PWA único (`/captura` mobile-first
   offline, `/admin` gestão/validação), IndexedDB + fila de sincronização
@@ -611,7 +630,16 @@ MVP completo e verificado de ponta a ponta:
   linha, "×" só nos da equipe) e busca por nome/apelido sem acento; no editor
   da ficha o `<select>` virou `components/BuscaExercicio.vue` (util puro
   `utils/buscaExercicio.js`).
-  115 testes automatizados (`node --test` + `fake-indexeddb`; +
+  Ficha por voz (docs/adr/0028): terceiro tipo no seletor da captura
+  ("Ficha de treino", acento laranja `--color-ficha`, `RoteiroDitado` com
+  `tipo`); textos por tipo no mapa `TEXTOS_TIPO` do `CapturaView` (o campo de
+  título do Registro saiu da captura — ninguém preenchia). Editor da ficha
+  extraído para `components/FichaTreinoEditor.vue` (usado no `FichaTreinoSecao`
+  e na revisão), que resolve item não reconhecido: busca no catálogo com
+  "salvar como apelido", ou cadastro rápido (nome + grupo). Revisão em
+  `components/revisao/RevisaoFichaTreino.vue`: uma seção por ficha, "Nova ficha"
+  / "Substituir" sugerido pelo nome, avisos da IA, ouvir áudio.
+  119 testes automatizados (`node --test` + `fake-indexeddb`; +
   `echarts-option-builder.test.js`, `echarts-bar-option-builder.test.js`,
   `periodos.test.js`, `avaliacaoFisica.test.js`, `gravacaoVoz.test.js`,
   `avaliacaoMensalCompartilhada.test.js`, `registroStatus.test.js`,

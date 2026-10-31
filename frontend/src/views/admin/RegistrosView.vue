@@ -11,7 +11,8 @@ import {
   formatarData,
   formatarHora,
   formatarDataAtendimento,
-  temVariosPersonais
+  temVariosPersonais,
+  tipoMeta
 } from '../../utils/registroStatus.js'
 import { useToasts } from '../../composables/useToasts.js'
 import { useConfirm } from '../../composables/useConfirm.js'
@@ -195,7 +196,15 @@ async function reprocessarRegistro(registro) {
           <div class="registro-card-who">
             <span class="avatar sz-sm" :style="{ background: corParaId(registro.aluno?.id) }">{{ iniciais(registro.aluno?.nome) }}</span>
             <div>
-              <div class="list-row-title">{{ registro.aluno?.nome }} — Atendimento em {{ formatarDataAtendimento(registro.data_atendimento) }}</div>
+              <!-- docs/adr/0018/0028 - avaliação e ficha ditadas não têm "data do atendimento" própria. -->
+              <div class="list-row-title">
+                {{ registro.aluno?.nome }} —
+                <template v-if="tipoMeta(registro.tipo).tipo === 'atendimento'">Atendimento em {{ formatarDataAtendimento(registro.data_atendimento) }}</template>
+                <template v-else>
+                  {{ tipoMeta(registro.tipo).label }}
+                  <span class="badge" :class="'badge-' + tipoMeta(registro.tipo).badge" style="font-size: 10px;">{{ tipoMeta(registro.tipo).icon }} {{ tipoMeta(registro.tipo).chip }}</span>
+                </template>
+              </div>
               <div class="list-row-sub">
                 {{ registro.titulo || 'Sem título' }} · registrado {{ formatarData(registro.created_at) }} às {{ formatarHora(registro.iniciado_em) }}
                 <span v-if="mostrarPersonal && registro.usuario?.nome"> · por {{ registro.usuario.nome }}</span>

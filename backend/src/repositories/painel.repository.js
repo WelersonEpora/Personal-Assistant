@@ -19,6 +19,11 @@ const {
   Membro
 } = require("../models");
 
+// Ficha ditada (docs/adr/0028) é prescrição, não relato: fica fora do "último
+// relato", da contagem de capturados e do feed. Pendente de revisão, aparece
+// em "Ação necessária" como qualquer Registro.
+const FICHA_TREINO = Registro.TIPOS.FICHA_TREINO;
+
 // --------------------------------------------------------------- contadores
 
 // A equipe tem mais de um personal ativo? Liga o "por {personal}" no feed e
@@ -60,7 +65,7 @@ function contarRelatosEmProcessamento(equipeId) {
 // `desde`, qualquer status.
 function contarRelatosCapturadosDesde(equipeId, desde) {
   return Registro.count({
-    where: { equipe_id: equipeId, deletado_em: null, created_at: { [Op.gte]: desde } }
+    where: { equipe_id: equipeId, deletado_em: null, created_at: { [Op.gte]: desde }, tipo: { [Op.ne]: FICHA_TREINO } }
   });
 }
 
@@ -122,7 +127,7 @@ function listarAlunosAtivosComIndicadores(equipeId) {
         // docs/adr/0019: "último relato" / "aluno parado" olham QUANDO o
         // atendimento aconteceu (data_atendimento), não quando o relato entrou.
         literal(
-          '(SELECT MAX(r.data_atendimento) FROM registro r WHERE r.aluno_id = "Aluno".id AND r.deletado_em IS NULL)'
+          `(SELECT MAX(r.data_atendimento) FROM registro r WHERE r.aluno_id = "Aluno".id AND r.deletado_em IS NULL AND r.tipo <> '${FICHA_TREINO}')`
         ),
         "ultimo_relato_em"
       ],
@@ -187,7 +192,7 @@ function listarAvaliacoesMensaisSemDados(equipeId, anoMes) {
 // lançamento entrou no sistema, não a data do evento em si (docs/adr/0017).
 function relatosRecentes(equipeId, limite, desde) {
   return Registro.findAll({
-    where: { equipe_id: equipeId, deletado_em: null, created_at: { [Op.gte]: desde } },
+    where: { equipe_id: equipeId, deletado_em: null, created_at: { [Op.gte]: desde }, tipo: { [Op.ne]: FICHA_TREINO } },
     attributes: ["id", "titulo", "status", "iniciado_em", "data_atendimento", "created_at"],
     include: [
       { model: Aluno, as: "aluno", attributes: ["id", "nome"] },

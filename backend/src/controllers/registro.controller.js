@@ -4,6 +4,7 @@ const registroService = require("../services/registro.service");
 const registroSyncService = require("../services/registro-sync.service");
 const registroConfirmacaoService = require("../services/registro-confirmacao.service");
 const registroAvaliacaoFisicaConfirmacaoService = require("../services/registro-avaliacao-fisica-confirmacao.service");
+const registroFichaTreinoConfirmacaoService = require("../services/registro-ficha-treino-confirmacao.service");
 const { success } = require("../shared/utils/api-response");
 const { ValidationError } = require("../shared/errors");
 
@@ -79,6 +80,17 @@ async function confirmarAvaliacaoFisica(req, res) {
   success(res, resultado, { statusCode: 201 });
 }
 
+// docs/adr/0028 - fichas de treino ditadas; não escreve `validacao`.
+async function confirmarFichaTreino(req, res) {
+  const resultado = await registroFichaTreinoConfirmacaoService.confirmar({
+    usuarioId: req.usuarioId,
+    equipeId: req.equipeId,
+    registroId: req.params.id,
+    payload: req.body || {}
+  });
+  success(res, resultado, { statusCode: 201 });
+}
+
 async function excluir(req, res) {
   await registroService.excluir(req.equipeId, req.params.id);
   success(res, { id: req.params.id });
@@ -96,6 +108,7 @@ module.exports = {
   streamAudio,
   confirmar,
   confirmarAvaliacaoFisica,
+  confirmarFichaTreino,
   excluir,
   reprocessar
 };

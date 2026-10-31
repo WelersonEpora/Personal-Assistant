@@ -10,6 +10,8 @@ const {
   ResultadoIa,
   Validacao,
   PropostaAvaliacaoFisica,
+  PropostaFichaTreino,
+  FichaTreino,
   AvaliacaoFisica,
   Aluno,
   Usuario
@@ -121,7 +123,10 @@ function obterDetalhado(id) {
       { model: Validacao, as: "validacao" },
       // docs/adr/0018 - só preenchidos para tipo = avaliacao_fisica.
       { model: PropostaAvaliacaoFisica, as: "propostaAvaliacaoFisica" },
-      { model: AvaliacaoFisica, as: "avaliacaoFisica" }
+      { model: AvaliacaoFisica, as: "avaliacaoFisica" },
+      // docs/adr/0028 - só preenchidos para tipo = ficha_treino.
+      { model: PropostaFichaTreino, as: "propostaFichaTreino" },
+      { model: FichaTreino, as: "fichasTreino", attributes: ["id", "nome", "ativo", "created_at"] }
     ]
   });
 }

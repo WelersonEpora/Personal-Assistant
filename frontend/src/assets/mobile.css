@@ -146,17 +146,6 @@
 .idle-icons { font-size: 30px; letter-spacing: 6px; opacity: .9; }
 .idle-title { font-size: 17px; font-weight: 800; }
 .idle-subtitle { font-size: 13px; color: var(--color-text-secondary); max-width: 260px; line-height: 1.5; }
-.registro-title-input {
-  width: 100%; max-width: 280px;
-  border: 1px dashed var(--color-border-strong);
-  border-radius: var(--radius-md);
-  padding: 10px 14px;
-  font-size: 13px;
-  text-align: center;
-  background: var(--color-surface);
-  color: var(--color-text);
-}
-.registro-title-input::placeholder { color: var(--color-text-faint); }
 .start-registro-btn {
   width: 100%; max-width: 280px;
   padding: 15px 20px;
@@ -174,12 +163,17 @@
   background: linear-gradient(180deg, var(--color-avaliacao), var(--color-avaliacao-dark));
   box-shadow: 0 10px 24px rgba(13, 148, 136, .3);
 }
+.start-registro-btn-ficha {
+  background: linear-gradient(180deg, var(--color-ficha), var(--color-ficha-dark));
+  box-shadow: 0 10px 24px rgba(234, 88, 12, .3);
+}
 
-/* docs/adr/0018 - seletor de tipo do Registro (antes de iniciar) */
+/* docs/adr/0018 - seletor de tipo do Registro (antes de iniciar);
+   terceira opção (ficha de treino) pela docs/adr/0028 */
 .tipo-picker {
-  width: 100%; max-width: 280px;
+  width: 100%; max-width: 340px;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
 }
 .tipo-opt {
@@ -199,6 +193,7 @@
 .tipo-opt-desc { font-size: 9px; color: var(--color-text-faint); }
 .tipo-opt.ativo { border-color: var(--color-primary); background: var(--color-primary-light); }
 .tipo-opt-avaliacao.ativo { border-color: var(--color-avaliacao); background: var(--color-avaliacao-light); }
+.tipo-opt-ficha.ativo { border-color: var(--color-ficha); background: var(--color-ficha-light); }
 
 .idle-em-andamento {
   font-size: 11.5px;
@@ -243,6 +238,19 @@
 .composer-view.tipo-avaliacao .composer-input:focus {
   outline-color: var(--color-avaliacao-light);
   border-color: var(--color-avaliacao);
+}
+
+/* docs/adr/0028 - Registro tipo "ficha de treino": acento laranja no composer */
+.composer-view.tipo-ficha .registro-header { background: var(--color-ficha-light); }
+.composer-view.tipo-ficha .registro-header-dot { background: var(--color-ficha); }
+.composer-view.tipo-ficha .registro-header-title,
+.composer-view.tipo-ficha .registro-header-sub,
+.composer-view.tipo-ficha .registro-header-close { color: var(--color-ficha-dark); }
+.composer-view.tipo-ficha .entry-bubble.audio .entry-bubble-icon { background: var(--color-ficha-light); }
+.composer-view.tipo-ficha .mic-send-btn:not(.recording) { background: var(--color-ficha); }
+.composer-view.tipo-ficha .composer-input:focus {
+  outline-color: var(--color-ficha-light);
+  border-color: var(--color-ficha);
 }
 
 .entries-scroll {
@@ -480,6 +488,7 @@
   background: var(--color-avaliacao-light); color: var(--color-avaliacao-dark);
   white-space: nowrap;
 }
+.recent-item-tipo-ficha { background: var(--color-ficha-light); color: var(--color-ficha-dark); }
 .recent-item-titulo { font-size: 11.5px; color: var(--color-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .recent-item-iniciado { font-size: 10.5px; color: var(--color-text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .recent-item-meta { display: flex; align-items: center; gap: 6px; flex: none; }

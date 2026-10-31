@@ -53,6 +53,8 @@ function relatoResumo(registro) {
     aluno: registro.aluno ? { id: registro.aluno.id, nome: registro.aluno.nome } : null,
     usuario: registro.usuario ? { id: registro.usuario.id, nome: registro.usuario.nome } : null,
     titulo: registro.titulo || null,
+    // docs/adr/0018/0028 - a "Ação necessária" marca avaliação e ficha ditadas.
+    tipo: registro.tipo,
     status: registro.status,
     iniciado_em: registro.iniciado_em,
     data_atendimento: registro.data_atendimento,

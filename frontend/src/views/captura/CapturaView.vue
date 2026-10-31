@@ -54,10 +54,43 @@ const alunos = ref([])
 const alunoAtualId = ref(null)
 const sheetAberto = ref(false)
 // docs/adr/0018 - tipo escolhido ANTES de iniciar (nunca inferido depois).
-const TIPOS_VALIDOS = ['atendimento', 'avaliacao_fisica']
+// `ficha_treino` pela docs/adr/0028. Textos e acento de cor de cada tipo, no
+// seletor e no composer.
+const TEXTOS_TIPO = {
+  atendimento: {
+    titulo: 'Pronto para registrar?',
+    subtitulo: 'Inicie um registro e adicione quantos áudios ou textos quiser — treino, observação, o que precisar.',
+    botao: 'Iniciar registro',
+    emAndamento: 'um registro',
+    cabecalho: 'Registro aberto',
+    vazio: 'Segure o microfone para gravar — arraste ↑ para travar —, ou digite um texto abaixo.',
+    placeholderTexto: 'Adicionar texto ao registro…',
+    acento: null
+  },
+  avaliacao_fisica: {
+    titulo: 'Nova avaliação física',
+    subtitulo: 'Grave as medidas que você coletou. A IA organiza; você confere e confirma antes de salvar.',
+    botao: 'Iniciar avaliação',
+    emAndamento: 'uma avaliação',
+    cabecalho: 'Avaliação física',
+    vazio: 'Segure o microfone e dite as medidas — arraste ↑ para travar —, ou digite abaixo.',
+    placeholderTexto: 'Dite ou digite as medidas…',
+    acento: 'avaliacao'
+  },
+  ficha_treino: {
+    titulo: 'Nova ficha de treino',
+    subtitulo: 'Dite a ficha — ou a divisão inteira. A IA organiza com os exercícios do catálogo; você confere e confirma antes de salvar.',
+    botao: 'Iniciar ficha',
+    emAndamento: 'uma ficha',
+    cabecalho: 'Ficha de treino',
+    vazio: 'Segure o microfone e dite a ficha — arraste ↑ para travar —, ou digite abaixo.',
+    placeholderTexto: 'Dite ou digite os exercícios…',
+    acento: 'ficha'
+  }
+}
+const TIPOS_VALIDOS = Object.keys(TEXTOS_TIPO)
 const tipoSelecionadoSalvo = localStorage.getItem(ULTIMO_TIPO_KEY)
 const tipoSelecionado = ref(TIPOS_VALIDOS.includes(tipoSelecionadoSalvo) ? tipoSelecionadoSalvo : 'atendimento')
-const registroTituloInput = ref('')
 const composerTexto = ref('')
 // docs/adr/0021 - máquina de estados do microfone (interação estilo WhatsApp):
 //   idle      -> parado
@@ -110,6 +143,8 @@ const registroEmAndamento = computed(
 const estagio = computed(() => (registroEmAndamento.value ? 'composer' : 'idle'))
 const podeIniciar = computed(() => Boolean(alunoAtualId.value) && !registroEmAndamento.value)
 const tipoEmAndamento = computed(() => tipoMeta(registroEmAndamento.value?.tipo))
+const textosSelecionado = computed(() => TEXTOS_TIPO[tipoSelecionado.value])
+const textosEmAndamento = computed(() => TEXTOS_TIPO[registroEmAndamento.value?.tipo] || TEXTOS_TIPO.atendimento)
 const micModo = computed(() => (composerTexto.value.trim() ? 'send' : 'mic'))
 const alunosComRegistroEmAndamento = computed(
   () => new Set(syncQueue.registrosLocais.filter((r) => r.status === 'em_andamento').map((r) => r.alunoId))
@@ -368,7 +403,10 @@ async function iniciarRegistro() {
   const registro = {
     id: gerarUuid(),
     alunoId: alunoAtualId.value,
-    titulo: registroTituloInput.value.trim(),
+    // Sem campo de título na captura (ninguém preenchia): o Registro nasce sem
+    // título e as telas mostram o tipo/aluno. A coluna continua - Registros
+    // antigos com título seguem exibindo.
+    titulo: '',
     tipo: tipoSelecionado.value,
     iniciadoEm: new Date().toISOString(),
     // docs/adr/0019 - default hoje; ajustável no composer (só atendimento).
@@ -376,7 +414,6 @@ async function iniciarRegistro() {
     status: 'em_andamento',
     entradas: []
   }
-  registroTituloInput.value = ''
   try {
     await syncQueue.salvarLocal(registro)
   } catch (err) {
@@ -712,16 +749,8 @@ async function descartar() {
           </template>
           <template v-else>
             <div class="idle-icons">🎙️ ⌨️</div>
-            <p class="idle-title">
-              {{ tipoSelecionado === 'avaliacao_fisica' ? 'Nova avaliação física' : 'Pronto para registrar?' }}
-            </p>
-            <p class="idle-subtitle">
-              {{
-                tipoSelecionado === 'avaliacao_fisica'
-                  ? 'Grave as medidas que você coletou. A IA organiza; você confere e confirma antes de salvar.'
-                  : 'Inicie um registro e adicione quantos áudios ou textos quiser — treino, observação, o que precisar.'
-              }}
-            </p>
+            <p class="idle-title">{{ textosSelecionado.titulo }}</p>
+            <p class="idle-subtitle">{{ textosSelecionado.subtitulo }}</p>
 
             <div class="tipo-picker" role="group" aria-label="Tipo de registro">
               <button
@@ -744,26 +773,29 @@ async function descartar() {
                 <span class="tipo-opt-nome">Avaliação física</span>
                 <span class="tipo-opt-desc">medidas coletadas</span>
               </button>
+              <button
+                type="button"
+                class="tipo-opt tipo-opt-ficha"
+                :class="{ ativo: tipoSelecionado === 'ficha_treino' }"
+                @click="tipoSelecionado = 'ficha_treino'"
+              >
+                <span class="tipo-opt-icone">🏋️</span>
+                <span class="tipo-opt-nome">Ficha de treino</span>
+                <span class="tipo-opt-desc">prescrição ditada</span>
+              </button>
             </div>
 
-            <input
-              v-model="registroTituloInput"
-              class="registro-title-input"
-              :placeholder="tipoSelecionado === 'avaliacao_fisica' ? 'Nota da avaliação (opcional)' : 'Título do registro (opcional)'"
-              aria-label="Título do registro (opcional)"
-              @keydown.enter="iniciarRegistro"
-            />
             <button
               class="start-registro-btn"
-              :class="{ 'start-registro-btn-avaliacao': tipoSelecionado === 'avaliacao_fisica' }"
+              :class="textosSelecionado.acento ? 'start-registro-btn-' + textosSelecionado.acento : ''"
               type="button"
               :disabled="!podeIniciar"
               @click="iniciarRegistro"
             >
-              ▶ {{ tipoSelecionado === 'avaliacao_fisica' ? 'Iniciar avaliação' : 'Iniciar registro' }}
+              ▶ {{ textosSelecionado.botao }}
             </button>
             <p v-if="alunoAtual && !podeIniciar" class="idle-em-andamento">
-              Já existe {{ tipoSelecionado === 'avaliacao_fisica' ? 'uma avaliação' : 'um registro' }} em andamento para {{ alunoAtual.nome }}.
+              Já existe {{ textosSelecionado.emAndamento }} em andamento para {{ alunoAtual.nome }}.
             </p>
           </template>
         </div>
@@ -789,11 +821,15 @@ async function descartar() {
                 <span class="recent-item-body">
                   <span class="recent-item-nome">
                     {{ item.aluno ? item.aluno.nome : 'Aluno' }}
-                    <span v-if="item.tipo === 'avaliacao_fisica'" class="recent-item-tipo">{{ tipoMeta(item.tipo).icon }} {{ tipoMeta(item.tipo).chip }}</span>
+                    <span
+                      v-if="tipoMeta(item.tipo).chip"
+                      class="recent-item-tipo"
+                      :class="{ 'recent-item-tipo-ficha': item.tipo === 'ficha_treino' }"
+                    >{{ tipoMeta(item.tipo).icon }} {{ tipoMeta(item.tipo).chip }}</span>
                   </span>
                   <span v-if="item.titulo" class="recent-item-titulo">{{ item.titulo }}</span>
                   <span class="recent-item-iniciado">
-                    <template v-if="item.tipo !== 'avaliacao_fisica' && item.dataAtendimento">Atendimento {{ rotuloDataAtendimento(item.dataAtendimento, { curto: true }) }} · </template>registrado {{ item.iniciadoLabel }}
+                    <template v-if="tipoMeta(item.tipo).tipo === 'atendimento' && item.dataAtendimento">Atendimento {{ rotuloDataAtendimento(item.dataAtendimento, { curto: true }) }} · </template>registrado {{ item.iniciadoLabel }}
                   </span>
                 </span>
                 <span class="recent-item-meta">
@@ -829,33 +865,29 @@ async function descartar() {
 
       <!-- ===================== registro aberto: composer ===================== -->
       <template v-else>
-        <div class="composer-view" :class="{ 'tipo-avaliacao': registroEmAndamento.tipo === 'avaliacao_fisica' }">
+        <div class="composer-view" :class="textosEmAndamento.acento ? 'tipo-' + textosEmAndamento.acento : ''">
           <div class="registro-header">
             <span class="registro-header-dot"></span>
             <span class="registro-header-body">
               <span class="registro-header-title">
-                {{ registroEmAndamento.tipo === 'avaliacao_fisica' ? 'Avaliação física' : 'Registro aberto' }} — {{ alunoAtual?.nome }}{{ registroEmAndamento.titulo ? ' · ' + registroEmAndamento.titulo : '' }}
+                {{ textosEmAndamento.cabecalho }} — {{ alunoAtual?.nome }}{{ registroEmAndamento.titulo ? ' · ' + registroEmAndamento.titulo : '' }}
               </span>
               <span class="registro-header-sub">{{ registroEmAndamento.entradas.length }} entrada(s)</span>
             </span>
             <button class="registro-header-close" type="button" title="Descartar registro" @click="descartar">✕</button>
           </div>
 
-          <RoteiroDitado v-if="registroEmAndamento.tipo === 'avaliacao_fisica'" />
+          <!-- docs/adr/0019: só atendimento tem seletor de data; avaliação e
+               ficha (docs/adr/0028) têm roteiro de ditado no lugar. -->
           <SeletorDataAtendimento
-            v-else
+            v-if="tipoEmAndamento.tipo === 'atendimento'"
             :model-value="registroEmAndamento.dataAtendimento"
             @update:model-value="definirDataAtendimento"
           />
+          <RoteiroDitado v-else :tipo="registroEmAndamento.tipo" />
 
           <div class="entries-scroll">
-            <div v-if="!registroEmAndamento.entradas.length" class="entries-empty">
-              {{
-                registroEmAndamento.tipo === 'avaliacao_fisica'
-                  ? 'Segure o microfone e dite as medidas — arraste ↑ para travar —, ou digite abaixo.'
-                  : 'Segure o microfone para gravar — arraste ↑ para travar —, ou digite um texto abaixo.'
-              }}
-            </div>
+            <div v-if="!registroEmAndamento.entradas.length" class="entries-empty">{{ textosEmAndamento.vazio }}</div>
             <div v-for="(entrada, indice) in registroEmAndamento.entradas" :key="entrada.ordem" class="entry-bubble" :class="entrada.tipo">
               <span class="entry-bubble-icon">{{ entrada.tipo === 'audio' ? '🎙️' : '⌨️' }}</span>
               <span class="entry-bubble-body">
@@ -885,7 +917,7 @@ async function descartar() {
                 <input
                   v-model="composerTexto"
                   class="composer-input"
-                  :placeholder="registroEmAndamento.tipo === 'avaliacao_fisica' ? 'Dite ou digite as medidas…' : 'Adicionar texto ao registro…'"
+                  :placeholder="textosEmAndamento.placeholderTexto"
                   aria-label="Adicionar texto ao registro"
                   @keydown.enter.prevent="adicionarTexto"
                 />

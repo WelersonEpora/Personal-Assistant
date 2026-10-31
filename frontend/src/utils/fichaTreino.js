@@ -126,6 +126,95 @@ export function moverItem(grupos, indiceGrupo, indiceItem, direcao) {
   return grupos.map((g, i) => (i === indiceGrupo ? { ...g, itens: moverNaLista(g.itens, indiceItem, direcao) } : g))
 }
 
+// ------------------------------------------- ficha por voz (docs/adr/0028)
+
+// Item que a IA não casou com o catálogo: fica no formulário sem exercício,
+// com o nome que o personal falou, até ele escolher ou cadastrar um.
+export function itemNaoReconhecido({ nomeOuvido = '', repeticoes = '', cargaObs = '', confianca = 'baixa', trecho = '' } = {}) {
+  return {
+    chave: novaChave(),
+    exercicioId: null,
+    nome: '',
+    grupoMuscular: '',
+    temImagemInicio: false,
+    temImagemFim: false,
+    midiaVideoUrl: null,
+    instrucoes: null,
+    repeticoes,
+    cargaObs,
+    nomeOuvido,
+    confianca,
+    trecho
+  }
+}
+
+// Uma ficha da proposta (payload_json.fichas[n]) -> grupos do formulário.
+// `catalogoPorId`: Map id -> exercício ativo; exercício que saiu do catálogo
+// desde a interpretação volta como não reconhecido.
+export function formularioDaProposta(fichaProposta, catalogoPorId) {
+  return (fichaProposta?.grupos || []).map((grupo) => {
+    const itens = (grupo.itens || []).map((item) => {
+      const extras = {
+        repeticoes: item.repeticoes || '',
+        cargaObs: item.carga_obs || ''
+      }
+      const exercicio = item.exercicio_id ? catalogoPorId.get(item.exercicio_id) : null
+      if (!exercicio) {
+        return itemNaoReconhecido({ ...extras, nomeOuvido: item.nome_ouvido || '', confianca: 'baixa', trecho: item.trecho_origem || '' })
+      }
+      return {
+        ...itemDoExercicio(exercicio, extras),
+        nomeOuvido: item.nome_ouvido || '',
+        confianca: item.confianca || 'media',
+        trecho: item.trecho_origem || ''
+      }
+    })
+    return {
+      chave: novaChave(),
+      tipo: tipoParaQuantidade(itens.length, grupo.tipo),
+      series: grupo.series ?? '',
+      descanso: grupo.descanso || '',
+      observacoes: grupo.observacoes || '',
+      itens
+    }
+  })
+}
+
+// Troca (ou define) o exercício de um item, mantendo repetições, carga e o
+// rastro da fala. Escolha do personal: confiança passa a "alta".
+export function definirExercicioDoItem(grupos, indiceGrupo, indiceItem, exercicio) {
+  return grupos.map((grupo, gi) => {
+    if (gi !== indiceGrupo) return grupo
+    const itens = grupo.itens.map((item, ii) => {
+      if (ii !== indiceItem) return item
+      const novo = itemDoExercicio(exercicio, { repeticoes: item.repeticoes, cargaObs: item.cargaObs })
+      return { ...novo, chave: item.chave, nomeOuvido: item.nomeOuvido || '', trecho: item.trecho || '', confianca: 'alta' }
+    })
+    return { ...grupo, itens }
+  })
+}
+
+export function contarSemExercicio(grupos) {
+  return grupos.reduce((total, grupo) => total + grupo.itens.filter((item) => !item.exercicioId).length, 0)
+}
+
+function normalizarNome(valor) {
+  return String(valor ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+// Sugestão de "substituir": a ficha ativa com o mesmo nome do que foi ditado
+// (sem acento/caixa). A decisão continua do personal.
+export function sugerirSubstituicao(nomeDitado, fichasAtivas) {
+  const alvo = normalizarNome(nomeDitado)
+  if (!alvo) return null
+  return fichasAtivas.find((ficha) => normalizarNome(ficha.nome) === alvo)?.id || null
+}
+
 // Corpo de POST /alunos/:id/fichas-treino.
 export function payloadDosGrupos(grupos) {
   const texto = (valor) => String(valor ?? '').trim() || null
@@ -146,6 +235,8 @@ export function payloadDosGrupos(grupos) {
 export function problemaDoFormulario({ nome, grupos }) {
   if (!String(nome ?? '').trim()) return 'Dê um nome à ficha — é o que diferencia uma ficha da outra.'
   if (!grupos.length) return 'Adicione pelo menos um exercício.'
+  const semExercicio = contarSemExercicio(grupos)
+  if (semExercicio) return `Escolha o exercício de ${semExercicio === 1 ? '1 item não reconhecido' : `${semExercicio} itens não reconhecidos`}.`
   return null
 }
 

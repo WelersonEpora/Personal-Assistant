@@ -51,6 +51,12 @@ module.exports = (sequelize) => {
       substitui_id: {
         type: DataTypes.UUID,
         allowNull: true
+      },
+      // docs/adr/0028: Registro de voz de onde a ficha nasceu (nulo = montada
+      // à mão). Gravado só na confirmação, pelo fichaTreino.service.
+      registro_id: {
+        type: DataTypes.UUID,
+        allowNull: true
       }
     },
     {

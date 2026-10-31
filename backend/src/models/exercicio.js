@@ -87,6 +87,7 @@ module.exports = (sequelize) => {
   Exercicio.associate = (models) => {
     Exercicio.belongsTo(models.Equipe, { foreignKey: "equipe_id", as: "equipe" });
     Exercicio.hasMany(models.FichaTreinoExercicio, { foreignKey: "exercicio_id", as: "itensFicha" });
+    Exercicio.hasMany(models.ExercicioApelido, { foreignKey: "exercicio_id", as: "apelidos" });
   };
 
   return Exercicio;

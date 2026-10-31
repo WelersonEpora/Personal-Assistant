@@ -3,7 +3,8 @@
 const exercicioRepository = require("../repositories/exercicio.repository");
 const storageExercicioImagem = require("./storage-exercicio-imagem.service");
 const { Exercicio } = require("../models");
-const { NotFoundError, ValidationError } = require("../shared/errors");
+const { NotFoundError, ValidationError, ConflictError } = require("../shared/errors");
+const { normalizarTexto } = require("../shared/utils/texto");
 
 function validarDificuldade(dificuldade) {
   if (dificuldade !== undefined && dificuldade !== null && dificuldade !== "" && !Exercicio.DIFICULDADES.includes(dificuldade)) {
@@ -145,7 +146,72 @@ async function removerImagem(equipeId, id, posicao) {
   return exercicioRepository.update(exercicio, { [campo]: null });
 }
 
+// ----------------------------------------------------------- apelidos
+// docs/adr/0027: qualquer membro dá apelido a um exercício visível (global
+// ou próprio) - o apelido é da equipe, o exercício global continua intacto.
+
+const TAMANHO_MAXIMO_APELIDO = 120;
+
+// Um nome ou apelido aponta para UM exercício só, no que a equipe enxerga -
+// senão a busca e a interpretação por voz não saberiam qual escolher.
+async function conferirAmbiguidade(equipeId, exercicio, apelidoNormalizado) {
+  if (normalizarTexto(exercicio.nome) === apelidoNormalizado) {
+    throw new ConflictError(`"${exercicio.nome}" já é o nome deste exercício.`);
+  }
+
+  const nomes = await exercicioRepository.listarNomesVisiveis(equipeId);
+  const mesmoNome = nomes.find((outro) => outro.id !== exercicio.id && normalizarTexto(outro.nome) === apelidoNormalizado);
+  if (mesmoNome) {
+    throw new ConflictError(`Já existe um exercício chamado "${mesmoNome.nome}".`, { exercicioId: mesmoNome.id });
+  }
+
+  const [existente] = await exercicioRepository.findApelidosVisiveisPorNormalizado(equipeId, apelidoNormalizado);
+  if (existente) {
+    const mensagem = existente.exercicio_id === exercicio.id
+      ? `"${existente.apelido}" já é apelido deste exercício.`
+      : `"${existente.apelido}" já é apelido de "${existente.exercicio.nome}".`;
+    throw new ConflictError(mensagem, { exercicioId: existente.exercicio_id });
+  }
+}
+
+async function adicionarApelido(equipeId, exercicioId, { apelido }) {
+  const texto = String(apelido ?? "").replace(/\s+/g, " ").trim();
+  if (!texto) {
+    throw new ValidationError('"apelido" é obrigatório.');
+  }
+  if (texto.length > TAMANHO_MAXIMO_APELIDO) {
+    throw new ValidationError(`"apelido" pode ter no máximo ${TAMANHO_MAXIMO_APELIDO} caracteres.`);
+  }
+
+  const exercicio = await getExercicio(equipeId, exercicioId);
+  const apelidoNormalizado = normalizarTexto(texto);
+  await conferirAmbiguidade(equipeId, exercicio, apelidoNormalizado);
+
+  try {
+    await exercicioRepository.criarApelido({ exercicioId, equipeId, apelido: texto, apelidoNormalizado });
+  } catch (err) {
+    // Corrida entre dois cadastros do mesmo apelido - uq_exercicio_apelido_equipe.
+    if (err.name === "SequelizeUniqueConstraintError") {
+      throw new ConflictError(`"${texto}" já é apelido de outro exercício da sua equipe.`);
+    }
+    throw err;
+  }
+  return exercicioRepository.findByIdComApelidos(exercicioId, equipeId);
+}
+
+async function removerApelido(equipeId, exercicioId, apelidoId) {
+  const apelido = await exercicioRepository.findApelidoDaEquipe({ id: apelidoId, exercicioId, equipeId });
+  if (!apelido) {
+    // Inclui o apelido global - não é removível por equipe nenhuma.
+    throw new NotFoundError("Apelido não encontrado, ou não pertence à sua equipe.");
+  }
+  await exercicioRepository.removerApelido(apelido);
+  return exercicioRepository.findByIdComApelidos(exercicioId, equipeId);
+}
+
 module.exports = {
+  adicionarApelido,
+  removerApelido,
   listExercicios,
   getExercicio,
   createExercicio,

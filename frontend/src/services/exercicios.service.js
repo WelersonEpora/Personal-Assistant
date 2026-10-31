@@ -50,4 +50,27 @@ async function removerImagem(id, posicao) {
   return data.data
 }
 
-export default { listar, obter, criar, atualizar, excluir, obterImagem, enviarImagem, removerImagem }
+// Apelidos da equipe (docs/adr/0027) - devolvem o exercício com a lista de
+// apelidos atualizada. Os globais vêm do catálogo e não são removíveis.
+async function adicionarApelido(id, apelido) {
+  const { data } = await http.post(`/api/v1/exercicios/${id}/apelidos`, { apelido })
+  return data.data
+}
+
+async function removerApelido(id, apelidoId) {
+  const { data } = await http.delete(`/api/v1/exercicios/${id}/apelidos/${apelidoId}`)
+  return data.data
+}
+
+export default {
+  listar,
+  obter,
+  criar,
+  atualizar,
+  excluir,
+  obterImagem,
+  enviarImagem,
+  removerImagem,
+  adicionarApelido,
+  removerApelido
+}

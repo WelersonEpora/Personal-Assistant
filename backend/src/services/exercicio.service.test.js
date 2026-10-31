@@ -7,7 +7,7 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const { randomUUID } = require("node:crypto");
 
-const { Equipe, Exercicio } = require("../models");
+const { Equipe, Exercicio, ExercicioApelido } = require("../models");
 const exercicioService = require("./exercicio.service");
 
 let equipeA;
@@ -67,7 +67,9 @@ test("createExercicio: cria sempre como exercício próprio da equipe (nunca glo
 // exceção for revertida, este teste volta a esperar rejeição.
 test("updateExercicio: TEMPORÁRIO - permite editar um exercício global (revisão do catálogo)", async (t) => {
   const nomeOriginal = exercicioGlobal.nome;
-  t.after(() => exercicioGlobal.update({ nome: nomeOriginal }));
+  // Pelo model, não pela instância: `exercicioGlobal` em memória ainda tem o
+  // nome original, então instance.update() não veria mudança e não gravaria.
+  t.after(() => Exercicio.update({ nome: nomeOriginal }, { where: { id: exercicioGlobal.id } }));
 
   const atualizado = await exercicioService.updateExercicio(equipeA.id, exercicioGlobal.id, { nome: "Supino reto (global) - corrigido" });
   assert.equal(atualizado.nome, "Supino reto (global) - corrigido");
@@ -179,4 +181,80 @@ test("removerImagem: limpa só a posição removida, mantendo a outra intacta", 
   const atualizado = await exercicioService.removerImagem(equipeA.id, criado.id, "inicio");
   assert.equal(atualizado.midia_imagem_inicio_caminho, null);
   assert.ok(atualizado.midia_imagem_fim_caminho, "imagem de fim deveria continuar cadastrada");
+});
+
+// ----------------------------------------------------------- apelidos (docs/adr/0027)
+
+// Nome único por execução - o banco de teste pode ter o catálogo global do seed.
+function nomeUnico(base) {
+  return `${base} ${randomUUID().slice(0, 8)}`;
+}
+
+test("adicionarApelido: apelido da equipe num exercício global aparece só para ela", async (t) => {
+  const apelido = nomeUnico("Supininho");
+  const resultado = await exercicioService.adicionarApelido(equipeA.id, exercicioGlobal.id, { apelido: `  ${apelido}  ` });
+  t.after(() => ExercicioApelido.destroy({ where: { exercicio_id: exercicioGlobal.id } }));
+
+  assert.deepEqual(resultado.apelidos.map((a) => a.apelido), [apelido], "apelido gravado sem os espaços das pontas");
+  assert.equal(resultado.apelidos[0].equipe_id, equipeA.id);
+
+  const listaDeA = await exercicioService.listExercicios(equipeA.id);
+  const listaDeB = await exercicioService.listExercicios(equipeB.id);
+  assert.equal(listaDeA.find((e) => e.id === exercicioGlobal.id).apelidos.length, 1);
+  assert.equal(listaDeB.find((e) => e.id === exercicioGlobal.id).apelidos.length, 0, "apelido de A não aparece para B");
+});
+
+test("adicionarApelido: o mesmo apelido aponta para um exercício só na equipe (ignora acento e caixa)", async (t) => {
+  const outro = await exercicioService.createExercicio(equipeA.id, { nome: nomeUnico("Remada da casa") });
+  t.after(async () => {
+    await ExercicioApelido.destroy({ where: { exercicio_id: [exercicioGlobal.id, outro.id] } });
+    await Exercicio.destroy({ where: { id: outro.id } });
+  });
+
+  const sufixo = randomUUID().slice(0, 8);
+  await exercicioService.adicionarApelido(equipeA.id, exercicioGlobal.id, { apelido: `Puxada Média ${sufixo}` });
+
+  await assert.rejects(
+    () => exercicioService.adicionarApelido(equipeA.id, outro.id, { apelido: `puxada media ${sufixo}` }),
+    (err) => err.statusCode === 409 && /já é apelido de "Supino reto \(global\)"/.test(err.message)
+  );
+  // Outra equipe tem o próprio vocabulário - o mesmo apelido vale lá.
+  await exercicioService.adicionarApelido(equipeB.id, exercicioGlobal.id, { apelido: `puxada media ${sufixo}` });
+});
+
+test("adicionarApelido: rejeita apelido igual ao nome de outro exercício visível ou ao próprio nome", async (t) => {
+  const outro = await exercicioService.createExercicio(equipeA.id, { nome: nomeUnico("Serrote da casa") });
+  t.after(() => Exercicio.destroy({ where: { id: outro.id } }));
+
+  await assert.rejects(
+    () => exercicioService.adicionarApelido(equipeA.id, exercicioGlobal.id, { apelido: outro.nome.toUpperCase() }),
+    (err) => err.statusCode === 409 && /Já existe um exercício chamado/.test(err.message)
+  );
+  await assert.rejects(
+    () => exercicioService.adicionarApelido(equipeA.id, exercicioGlobal.id, { apelido: "supino reto (GLOBAL)" }),
+    (err) => err.statusCode === 409 && /já é o nome deste exercício/.test(err.message)
+  );
+});
+
+test("adicionarApelido: rejeita apelido vazio e exercício de outra equipe", async () => {
+  await assert.rejects(() => exercicioService.adicionarApelido(equipeA.id, exercicioGlobal.id, { apelido: "   " }), /obrigatório/);
+  await assert.rejects(() => exercicioService.adicionarApelido(equipeA.id, exercicioDeB.id, { apelido: "qualquer" }), /não encontrado/);
+});
+
+test("removerApelido: remove o da própria equipe; o global e o de outra equipe não", async (t) => {
+  const global = await ExercicioApelido.create({
+    exercicio_id: exercicioGlobal.id,
+    equipe_id: null,
+    apelido: "apelido global de teste",
+    apelido_normalizado: "apelido global de teste"
+  });
+  t.after(() => ExercicioApelido.destroy({ where: { exercicio_id: exercicioGlobal.id } }));
+  const comApelido = await exercicioService.adicionarApelido(equipeA.id, exercicioGlobal.id, { apelido: nomeUnico("apelido de A") });
+  const deA = comApelido.apelidos.find((a) => a.equipe_id === equipeA.id);
+
+  await assert.rejects(() => exercicioService.removerApelido(equipeA.id, exercicioGlobal.id, global.id), /não encontrado/);
+  await assert.rejects(() => exercicioService.removerApelido(equipeB.id, exercicioGlobal.id, deA.id), /não encontrado/);
+
+  const depois = await exercicioService.removerApelido(equipeA.id, exercicioGlobal.id, deA.id);
+  assert.deepEqual(depois.apelidos.map((a) => a.apelido), ["apelido global de teste"], "global continua visível");
 });

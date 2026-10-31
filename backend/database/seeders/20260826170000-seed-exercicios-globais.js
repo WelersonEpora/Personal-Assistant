@@ -165,5 +165,11 @@ module.exports = {
   async down(queryInterface) {
     const ids = EXERCICIOS.map(([nome]) => idDeterministico(nome));
     await queryInterface.bulkDelete("exercicio", { id: ids, equipe_id: null });
-  }
+  },
+
+  // Usados pelo catálogo revisado (docs/adr/0027, seeder
+  // 20261031120100-seed-exercicios-globais-v2.js) para achar estes exercícios
+  // pelo id - o sequelize-cli só chama up/down.
+  EXERCICIOS,
+  idDeterministico
 };

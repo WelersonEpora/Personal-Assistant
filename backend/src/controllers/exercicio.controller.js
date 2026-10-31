@@ -51,4 +51,25 @@ async function removerImagem(req, res) {
   success(res, exercicio);
 }
 
-module.exports = { list, getById, create, update, excluir, enviarImagem, streamImagem, removerImagem };
+async function adicionarApelido(req, res) {
+  const exercicio = await exercicioService.adicionarApelido(req.equipeId, req.params.id, req.body || {});
+  success(res, exercicio, { statusCode: 201 });
+}
+
+async function removerApelido(req, res) {
+  const exercicio = await exercicioService.removerApelido(req.equipeId, req.params.id, req.params.apelidoId);
+  success(res, exercicio);
+}
+
+module.exports = {
+  list,
+  getById,
+  create,
+  update,
+  excluir,
+  enviarImagem,
+  streamImagem,
+  removerImagem,
+  adicionarApelido,
+  removerApelido
+};

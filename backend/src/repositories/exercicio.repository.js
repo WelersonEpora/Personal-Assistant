@@ -1,7 +1,7 @@
 "use strict";
 
 const { Op } = require("sequelize");
-const { Exercicio } = require("../models");
+const { Exercicio, ExercicioApelido } = require("../models");
 
 // Visível para a equipe = global (equipe_id NULL) ou próprio da equipe
 // (docs/adr/0013) - critério repetido em todo lookup de leitura/uso.
@@ -9,13 +9,33 @@ function condicaoVisivel(equipeId) {
   return { [Op.or]: [{ equipe_id: null }, { equipe_id: equipeId }] };
 }
 
+// Apelidos visíveis (docs/adr/0027) = os globais do exercício + os da
+// própria equipe - nunca os que outra equipe deu ao mesmo exercício global.
+function includeApelidos(equipeId) {
+  return {
+    model: ExercicioApelido,
+    as: "apelidos",
+    required: false,
+    attributes: ["id", "apelido", "equipe_id"],
+    where: condicaoVisivel(equipeId)
+  };
+}
+
+const ORDEM_APELIDOS = [{ model: ExercicioApelido, as: "apelidos" }, "apelido", "ASC"];
+
 function findAllVisiveisParaEquipe(equipeId) {
   return Exercicio.findAll({
     where: { ...condicaoVisivel(equipeId), deletado_em: null },
-    order: [
-      ["ativo", "DESC"],
-      ["nome", "ASC"]
-    ]
+    include: [includeApelidos(equipeId)],
+    order: [["ativo", "DESC"], ["nome", "ASC"], ORDEM_APELIDOS]
+  });
+}
+
+function findByIdComApelidos(id, equipeId) {
+  return Exercicio.findOne({
+    where: { id, ...condicaoVisivel(equipeId), deletado_em: null },
+    include: [includeApelidos(equipeId)],
+    order: [ORDEM_APELIDOS]
   });
 }
 
@@ -60,12 +80,54 @@ function marcarComoExcluido(exercicio) {
   return exercicio.update({ deletado_em: new Date() });
 }
 
+// Nomes que a equipe enxerga, para conferir ambiguidade de um apelido novo
+// (docs/adr/0027). O catálogo é pequeno (centenas), então a comparação
+// normalizada dos nomes é feita no service, em JS.
+function listarNomesVisiveis(equipeId) {
+  return Exercicio.findAll({
+    where: { ...condicaoVisivel(equipeId), deletado_em: null },
+    attributes: ["id", "nome"],
+    raw: true
+  });
+}
+
+function findApelidosVisiveisPorNormalizado(equipeId, apelidoNormalizado) {
+  return ExercicioApelido.findAll({
+    where: { ...condicaoVisivel(equipeId), apelido_normalizado: apelidoNormalizado },
+    include: [{ model: Exercicio, as: "exercicio", attributes: ["id", "nome"], where: { deletado_em: null } }]
+  });
+}
+
+function criarApelido({ exercicioId, equipeId, apelido, apelidoNormalizado }) {
+  return ExercicioApelido.create({
+    exercicio_id: exercicioId,
+    equipe_id: equipeId,
+    apelido,
+    apelido_normalizado: apelidoNormalizado
+  });
+}
+
+// Só apelido da própria equipe - o global (equipe_id NULL) nunca é removível.
+function findApelidoDaEquipe({ id, exercicioId, equipeId }) {
+  return ExercicioApelido.findOne({ where: { id, exercicio_id: exercicioId, equipe_id: equipeId } });
+}
+
+function removerApelido(apelido) {
+  return apelido.destroy();
+}
+
 module.exports = {
   findAllVisiveisParaEquipe,
+  findByIdComApelidos,
   findByIdVisivelParaEquipe,
   findByIdProprioDaEquipe,
   findSelecionaveisPorIds,
   create,
   update,
-  marcarComoExcluido
+  marcarComoExcluido,
+  listarNomesVisiveis,
+  findApelidosVisiveisPorNormalizado,
+  criarApelido,
+  findApelidoDaEquipe,
+  removerApelido
 };

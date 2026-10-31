@@ -28,6 +28,7 @@ import { useConfirm } from '../composables/useConfirm.js'
 import ToastStack from './ToastStack.vue'
 import ExercicioMidia from './ExercicioMidia.vue'
 import FichaGruposLeitura from './FichaGruposLeitura.vue'
+import BuscaExercicio from './BuscaExercicio.vue'
 
 // Seção "Ficha de Treino" da tela do aluno (docs/adr/0015 estendida): deixou
 // de ser tela própria - vive num slot com abas no AlunoDetalheView. O contexto
@@ -55,7 +56,6 @@ const fichaSubstituida = ref(null)
 const formNome = ref('')
 const formObservacoes = ref('')
 const gruposForm = ref([])
-const exercicioParaAdicionar = ref('')
 const salvando = ref(false)
 const arquivandoId = ref(null)
 
@@ -212,11 +212,8 @@ async function alternarDispensa() {
 
 // ----------------------------------------------------------- editor
 
-function adicionarExercicio() {
-  if (!exercicioParaAdicionar.value) return
-  const exercicio = catalogo.value.find((e) => e.id === exercicioParaAdicionar.value)
+function adicionarExercicio(exercicio) {
   gruposForm.value = [...gruposForm.value, grupoSimples(itemDoExercicio(exercicio))]
-  exercicioParaAdicionar.value = ''
 }
 
 function conjugar(indice) {
@@ -525,15 +522,9 @@ function alternarExpandido(ficha) {
             </div>
           </template>
 
-          <div style="display: flex; gap: 10px; align-items: flex-end; margin-top: 8px; max-width: 560px;">
-            <div class="form-field" style="flex: 1;">
-              <label>Adicionar exercício do catálogo</label>
-              <select v-model="exercicioParaAdicionar">
-                <option value="">Selecione um exercício...</option>
-                <option v-for="ex in catalogo" :key="ex.id" :value="ex.id">{{ ex.nome }}{{ ex.equipe_id ? '' : ' (global)' }}</option>
-              </select>
-            </div>
-            <button type="button" class="btn btn-secondary" :disabled="!exercicioParaAdicionar" @click="adicionarExercicio">+ Adicionar</button>
+          <div class="form-field" style="margin-top: 8px; max-width: 560px;">
+            <label>Adicionar exercício do catálogo</label>
+            <BuscaExercicio :catalogo="catalogo" @selecionar="adicionarExercicio" />
           </div>
           <p class="list-row-sub" style="margin-top: 8px;">
             Para um bi-set, tri-set ou circuito, adicione os exercícios em sequência e use “Conjugar com o próximo”.

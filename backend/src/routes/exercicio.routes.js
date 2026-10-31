@@ -21,5 +21,8 @@ router.delete("/:id", exercicioController.excluir);
 router.post("/:id/imagem/:posicao", upload.single("imagem"), exercicioController.enviarImagem);
 router.get("/:id/imagem/:posicao", exercicioController.streamImagem);
 router.delete("/:id/imagem/:posicao", exercicioController.removerImagem);
+// docs/adr/0027: apelidos da equipe (os globais vêm do seed e não saem daqui).
+router.post("/:id/apelidos", exercicioController.adicionarApelido);
+router.delete("/:id/apelidos/:apelidoId", exercicioController.removerApelido);
 
 module.exports = router;

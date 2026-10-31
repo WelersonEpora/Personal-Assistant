@@ -405,6 +405,7 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
 | 0024 | Cálculo da % de gordura por protocolo de dobras (Pollock 7) |
 | 0025 | Avaliação física do mês como contexto do Acompanhamento Mensal |
 | 0026 | Exercícios conjugados na Ficha de Treino e várias fichas ativas por aluno |
+| 0027 | Apelidos de exercício e catálogo global revisado |
 
 ## Estado atual
 
@@ -500,7 +501,16 @@ MVP completo e verificado de ponta a ponta:
   `GET /alunos/:id/fichas-treino/ativas`, `POST /fichas-treino/:id/arquivar`.
   Link do aluno devolve `fichas: [...]`; painel: "ficha antiga" pela ativa
   mais recente e `catalogo.alunos_com_ficha_ativa`.
-  364 testes automatizados (`node --test`, unitários +
+  Apelidos de exercício (docs/adr/0027): `exercicio_apelido` (`equipe_id` NULL =
+  nome alternativo global do seed; preenchido = apelido da equipe), comparação
+  por `apelido_normalizado` (`shared/utils/texto.js`); um nome/apelido aponta
+  para um exercício só no que a equipe enxerga (409 no service + índices
+  parciais). `POST/DELETE /api/v1/exercicios/:id/apelidos[/:apelidoId]`; a
+  listagem traz `apelidos`. Catálogo global revisado (seeder
+  `…-seed-exercicios-globais-v2.js`, dados em `database/dados/`): 87 originais
+  com o mesmo id e nome de academia + 25 novos = 112, ~290 apelidos; não renomeia
+  global que o personal já corrigiu pela tela.
+  373 testes automatizados (`node --test`, unitários +
   integração contra banco de teste dedicado).
 - **Frontend**: app Vue 3 + Vite + PWA único (`/captura` mobile-first
   offline, `/admin` gestão/validação), IndexedDB + fila de sincronização
@@ -597,11 +607,16 @@ MVP completo e verificado de ponta a ponta:
   no grupo; leitura em `components/FichaGruposLeitura.vue` (numeração 2A/2B).
   `FichaPublicaView.vue` (link do aluno) mostra todas as ativas com chips para
   escolher a do dia. Helpers puros em `utils/fichaTreino.js` (testados).
-  108 testes automatizados (`node --test` + `fake-indexeddb`; +
+  Apelidos (docs/adr/0027): chips na listagem de Exercícios ("+ apelido" na
+  linha, "×" só nos da equipe) e busca por nome/apelido sem acento; no editor
+  da ficha o `<select>` virou `components/BuscaExercicio.vue` (util puro
+  `utils/buscaExercicio.js`).
+  115 testes automatizados (`node --test` + `fake-indexeddb`; +
   `echarts-option-builder.test.js`, `echarts-bar-option-builder.test.js`,
   `periodos.test.js`, `avaliacaoFisica.test.js`, `gravacaoVoz.test.js`,
   `avaliacaoMensalCompartilhada.test.js`, `registroStatus.test.js`,
-  `protocolosGordura.test.js`, `linhaDoTempo.test.js` e `fichaTreino.test.js` puros).
+  `protocolosGordura.test.js`, `linhaDoTempo.test.js`, `fichaTreino.test.js` e
+  `buscaExercicio.test.js` puros).
 - **Docker**: `compose.dev.yml` (Postgres + pgAdmin) e `compose.prod.yml`
   (Postgres + backend + frontend) validados; Dockerfiles com healthcheck
   em ambos os serviços da aplicação.

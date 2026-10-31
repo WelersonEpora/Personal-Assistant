@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import exerciciosService from '../../services/exercicios.service.js'
 import { useAuthStore } from '../../stores/auth.store.js'
 import { useToasts } from '../../composables/useToasts.js'
@@ -7,6 +7,7 @@ import { useConfirm } from '../../composables/useConfirm.js'
 import ToastStack from '../../components/ToastStack.vue'
 import ExercicioMidia from '../../components/ExercicioMidia.vue'
 import FiltroSegmentado from '../../components/FiltroSegmentado.vue'
+import { filtrarExercicios } from '../../utils/buscaExercicio.js'
 
 const OPCOES_ORIGEM = [
   { valor: 'todos', rotulo: 'Todos' },
@@ -61,19 +62,67 @@ function ehProprio(exercicio) {
 // um personal parceiro revisa/corrige o catálogo global. "Excluir" continua
 // só para próprios - apagar um global afeta todas as equipes do sistema.
 
+// Busca por nome, apelidos, grupo e equipamento, sem acento (docs/adr/0027).
 const filtrados = computed(() => {
-  const termo = busca.value.trim().toLowerCase()
-  return exercicios.value.filter((exercicio) => {
+  const daOrigem = exercicios.value.filter((exercicio) => {
     if (filtroOrigem.value === 'globais' && exercicio.equipe_id) return false
     if (filtroOrigem.value === 'proprios' && !ehProprio(exercicio)) return false
-    if (!termo) return true
-    return (
-      exercicio.nome.toLowerCase().includes(termo) ||
-      (exercicio.grupo_muscular || '').toLowerCase().includes(termo) ||
-      (exercicio.equipamento || '').toLowerCase().includes(termo)
-    )
+    return true
   })
+  return filtrarExercicios(daOrigem, busca.value).map((resultado) => resultado.exercicio)
 })
+
+// ----------------------------------------------------------- apelidos
+// docs/adr/0027: o apelido é da equipe (os globais vêm do catálogo, sem "×").
+// Adicionado direto na linha, sem abrir o modal de edição.
+const apelidoAbertoEm = ref(null) // id do exercício com o campo de apelido aberto
+const novoApelido = ref('')
+const salvandoApelido = ref(false)
+
+function apelidoDaEquipe(apelido) {
+  return Boolean(apelido.equipe_id)
+}
+
+// `autofocus` só vale no carregamento da página - num campo que aparece
+// depois, o foco é dado aqui. Sem foco, nem o Esc nem o clique fora (blur)
+// chegariam ao campo, e ele ficaria aberto sem jeito de desistir.
+let campoApelido = null
+
+async function abrirApelido(exercicio) {
+  apelidoAbertoEm.value = exercicio.id
+  novoApelido.value = ''
+  await nextTick()
+  campoApelido?.focus()
+}
+
+function fecharApelido() {
+  apelidoAbertoEm.value = null
+  novoApelido.value = ''
+}
+
+async function salvarApelido(exercicio) {
+  // Enter envia e o blur do campo chega logo depois - um envio só.
+  if (salvandoApelido.value) return
+  const texto = novoApelido.value.trim()
+  if (!texto) return fecharApelido()
+  salvandoApelido.value = true
+  try {
+    sincronizarNaLista(await exerciciosService.adicionarApelido(exercicio.id, texto))
+    fecharApelido()
+  } catch (err) {
+    showToast(err.response?.data?.error?.message || 'Não foi possível salvar o apelido.', 'warning')
+  } finally {
+    salvandoApelido.value = false
+  }
+}
+
+async function removerApelido(exercicio, apelido) {
+  try {
+    sincronizarNaLista(await exerciciosService.removerApelido(exercicio.id, apelido.id))
+  } catch (err) {
+    showToast(err.response?.data?.error?.message || 'Não foi possível remover o apelido.', 'warning')
+  }
+}
 
 // Preview das duas imagens dentro do modal de edição (upload próprio, não
 // reaproveita ExercicioMidia aqui - essa é só leitura/lightbox de exibição).
@@ -155,7 +204,10 @@ async function salvar() {
 // desatualizada até um recarregamento manual da página.
 function sincronizarNaLista(exercicioAtualizado) {
   const indice = exercicios.value.findIndex((e) => e.id === exercicioAtualizado.id)
-  if (indice !== -1) exercicios.value[indice] = exercicioAtualizado
+  if (indice === -1) return
+  // A resposta de upload/remoção de imagem não traz os apelidos - mantém os da lista.
+  const apelidos = exercicioAtualizado.apelidos ?? exercicios.value[indice].apelidos
+  exercicios.value[indice] = { ...exercicioAtualizado, apelidos }
 }
 
 function selecionarImagem(posicao) {
@@ -240,7 +292,7 @@ function rotuloDificuldade(valor) {
     <div class="card" style="margin-bottom: 20px;">
       <div class="table-toolbar">
         <FiltroSegmentado v-model="filtroOrigem" :opcoes="OPCOES_ORIGEM" rotulo="Origem" />
-        <input v-model="busca" type="search" class="search-input" placeholder="Buscar por nome, grupo ou equipamento..." />
+        <input v-model="busca" type="search" class="search-input" placeholder="Buscar por nome, apelido, grupo ou equipamento..." />
       </div>
 
       <div class="table-wrap">
@@ -270,7 +322,41 @@ function rotuloDificuldade(valor) {
                   :nome="exercicio.nome"
                 />
               </td>
-              <td>{{ exercicio.nome }}</td>
+              <td>
+                <div>{{ exercicio.nome }}</div>
+                <div class="apelidos">
+                  <span
+                    v-for="apelido in exercicio.apelidos || []"
+                    :key="apelido.id"
+                    class="apelido-chip"
+                    :class="{ 'apelido-chip-equipe': apelidoDaEquipe(apelido) }"
+                    :title="apelidoDaEquipe(apelido) ? 'Apelido da sua equipe' : 'Apelido do catálogo'"
+                  >
+                    {{ apelido.apelido }}
+                    <button
+                      v-if="apelidoDaEquipe(apelido)"
+                      type="button"
+                      class="apelido-remover"
+                      :aria-label="`Remover apelido ${apelido.apelido}`"
+                      @click="removerApelido(exercicio, apelido)"
+                    >×</button>
+                  </span>
+                  <form v-if="apelidoAbertoEm === exercicio.id" class="apelido-form" @submit.prevent="salvarApelido(exercicio)">
+                    <input
+                      v-model="novoApelido"
+                      type="text"
+                      maxlength="120"
+                      placeholder="Novo apelido"
+                      aria-label="Novo apelido"
+                      :ref="(el) => (campoApelido = el)"
+                      :disabled="salvandoApelido"
+                      @keydown.esc="fecharApelido"
+                      @blur="salvarApelido(exercicio)"
+                    />
+                  </form>
+                  <button v-else type="button" class="apelido-adicionar" @click="abrirApelido(exercicio)">+ apelido</button>
+                </div>
+              </td>
               <td>{{ exercicio.grupo_muscular || '—' }}</td>
               <td>{{ exercicio.equipamento || '—' }}</td>
               <td>{{ rotuloDificuldade(exercicio.dificuldade) }}</td>
@@ -399,3 +485,24 @@ function rotuloDificuldade(valor) {
     <ToastStack :toasts="toasts" />
   </div>
 </template>
+
+<style scoped>
+.apelidos { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; align-items: center; }
+.apelido-chip {
+  display: inline-flex; align-items: center; gap: 2px; padding: 1px 8px; font-size: 11px;
+  border-radius: var(--radius-full); background: var(--color-surface-alt); color: var(--color-text-secondary);
+}
+.apelido-chip-equipe { background: var(--color-primary-light); color: var(--color-primary-dark); }
+.apelido-remover {
+  border: none; background: none; padding: 0 0 0 2px; cursor: pointer; font-size: 13px; line-height: 1; color: inherit;
+}
+.apelido-adicionar {
+  border: 1px dashed var(--color-border-strong); background: none; border-radius: var(--radius-full);
+  padding: 1px 8px; font-size: 11px; color: var(--color-text-faint); cursor: pointer;
+}
+.apelido-adicionar:hover { color: var(--color-primary); border-color: var(--color-primary); }
+.apelido-form input {
+  font-size: 11px; padding: 2px 8px; width: 150px; border-radius: var(--radius-full);
+  border: 1px solid var(--color-primary); background: var(--color-surface);
+}
+</style>

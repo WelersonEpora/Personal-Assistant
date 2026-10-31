@@ -12,7 +12,7 @@ html, body { height: 100%; }
 
 /* ---------------------------------------------------------------- sidebar */
 .sidebar {
-  width: 246px;
+  width: 208px; /* a marca foi para a topbar; o menu só precisa caber "Configurações" */
   flex: none;
   background: #14161f;
   color: #cfd2e0;

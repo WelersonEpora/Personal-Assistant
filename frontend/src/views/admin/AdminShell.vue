@@ -187,7 +187,7 @@ function sair() {
           </template>
         </nav>
 
-        <!-- identidade da equipe (docs/adr/0030); sem logo, as iniciais -->
+        <!-- identidade da equipe (docs/adr/0030): logo (quando houver) e nome; as iniciais só aparecem no menu recolhido -->
         <div class="sidebar-footer" :title="sidebarRecolhida ? auth.usuario?.equipe?.nome : null">
           <img v-if="equipe.logoUrl" :src="equipe.logoUrl" class="sidebar-equipe-logo" alt="" />
           <span v-else class="sidebar-equipe-logo sem-logo" :style="{ background: corParaId(auth.usuario?.equipe?.id) }">

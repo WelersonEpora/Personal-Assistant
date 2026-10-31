@@ -45,11 +45,18 @@ async function gerarTokenPara(equipeId, alunoId) {
   return token;
 }
 
+// Um exercício isolado = grupo "simples" de um item (docs/adr/0026).
+function simples(exercicioId) {
+  return { tipo: "simples", itens: [{ exercicioId }] };
+}
+
 test("obterFicha: token válido devolve a ficha ativa em projeção de leitura", async (t) => {
   await fichaTreinoService.criarNovaVersao(equipeA.id, usuario.id, alunoDeA.id, {
     nome: "Treino A",
     observacoes: "3x por semana",
-    itens: [{ exercicioId: supino.id, series: 4, repeticoes: "8-12", cargaObs: "20kg" }]
+    grupos: [
+      { tipo: "simples", series: 4, descanso: "90s", itens: [{ exercicioId: supino.id, repeticoes: "8-12", cargaObs: "20kg" }] }
+    ]
   });
   const token = await gerarTokenPara(equipeA.id, alunoDeA.id);
   t.after(async () => {
@@ -60,14 +67,19 @@ test("obterFicha: token válido devolve a ficha ativa em projeção de leitura",
   const resultado = await fichaPublicaService.obterFicha(token);
 
   assert.deepEqual(resultado.aluno, { nome: "Ana (Equipe A)" });
-  assert.equal(resultado.ficha.nome, "Treino A");
-  assert.equal(resultado.ficha.observacoes, "3x por semana");
-  assert.equal(resultado.ficha.itens.length, 1);
+  assert.equal(resultado.fichas.length, 1);
+  const [ficha] = resultado.fichas;
+  assert.equal(ficha.nome, "Treino A");
+  assert.equal(ficha.observacoes, "3x por semana");
+  assert.equal(ficha.grupos.length, 1);
 
-  const item = resultado.ficha.itens[0];
+  const { itens, ...grupo } = ficha.grupos[0];
+  assert.deepEqual(grupo, { ordem: 1, tipo: "simples", series: 4, descanso: "90s", observacoes: null });
+  assert.equal(itens.length, 1);
+
+  const item = itens[0];
   assert.deepEqual(item, {
     ordem: 1,
-    series: 4,
     repeticoes: "8-12",
     cargaObs: "20kg",
     exercicio: {
@@ -84,8 +96,8 @@ test("obterFicha: token válido devolve a ficha ativa em projeção de leitura",
 });
 
 test("obterFicha: projeção não vaza equipe_id, criado_por, ids de ficha nem timestamps internos", async (t) => {
-  await fichaTreinoService.criarNovaVersao(equipeA.id, usuario.id, alunoDeA.id, {
-    itens: [{ exercicioId: supino.id }]
+  const ficha = await fichaTreinoService.criarNovaVersao(equipeA.id, usuario.id, alunoDeA.id, {
+    grupos: [simples(supino.id)]
   });
   const token = await gerarTokenPara(equipeA.id, alunoDeA.id);
   t.after(async () => {
@@ -95,6 +107,8 @@ test("obterFicha: projeção não vaza equipe_id, criado_por, ids de ficha nem t
 
   const serial = JSON.stringify(await fichaPublicaService.obterFicha(token));
 
+  assert.ok(!serial.includes(ficha.id), "sem id da ficha");
+  assert.ok(!serial.includes(ficha.grupos[0].id), "sem id do grupo");
   assert.ok(!serial.includes(equipeA.id), "sem equipe_id");
   assert.ok(!serial.includes(usuario.id), "sem criado_por");
   assert.ok(!serial.includes(alunoDeA.id), "sem aluno_id");
@@ -103,9 +117,9 @@ test("obterFicha: projeção não vaza equipe_id, criado_por, ids de ficha nem t
 });
 
 test("obterFicha: reflete automaticamente a nova versão da ficha (mesmo token)", async (t) => {
-  await fichaTreinoService.criarNovaVersao(equipeA.id, usuario.id, alunoDeA.id, {
+  const versao1 = await fichaTreinoService.criarNovaVersao(equipeA.id, usuario.id, alunoDeA.id, {
     nome: "Versão 1",
-    itens: [{ exercicioId: supino.id }]
+    grupos: [simples(supino.id)]
   });
   const token = await gerarTokenPara(equipeA.id, alunoDeA.id);
   t.after(async () => {
@@ -113,25 +127,69 @@ test("obterFicha: reflete automaticamente a nova versão da ficha (mesmo token)"
     await FichaTreino.destroy({ where: { aluno_id: alunoDeA.id } });
   });
 
-  assert.equal((await fichaPublicaService.obterFicha(token)).ficha.nome, "Versão 1");
+  assert.deepEqual((await fichaPublicaService.obterFicha(token)).fichas.map((f) => f.nome), ["Versão 1"]);
 
   await fichaTreinoService.criarNovaVersao(equipeA.id, usuario.id, alunoDeA.id, {
     nome: "Versão 2",
-    itens: [{ exercicioId: agachamento.id }]
+    substituiFichaId: versao1.id,
+    grupos: [simples(agachamento.id)]
   });
 
   const depois = await fichaPublicaService.obterFicha(token);
-  assert.equal(depois.ficha.nome, "Versão 2");
-  assert.equal(depois.ficha.itens[0].exercicio.id, agachamento.id);
+  assert.deepEqual(depois.fichas.map((f) => f.nome), ["Versão 2"]);
+  assert.equal(depois.fichas[0].grupos[0].itens[0].exercicio.id, agachamento.id);
 });
 
-test("obterFicha: aluno sem ficha ativa - link válido, ficha nula", async (t) => {
+test("obterFicha: devolve todas as fichas ativas do aluno, na ordem do nome, com os grupos conjugados", async (t) => {
+  await fichaTreinoService.criarNovaVersao(equipeA.id, usuario.id, alunoDeA.id, {
+    nome: "Superiores",
+    grupos: [
+      {
+        tipo: "biset",
+        series: 3,
+        descanso: "60s",
+        itens: [
+          { exercicioId: supino.id, repeticoes: "12" },
+          { exercicioId: agachamento.id, repeticoes: "30s" }
+        ]
+      }
+    ]
+  });
+  const arquivada = await fichaTreinoService.criarNovaVersao(equipeA.id, usuario.id, alunoDeA.id, {
+    nome: "Antiga",
+    grupos: [simples(supino.id)]
+  });
+  await fichaTreinoService.arquivar(equipeA.id, arquivada.id);
+  await fichaTreinoService.criarNovaVersao(equipeA.id, usuario.id, alunoDeA.id, {
+    nome: "Inferiores",
+    grupos: [simples(agachamento.id)]
+  });
+  const token = await gerarTokenPara(equipeA.id, alunoDeA.id);
+  t.after(async () => {
+    await FichaAcessoLink.destroy({ where: { aluno_id: alunoDeA.id } });
+    await FichaTreino.destroy({ where: { aluno_id: alunoDeA.id } });
+  });
+
+  const { fichas } = await fichaPublicaService.obterFicha(token);
+  assert.deepEqual(fichas.map((f) => f.nome), ["Inferiores", "Superiores"], "arquivada fica de fora");
+
+  const [biset] = fichas[1].grupos;
+  assert.equal(biset.tipo, "biset");
+  assert.equal(biset.series, 3);
+  assert.equal(biset.descanso, "60s");
+  assert.deepEqual(biset.itens.map((i) => [i.exercicio.nome, i.repeticoes]), [
+    ["Supino reto", "12"],
+    ["Agachamento", "30s"]
+  ]);
+});
+
+test("obterFicha: aluno sem ficha ativa - link válido, lista vazia", async (t) => {
   const token = await gerarTokenPara(equipeB.id, alunoDeB.id);
   t.after(() => FichaAcessoLink.destroy({ where: { aluno_id: alunoDeB.id } }));
 
   const resultado = await fichaPublicaService.obterFicha(token);
   assert.equal(resultado.aluno.nome, "Bruno (Equipe B)");
-  assert.equal(resultado.ficha, null);
+  assert.deepEqual(resultado.fichas, []);
 });
 
 test("obterFicha: token desconhecido -> 404 LINK_INVALIDO", async () => {
@@ -172,11 +230,11 @@ test("obterFicha: token expirado -> 410 LINK_EXPIRADO", async (t) => {
 test("isolamento: token do aluno de A nunca devolve dados do aluno de B", async (t) => {
   await fichaTreinoService.criarNovaVersao(equipeA.id, usuario.id, alunoDeA.id, {
     nome: "Treino da Ana",
-    itens: [{ exercicioId: supino.id }]
+    grupos: [simples(supino.id)]
   });
   await fichaTreinoService.criarNovaVersao(equipeB.id, usuario.id, alunoDeB.id, {
     nome: "Treino do Bruno",
-    itens: [{ exercicioId: supino.id }]
+    grupos: [simples(supino.id)]
   });
   const tokenA = await gerarTokenPara(equipeA.id, alunoDeA.id);
   t.after(async () => {
@@ -186,13 +244,13 @@ test("isolamento: token do aluno de A nunca devolve dados do aluno de B", async 
 
   const resultado = await fichaPublicaService.obterFicha(tokenA);
   assert.equal(resultado.aluno.nome, "Ana (Equipe A)");
-  assert.equal(resultado.ficha.nome, "Treino da Ana");
+  assert.deepEqual(resultado.fichas.map((f) => f.nome), ["Treino da Ana"]);
 });
 
 test("obterImagemDoExercicio: rejeita exercício que não está na ficha do token", async (t) => {
   const foraDaFicha = await Exercicio.create({ equipe_id: equipeA.id, nome: "Rosca direta" });
   await fichaTreinoService.criarNovaVersao(equipeA.id, usuario.id, alunoDeA.id, {
-    itens: [{ exercicioId: supino.id }]
+    grupos: [simples(supino.id)]
   });
   const token = await gerarTokenPara(equipeA.id, alunoDeA.id);
   t.after(async () => {

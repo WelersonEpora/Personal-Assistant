@@ -1,6 +1,7 @@
 # ADR-0014: Acesso do aluno à Ficha de Treino por link temporário
 
-**Status:** Aceita (2026-08-27)
+**Status:** Aceita (2026-08-27) — com a ADR-0026, o link continua um por
+aluno e passa a mostrar **todas** as fichas ativas dele (`fichas: [...]`).
 
 ## Contexto
 

@@ -221,6 +221,21 @@ test("panorama: ficha antiga (> 8 semanas) e avaliação física vencida (> 180 
   assert.deepEqual(painel.panorama.avaliacao_fisica_vencida.itens.map((a) => a.nome), ["Ficha Velha"]);
 });
 
+test("panorama: com várias fichas ativas, 'ficha antiga' olha a mais recente", async () => {
+  const equipeId = await novaEquipe();
+  const renovouParte = await criarAluno(equipeId, { nome: "Renovou Parte" });
+  await criarFicha(renovouParte, { criadaEm: diasAtras(90) });
+  await criarFicha(renovouParte, { criadaEm: diasAtras(5) });
+  const tudoVelho = await criarAluno(equipeId, { nome: "Tudo Velho" });
+  await criarFicha(tudoVelho, { criadaEm: diasAtras(90) });
+  await criarFicha(tudoVelho, { criadaEm: diasAtras(60) });
+
+  const painel = await painelService.obterPainel(equipeId);
+  const antigas = painel.panorama.ficha_antiga.itens;
+  assert.deepEqual(antigas.map((a) => a.nome), ["Tudo Velho"]);
+  assert.equal(antigas[0].dias, 60);
+});
+
 test("panorama: aluno que não faz avaliação física fica fora de 'avaliação vencida'", async () => {
   const equipeId = await novaEquipe();
   await criarAluno(equipeId, { nome: "Dispensado Aval", dispensa_avaliacao_fisica: true });
@@ -378,10 +393,13 @@ test("equipe.varios_personais: true só com 2+ membros ativos", async () => {
   assert.equal(dupla.equipe.varios_personais, true);
 });
 
-test("catalogo: conta exercícios visíveis (globais + próprios) e fichas ativas da equipe", async () => {
+test("catalogo: conta exercícios visíveis (globais + próprios) e alunos com ficha ativa da equipe", async () => {
   const equipeId = await novaEquipe();
   const aluno = await criarAluno(equipeId);
+  // Divisão de treino (docs/adr/0026): duas fichas ativas contam um aluno só.
   await criarFicha(aluno);
+  await criarFicha(aluno);
+  await criarFicha(aluno, { ativo: false });
   const proprio = await Exercicio.create({ equipe_id: equipeId, nome: "Agachamento Próprio" });
   criados.exercicios.push(proprio.id);
   const inativo = await Exercicio.create({ equipe_id: equipeId, nome: "Inativo", ativo: false });
@@ -390,7 +408,7 @@ test("catalogo: conta exercícios visíveis (globais + próprios) e fichas ativa
   const painel = await painelService.obterPainel(equipeId);
   // pelo menos o próprio ativo; o inativo não conta
   assert.ok(painel.catalogo.exercicios >= 1);
-  assert.equal(painel.catalogo.fichas_ativas, 1);
+  assert.equal(painel.catalogo.alunos_com_ficha_ativa, 1);
 });
 
 test("isolamento: painel de uma equipe não enxerga dados de outra", async () => {

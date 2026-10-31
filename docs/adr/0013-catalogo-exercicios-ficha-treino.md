@@ -1,6 +1,7 @@
 # ADR-0013: Catálogo de Exercícios e Ficha de Treino
 
-**Status:** Aceita (2026-08-26)
+**Status:** Aceita (2026-08-26) — estendida pela ADR-0026 (exercícios
+conjugados em grupos; várias fichas ativas por aluno, com `substitui_id`).
 
 ## Contexto
 

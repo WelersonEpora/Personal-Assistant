@@ -29,9 +29,10 @@ router.delete("/:id/foto", alunoController.removerFoto);
 
 // Ficha de treino (docs/adr/0013) - área operacional do personal, aninhada
 // no aluno; consulta avulsa de uma ficha específica vive em
-// ficha-treino.routes.js (/api/v1/fichas-treino/:id).
+// ficha-treino.routes.js (/api/v1/fichas-treino/:id). Várias fichas ativas
+// por aluno (docs/adr/0026).
 router.get("/:id/fichas-treino", fichaTreinoController.listarPorAluno);
-router.get("/:id/fichas-treino/ativa", fichaTreinoController.obterAtiva);
+router.get("/:id/fichas-treino/ativas", fichaTreinoController.listarAtivas);
 router.post("/:id/fichas-treino", fichaTreinoController.criar);
 
 // Link temporário de acesso do aluno à ficha ativa (docs/adr/0014) - somente

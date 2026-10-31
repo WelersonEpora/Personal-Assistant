@@ -36,14 +36,21 @@ module.exports = (sequelize) => {
         type: DataTypes.TEXT,
         allowNull: true
       },
-      // Só uma ficha por aluno pode estar ativa (imposto também por índice
-      // único parcial no banco). Fichas anteriores nunca são editadas nem
-      // apagadas - uma atualização sempre cria uma linha nova, preservando
-      // as anteriores como histórico (docs/adr/0013).
+      // Um aluno pode ter várias fichas ativas (divisão de treino,
+      // docs/adr/0026). Fichas anteriores nunca são editadas nem apagadas -
+      // uma atualização sempre cria uma linha nova, preservando as anteriores
+      // como histórico (docs/adr/0013); arquivar só desliga a ficha.
       ativo: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: true
+      },
+      // Versão anterior que esta ficha substitui (docs/adr/0026): a nova
+      // versão desativa só ela. Nulo = ficha nova, somada às ativas. Índice
+      // único parcial no banco: uma ficha é substituída no máximo uma vez.
+      substitui_id: {
+        type: DataTypes.UUID,
+        allowNull: true
       }
     },
     {
@@ -59,6 +66,7 @@ module.exports = (sequelize) => {
     FichaTreino.belongsTo(models.Aluno, { foreignKey: "aluno_id", as: "aluno" });
     FichaTreino.belongsTo(models.Equipe, { foreignKey: "equipe_id", as: "equipe" });
     FichaTreino.belongsTo(models.Usuario, { foreignKey: "criado_por", as: "criadoPor" });
+    FichaTreino.hasMany(models.FichaTreinoGrupo, { foreignKey: "ficha_treino_id", as: "grupos" });
     FichaTreino.hasMany(models.FichaTreinoExercicio, { foreignKey: "ficha_treino_id", as: "itens" });
   };
 

@@ -3,13 +3,14 @@ import http from './http.js'
 // Ficha de Treino (docs/adr/0013) - prescrição montada manualmente pelo
 // personal a partir do catálogo, sem IA. Cada "salvar" cria uma nova versão
 // (nunca sobrescreve a ficha anterior) - não existe endpoint de edição.
+// Várias fichas ativas por aluno e exercícios em grupos (docs/adr/0026).
 async function listarPorAluno(alunoId) {
   const { data } = await http.get(`/api/v1/alunos/${alunoId}/fichas-treino`)
   return data.data
 }
 
-async function obterAtiva(alunoId) {
-  const { data } = await http.get(`/api/v1/alunos/${alunoId}/fichas-treino/ativa`)
+async function listarAtivas(alunoId) {
+  const { data } = await http.get(`/api/v1/alunos/${alunoId}/fichas-treino/ativas`)
   return data.data
 }
 
@@ -18,8 +19,20 @@ async function obter(fichaId) {
   return data.data
 }
 
-async function criarNovaVersao(alunoId, { nome, observacoes, itens }) {
-  const { data } = await http.post(`/api/v1/alunos/${alunoId}/fichas-treino`, { nome, observacoes, itens })
+// Sem `substituiFichaId`, a ficha nova soma às ativas; com, vira a nova versão
+// daquela ficha (só ela é desativada).
+async function criarNovaVersao(alunoId, { nome, observacoes, substituiFichaId, grupos }) {
+  const { data } = await http.post(`/api/v1/alunos/${alunoId}/fichas-treino`, {
+    nome,
+    observacoes,
+    substituiFichaId,
+    grupos
+  })
+  return data.data
+}
+
+async function arquivar(fichaId) {
+  const { data } = await http.post(`/api/v1/fichas-treino/${fichaId}/arquivar`, {})
   return data.data
 }
 
@@ -41,4 +54,4 @@ async function revogarLink(alunoId) {
   return data.data
 }
 
-export default { listarPorAluno, obterAtiva, obter, criarNovaVersao, obterLink, gerarLink, revogarLink }
+export default { listarPorAluno, listarAtivas, obter, criarNovaVersao, arquivar, obterLink, gerarLink, revogarLink }

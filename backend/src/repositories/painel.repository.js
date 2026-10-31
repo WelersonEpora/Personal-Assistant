@@ -65,13 +65,14 @@ function contarRelatosCapturadosDesde(equipeId, desde) {
 }
 
 // Catálogo visível à equipe: exercícios globais (equipe_id NULL) + próprios,
-// só ativos (docs/adr/0013). Fichas ativas: uma por aluno, da equipe.
+// só ativos (docs/adr/0013). Conta ALUNOS com ficha ativa, não fichas - com a
+// divisão de treino (docs/adr/0026) um aluno pode ter várias.
 async function contarCatalogo(equipeId) {
-  const [exercicios, fichasAtivas] = await Promise.all([
+  const [exercicios, alunosComFichaAtiva] = await Promise.all([
     Exercicio.count({ where: { deletado_em: null, ativo: true, [Op.or]: [{ equipe_id: null }, { equipe_id: equipeId }] } }),
-    FichaTreino.count({ where: { equipe_id: equipeId, ativo: true } })
+    FichaTreino.count({ where: { equipe_id: equipeId, ativo: true }, distinct: true, col: "aluno_id" })
   ]);
-  return { exercicios, fichas_ativas: fichasAtivas };
+  return { exercicios, alunos_com_ficha_ativa: alunosComFichaAtiva };
 }
 
 // ------------------------------------------------------------------- listas
@@ -130,9 +131,9 @@ function listarAlunosAtivosComIndicadores(equipeId) {
         "ultima_avaliacao_fisica"
       ],
       [
-        literal(
-          '(SELECT ft.created_at FROM ficha_treino ft WHERE ft.aluno_id = "Aluno".id AND ft.ativo = true LIMIT 1)'
-        ),
+        // Várias fichas ativas (docs/adr/0026): vale a mais recente - renovar
+        // parte da divisão já conta como acompanhamento.
+        literal('(SELECT MAX(ft.created_at) FROM ficha_treino ft WHERE ft.aluno_id = "Aluno".id AND ft.ativo = true)'),
         "ficha_ativa_desde"
       ]
     ],

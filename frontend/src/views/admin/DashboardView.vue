@@ -322,7 +322,7 @@ function relatoComErro(ev) {
 
           <div class="painel-catalogo">
             {{ painel.catalogo.exercicios }} exercício(s) no catálogo ·
-            {{ painel.catalogo.fichas_ativas }} ficha(s) ativa(s)
+            {{ painel.catalogo.alunos_com_ficha_ativa }} aluno(s) com ficha ativa
           </div>
         </div>
       </div>

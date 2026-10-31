@@ -8,9 +8,9 @@ async function listarPorAluno(req, res) {
   success(res, fichas);
 }
 
-async function obterAtiva(req, res) {
-  const ficha = await fichaTreinoService.obterAtiva(req.equipeId, req.params.id);
-  success(res, ficha);
+async function listarAtivas(req, res) {
+  const fichas = await fichaTreinoService.listarAtivas(req.equipeId, req.params.id);
+  success(res, fichas);
 }
 
 async function criar(req, res) {
@@ -23,4 +23,9 @@ async function obterDetalhe(req, res) {
   success(res, ficha);
 }
 
-module.exports = { listarPorAluno, obterAtiva, criar, obterDetalhe };
+async function arquivar(req, res) {
+  const ficha = await fichaTreinoService.arquivar(req.equipeId, req.params.id);
+  success(res, ficha);
+}
+
+module.exports = { listarPorAluno, listarAtivas, criar, obterDetalhe, arquivar };

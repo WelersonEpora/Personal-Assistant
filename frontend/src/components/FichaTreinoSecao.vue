@@ -4,14 +4,36 @@ import exerciciosService from '../services/exercicios.service.js'
 import fichasTreinoService from '../services/fichasTreino.service.js'
 import alunosService from '../services/alunos.service.js'
 import { formatarData } from '../utils/registroStatus.js'
+import {
+  TIPOS_GRUPO,
+  tiposPermitidos,
+  ehConjugado,
+  itemDoExercicio,
+  grupoSimples,
+  formularioDaFicha,
+  conjugarComProximo,
+  separarGrupo,
+  removerItem as removerItemDosGrupos,
+  moverGrupo as moverGrupoNaLista,
+  moverItem as moverItemNoGrupo,
+  payloadDosGrupos,
+  problemaDoFormulario,
+  rotuloPosicao,
+  contarExercicios,
+  situacaoInativa,
+  ordenarPorNome
+} from '../utils/fichaTreino.js'
 import { useToasts } from '../composables/useToasts.js'
 import { useConfirm } from '../composables/useConfirm.js'
 import ToastStack from './ToastStack.vue'
 import ExercicioMidia from './ExercicioMidia.vue'
+import FichaGruposLeitura from './FichaGruposLeitura.vue'
 
 // Seção "Ficha de Treino" da tela do aluno (docs/adr/0015 estendida): deixou
 // de ser tela própria - vive num slot com abas no AlunoDetalheView. O contexto
 // do aluno (nome, foto, status) fica no card de identidade acima.
+// docs/adr/0026: várias fichas ativas (divisão de treino) e exercícios em
+// grupos (bi-set, tri-set, circuito).
 const props = defineProps({ id: { type: String, required: true } })
 const { toasts, showToast } = useToasts()
 const { confirmar } = useConfirm()
@@ -26,18 +48,24 @@ const salvandoDispensa = ref(false)
 // ele sai do alerta "sem ficha ativa" do painel. Não apaga fichas existentes.
 const dispensaFicha = computed(() => aluno.value?.dispensa_ficha_treino === true)
 
+// Editor: `fichaSubstituida` nula = ficha nova (soma às ativas); preenchida =
+// nova versão daquela ficha.
 const editando = ref(false)
+const fichaSubstituida = ref(null)
 const formNome = ref('')
 const formObservacoes = ref('')
-const itensForm = ref([])
+const gruposForm = ref([])
 const exercicioParaAdicionar = ref('')
 const salvando = ref(false)
+const arquivandoId = ref(null)
 
-const fichaAtiva = computed(() => fichas.value.find((f) => f.ativo) || null)
+const fichasAtivas = computed(() => ordenarPorNome(fichas.value.filter((f) => f.ativo)))
 const historico = computed(() => fichas.value.filter((f) => !f.ativo))
 const expandidoId = ref(null)
 
-// Link temporário de acesso do aluno à ficha (docs/adr/0014).
+const SITUACAO_INATIVA = { substituida: 'Substituída', arquivada: 'Arquivada' }
+
+// Link temporário de acesso do aluno às fichas (docs/adr/0014).
 const link = ref(null)
 const linkOcupado = ref(false)
 const linkUrl = computed(() => (link.value ? `${window.location.origin}/ficha/${link.value.token}` : ''))
@@ -50,6 +78,10 @@ const LINK_STATUS_META = {
 function formatarValidade(iso) {
   if (!iso) return ''
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+function mensagemDaApi(err, padrao) {
+  return err?.response?.data?.error?.message || padrao
 }
 
 async function carregar() {
@@ -122,26 +154,43 @@ async function revogarLink() {
   }
 }
 
-function iniciarEdicao() {
-  formNome.value = fichaAtiva.value?.nome || ''
-  formObservacoes.value = fichaAtiva.value?.observacoes || ''
-  itensForm.value = (fichaAtiva.value?.itens || []).map((item) => ({
-    exercicioId: item.exercicio.id,
-    nome: item.exercicio.nome,
-    grupoMuscular: item.exercicio.grupo_muscular,
-    temImagemInicio: Boolean(item.exercicio.midia_imagem_inicio_caminho),
-    temImagemFim: Boolean(item.exercicio.midia_imagem_fim_caminho),
-    midiaVideoUrl: item.exercicio.midia_video_url,
-    instrucoes: item.exercicio.instrucoes,
-    series: item.series ?? '',
-    repeticoes: item.repeticoes || '',
-    cargaObs: item.carga_obs || ''
-  }))
+function iniciarNovaFicha() {
+  fichaSubstituida.value = null
+  formNome.value = ''
+  formObservacoes.value = ''
+  gruposForm.value = []
+  editando.value = true
+}
+
+function iniciarEdicao(ficha) {
+  fichaSubstituida.value = ficha
+  formNome.value = ficha.nome || ''
+  formObservacoes.value = ficha.observacoes || ''
+  gruposForm.value = formularioDaFicha(ficha)
   editando.value = true
 }
 
 function cancelarEdicao() {
   editando.value = false
+}
+
+async function arquivarFicha(ficha) {
+  const ok = await confirmar({
+    titulo: `Arquivar “${ficha.nome || 'Ficha de treino'}”?`,
+    mensagem: 'A ficha sai das fichas ativas e do link do aluno, mas continua no histórico.',
+    confirmarLabel: 'Arquivar'
+  })
+  if (!ok) return
+  arquivandoId.value = ficha.id
+  try {
+    await fichasTreinoService.arquivar(ficha.id)
+    showToast('Ficha arquivada.', 'neutral')
+    await carregar()
+  } catch (err) {
+    showToast(mensagemDaApi(err, 'Não foi possível arquivar a ficha.'), 'warning')
+  } finally {
+    arquivandoId.value = null
+  }
 }
 
 async function alternarDispensa() {
@@ -161,58 +210,54 @@ async function alternarDispensa() {
   }
 }
 
-function adicionarItem() {
+// ----------------------------------------------------------- editor
+
+function adicionarExercicio() {
   if (!exercicioParaAdicionar.value) return
-  if (itensForm.value.some((item) => item.exercicioId === exercicioParaAdicionar.value)) {
-    showToast('Este exercício já está na ficha.', 'warning')
-    return
-  }
   const exercicio = catalogo.value.find((e) => e.id === exercicioParaAdicionar.value)
-  itensForm.value.push({
-    exercicioId: exercicio.id,
-    nome: exercicio.nome,
-    grupoMuscular: exercicio.grupo_muscular,
-    temImagemInicio: Boolean(exercicio.midia_imagem_inicio_caminho),
-    temImagemFim: Boolean(exercicio.midia_imagem_fim_caminho),
-    midiaVideoUrl: exercicio.midia_video_url,
-    instrucoes: exercicio.instrucoes,
-    series: '',
-    repeticoes: '',
-    cargaObs: ''
-  })
+  gruposForm.value = [...gruposForm.value, grupoSimples(itemDoExercicio(exercicio))]
   exercicioParaAdicionar.value = ''
 }
 
-function removerItem(indice) {
-  itensForm.value.splice(indice, 1)
+function conjugar(indice) {
+  gruposForm.value = conjugarComProximo(gruposForm.value, indice)
 }
 
-function mover(indice, direcao) {
-  const alvo = indice + direcao
-  if (alvo < 0 || alvo >= itensForm.value.length) return
-  const [item] = itensForm.value.splice(indice, 1)
-  itensForm.value.splice(alvo, 0, item)
+function separar(indice) {
+  gruposForm.value = separarGrupo(gruposForm.value, indice)
+}
+
+function removerItem(indiceGrupo, indiceItem) {
+  gruposForm.value = removerItemDosGrupos(gruposForm.value, indiceGrupo, indiceItem)
+}
+
+function moverGrupo(indice, direcao) {
+  gruposForm.value = moverGrupoNaLista(gruposForm.value, indice, direcao)
+}
+
+function moverItem(indiceGrupo, indiceItem, direcao) {
+  gruposForm.value = moverItemNoGrupo(gruposForm.value, indiceGrupo, indiceItem, direcao)
 }
 
 async function salvarNovaVersao() {
-  if (!itensForm.value.length) return
+  const problema = problemaDoFormulario({ nome: formNome.value, grupos: gruposForm.value })
+  if (problema) {
+    showToast(problema, 'warning')
+    return
+  }
   salvando.value = true
   try {
     await fichasTreinoService.criarNovaVersao(props.id, {
-      nome: formNome.value.trim() || null,
+      nome: formNome.value.trim(),
       observacoes: formObservacoes.value.trim() || null,
-      itens: itensForm.value.map((item) => ({
-        exercicioId: item.exercicioId,
-        series: item.series !== '' ? Number(item.series) : null,
-        repeticoes: item.repeticoes.trim() || null,
-        cargaObs: item.cargaObs.trim() || null
-      }))
+      substituiFichaId: fichaSubstituida.value?.id || null,
+      grupos: payloadDosGrupos(gruposForm.value)
     })
     editando.value = false
     showToast('Ficha de treino salva.', 'success')
     await carregar()
-  } catch (_err) {
-    showToast('Não foi possível salvar a ficha de treino.', 'warning')
+  } catch (err) {
+    showToast(mensagemDaApi(err, 'Não foi possível salvar a ficha de treino.'), 'warning')
   } finally {
     salvando.value = false
   }
@@ -221,22 +266,14 @@ async function salvarNovaVersao() {
 function alternarExpandido(ficha) {
   expandidoId.value = expandidoId.value === ficha.id ? null : ficha.id
 }
-
-function metaItem(item) {
-  const partes = []
-  if (item.series) partes.push(`${item.series} série(s)`)
-  if (item.repeticoes) partes.push(`${item.repeticoes} repetições`)
-  if (item.exercicio.grupo_muscular) partes.push(item.exercicio.grupo_muscular)
-  return partes.join(' · ')
-}
 </script>
 
 <template>
   <div>
     <div class="secao-cabecalho">
       <h2 class="secao-titulo">Ficha de Treino</h2>
-      <button v-if="!editando && !dispensaFicha" type="button" class="btn btn-primary" @click="iniciarEdicao">
-        {{ fichaAtiva ? 'Nova versão da ficha' : 'Criar ficha' }}
+      <button v-if="!editando && !dispensaFicha" type="button" class="btn btn-primary" @click="iniciarNovaFicha">
+        + Nova ficha
       </button>
     </div>
 
@@ -260,7 +297,7 @@ function metaItem(item) {
       <div v-if="!editando" class="card card-pad" style="margin-bottom: 26px;">
         <div style="font-size: 15px; font-weight: 700; margin-bottom: 4px;">🔗 Link para o aluno</div>
         <p class="list-row-sub" style="margin-bottom: 12px;">
-          Acesso somente leitura à ficha ativa, sem login. Validade de 7 dias; gerar um novo invalida o anterior.
+          Acesso somente leitura a todas as fichas ativas, sem login. Validade de 7 dias; gerar um novo invalida o anterior.
         </p>
 
         <template v-if="link">
@@ -303,74 +340,45 @@ function metaItem(item) {
       </div>
 
       <template v-if="!editando">
-        <div v-if="fichaAtiva" class="card card-pad" style="margin-bottom: 26px;">
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; gap: 12px;">
+        <div v-for="ficha in fichasAtivas" :key="ficha.id" class="card card-pad" style="margin-bottom: 18px;">
+          <div class="ficha-cabecalho">
             <div>
-              <div style="font-size: 15px; font-weight: 700;">{{ fichaAtiva.nome || 'Ficha de treino' }}</div>
-              <div class="list-row-sub">Criada em {{ formatarData(fichaAtiva.created_at) }} por {{ fichaAtiva.criadoPor?.nome }}</div>
+              <div style="font-size: 15px; font-weight: 700;">{{ ficha.nome || 'Ficha de treino' }}</div>
+              <div class="list-row-sub">Criada em {{ formatarData(ficha.created_at) }} por {{ ficha.criadoPor?.nome }}</div>
             </div>
-            <span class="badge badge-success">Ativa</span>
-          </div>
-          <div v-if="fichaAtiva.observacoes" class="exercise-obs" style="margin-bottom: 14px;">{{ fichaAtiva.observacoes }}</div>
-          <div v-for="item in fichaAtiva.itens" :key="item.id" class="exercise-card">
-            <div class="exercise-card-top">
-              <div style="display: flex; align-items: center; gap: 12px;">
-                <ExercicioMidia
-                  :exercicio-id="item.exercicio.id"
-                  :tem-inicio="Boolean(item.exercicio.midia_imagem_inicio_caminho)"
-                  :tem-fim="Boolean(item.exercicio.midia_imagem_fim_caminho)"
-                  :video-url="item.exercicio.midia_video_url"
-                  :instrucoes="item.exercicio.instrucoes"
-                  :nome="item.exercicio.nome"
-                  size="md"
-                />
-                <div>
-                  <div class="exercise-name">{{ item.exercicio.nome }}</div>
-                  <div class="exercise-meta">{{ metaItem(item) }}</div>
-                </div>
-              </div>
+            <div class="ficha-acoes">
+              <span class="badge badge-success">Ativa</span>
+              <button type="button" class="btn btn-secondary btn-sm" @click="iniciarEdicao(ficha)">Editar</button>
+              <button
+                type="button"
+                class="btn btn-ghost btn-sm"
+                :disabled="arquivandoId === ficha.id"
+                @click="arquivarFicha(ficha)"
+              >
+                Arquivar
+              </button>
             </div>
-            <div class="exercise-obs" :class="{ empty: !item.carga_obs }">Carga / observações: {{ item.carga_obs }}</div>
           </div>
+          <div v-if="ficha.observacoes" class="exercise-obs" style="margin-bottom: 14px;">{{ ficha.observacoes }}</div>
+          <FichaGruposLeitura :grupos="ficha.grupos" />
         </div>
-        <div v-else class="card empty-state" style="margin-bottom: 26px;">
+        <div v-if="!fichasAtivas.length" class="card empty-state" style="margin-bottom: 26px;">
           <div class="empty-state-icon">📋</div>Nenhuma ficha de treino ativa ainda.
         </div>
 
-        <p style="font-size: 12px; font-weight: 700; color: var(--color-text-faint); text-transform: uppercase; letter-spacing: .03em; margin: 0 0 10px;">
-          Fichas anteriores
-        </p>
+        <p class="rotulo-secao">Fichas anteriores</p>
         <div v-if="!historico.length" class="card empty-state">Nenhuma ficha anterior.</div>
         <div class="registros-list">
           <div v-for="ficha in historico" :key="ficha.id" class="card registro-card row-clickable" @click="alternarExpandido(ficha)">
             <div class="registro-card-head">
               <div class="registro-card-who">
                 <span class="list-row-title">{{ ficha.nome || 'Ficha de treino' }}</span>
-                <span class="list-row-sub">Criada em {{ formatarData(ficha.created_at) }} · {{ ficha.itens.length }} exercício(s)</span>
+                <span class="list-row-sub">Criada em {{ formatarData(ficha.created_at) }} · {{ contarExercicios(ficha) }} exercício(s)</span>
               </div>
-              <span class="badge badge-neutral">Substituída</span>
+              <span class="badge badge-neutral">{{ SITUACAO_INATIVA[situacaoInativa(ficha, fichas)] }}</span>
             </div>
-            <div v-if="expandidoId === ficha.id" class="transcript-box open" @click.stop>
-              <div v-for="item in ficha.itens" :key="item.id" class="exercise-card">
-                <div class="exercise-card-top">
-                  <div style="display: flex; align-items: center; gap: 12px;">
-                    <ExercicioMidia
-                      :exercicio-id="item.exercicio.id"
-                      :tem-inicio="Boolean(item.exercicio.midia_imagem_inicio_caminho)"
-                      :tem-fim="Boolean(item.exercicio.midia_imagem_fim_caminho)"
-                      :video-url="item.exercicio.midia_video_url"
-                      :instrucoes="item.exercicio.instrucoes"
-                      :nome="item.exercicio.nome"
-                      size="md"
-                    />
-                    <div>
-                      <div class="exercise-name">{{ item.exercicio.nome }}</div>
-                      <div class="exercise-meta">{{ metaItem(item) }}</div>
-                    </div>
-                  </div>
-                </div>
-                <div class="exercise-obs" :class="{ empty: !item.carga_obs }">Carga / observações: {{ item.carga_obs }}</div>
-              </div>
+            <div v-if="expandidoId === ficha.id" class="transcript-box open" style="font-style: normal;" @click.stop>
+              <FichaGruposLeitura :grupos="ficha.grupos" />
             </div>
           </div>
         </div>
@@ -378,16 +386,146 @@ function metaItem(item) {
 
       <template v-else>
         <div class="card card-pad">
+          <div style="font-size: 15px; font-weight: 700; margin-bottom: 14px;">
+            {{ fichaSubstituida ? `Nova versão de “${fichaSubstituida.nome || 'Ficha de treino'}”` : 'Nova ficha' }}
+          </div>
+          <p v-if="!fichaSubstituida && fichasAtivas.length" class="list-row-sub" style="margin: -8px 0 14px;">
+            Fica ativa junto com {{ fichasAtivas.map((f) => `“${f.nome || 'Ficha de treino'}”`).join(', ') }}.
+            Para trocar uma ficha existente, use “Editar” nela.
+          </p>
           <div class="form-field" style="max-width: 420px; margin-bottom: 12px;">
-            <label>Nome da ficha (opcional)</label>
-            <input v-model="formNome" type="text" placeholder="Ex.: Treino A - Superior" />
+            <label>Nome da ficha</label>
+            <input v-model="formNome" type="text" placeholder="Ex.: Treino A - Superiores" />
           </div>
           <div class="form-field" style="max-width: 420px; margin-bottom: 20px;">
             <label>Observações (opcional)</label>
             <textarea v-model="formObservacoes" rows="2"></textarea>
           </div>
 
-          <div style="display: flex; gap: 10px; align-items: flex-end; margin-bottom: 20px; max-width: 560px;">
+          <div v-if="!gruposForm.length" class="empty-state" style="padding: 24px;">Nenhum exercício adicionado ainda.</div>
+
+          <template v-for="(grupo, gi) in gruposForm" :key="grupo.chave">
+            <!-- Exercício simples: séries, repetições, descanso e carga no próprio cartão. -->
+            <div v-if="!ehConjugado(grupo)" class="exercise-card">
+              <div class="exercise-card-top">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span class="posicao">{{ rotuloPosicao(grupo, gi, 0) }}</span>
+                  <ExercicioMidia
+                    :exercicio-id="grupo.itens[0].exercicioId"
+                    :tem-inicio="grupo.itens[0].temImagemInicio"
+                    :tem-fim="grupo.itens[0].temImagemFim"
+                    :video-url="grupo.itens[0].midiaVideoUrl"
+                    :instrucoes="grupo.itens[0].instrucoes"
+                    :nome="grupo.itens[0].nome"
+                    size="md"
+                  />
+                  <div>
+                    <div class="exercise-name">{{ grupo.itens[0].nome }}</div>
+                    <div class="exercise-meta">{{ grupo.itens[0].grupoMuscular }}</div>
+                  </div>
+                </div>
+                <button type="button" class="exercise-remove" @click="removerItem(gi, 0)">Remover</button>
+              </div>
+              <div class="field-row">
+                <div class="field-group">
+                  <label>Séries</label>
+                  <input v-model="grupo.series" type="number" min="1" />
+                </div>
+                <div class="field-group">
+                  <label>Repetições ou tempo</label>
+                  <input v-model="grupo.itens[0].repeticoes" type="text" placeholder="Ex.: 12 ou 30s" />
+                </div>
+                <div class="field-group">
+                  <label>Descanso</label>
+                  <input v-model="grupo.descanso" type="text" placeholder="Ex.: 60s" />
+                </div>
+                <div class="field-group obs-field">
+                  <label>Carga / observações</label>
+                  <input v-model="grupo.itens[0].cargaObs" type="text" placeholder="Ex.: 20kg, aumentar progressivamente" />
+                </div>
+              </div>
+              <div class="grupo-acoes">
+                <button type="button" class="btn btn-ghost btn-sm" :disabled="gi === 0" @click="moverGrupo(gi, -1)">↑ Subir</button>
+                <button type="button" class="btn btn-ghost btn-sm" :disabled="gi === gruposForm.length - 1" @click="moverGrupo(gi, 1)">↓ Descer</button>
+                <button
+                  v-if="gi < gruposForm.length - 1"
+                  type="button"
+                  class="btn btn-ghost btn-sm"
+                  title="Fazer este exercício em sequência com o próximo (bi-set, tri-set, circuito)"
+                  @click="conjugar(gi)"
+                >
+                  🔗 Conjugar com o próximo
+                </button>
+              </div>
+            </div>
+
+            <!-- Grupo conjugado: tipo, voltas e descanso entre voltas valem para o grupo todo. -->
+            <div v-else class="grupo-conjugado">
+              <div class="field-row">
+                <div class="field-group">
+                  <label>Tipo</label>
+                  <select v-model="grupo.tipo">
+                    <option v-for="tipo in tiposPermitidos(grupo.itens.length)" :key="tipo" :value="tipo">{{ TIPOS_GRUPO[tipo] }}</option>
+                  </select>
+                </div>
+                <div class="field-group">
+                  <label>Voltas</label>
+                  <input v-model="grupo.series" type="number" min="1" />
+                </div>
+                <div class="field-group">
+                  <label>Descanso entre voltas</label>
+                  <input v-model="grupo.descanso" type="text" placeholder="Ex.: 60s" />
+                </div>
+                <div class="field-group obs-field">
+                  <label>Observações do grupo</label>
+                  <input v-model="grupo.observacoes" type="text" placeholder="Ex.: na 2ª volta, 10 repetições no supino" />
+                </div>
+              </div>
+
+              <div v-for="(item, ii) in grupo.itens" :key="item.chave" class="grupo-item-edicao">
+                <div class="exercise-card-top" style="margin-bottom: 0;">
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    <span class="posicao">{{ rotuloPosicao(grupo, gi, ii) }}</span>
+                    <ExercicioMidia
+                      :exercicio-id="item.exercicioId"
+                      :tem-inicio="item.temImagemInicio"
+                      :tem-fim="item.temImagemFim"
+                      :video-url="item.midiaVideoUrl"
+                      :instrucoes="item.instrucoes"
+                      :nome="item.nome"
+                    />
+                    <div class="exercise-name">{{ item.nome }}</div>
+                  </div>
+                  <div style="display: flex; gap: 4px; align-items: center;">
+                    <button type="button" class="btn btn-ghost btn-sm" :disabled="ii === 0" title="Subir no grupo" @click="moverItem(gi, ii, -1)">↑</button>
+                    <button type="button" class="btn btn-ghost btn-sm" :disabled="ii === grupo.itens.length - 1" title="Descer no grupo" @click="moverItem(gi, ii, 1)">↓</button>
+                    <button type="button" class="exercise-remove" @click="removerItem(gi, ii)">Remover</button>
+                  </div>
+                </div>
+                <div class="field-row item-campos">
+                  <div class="field-group">
+                    <label>Repetições ou tempo</label>
+                    <input v-model="item.repeticoes" type="text" placeholder="Ex.: 12 ou 30s" />
+                  </div>
+                  <div class="field-group">
+                    <label>Carga / observações</label>
+                    <input v-model="item.cargaObs" type="text" placeholder="Ex.: 20kg" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="grupo-acoes">
+                <button type="button" class="btn btn-ghost btn-sm" :disabled="gi === 0" @click="moverGrupo(gi, -1)">↑ Subir</button>
+                <button type="button" class="btn btn-ghost btn-sm" :disabled="gi === gruposForm.length - 1" @click="moverGrupo(gi, 1)">↓ Descer</button>
+                <button v-if="gi < gruposForm.length - 1" type="button" class="btn btn-ghost btn-sm" @click="conjugar(gi)">
+                  🔗 Incluir o próximo
+                </button>
+                <button type="button" class="btn btn-ghost btn-sm" @click="separar(gi)">Separar exercícios</button>
+              </div>
+            </div>
+          </template>
+
+          <div style="display: flex; gap: 10px; align-items: flex-end; margin-top: 8px; max-width: 560px;">
             <div class="form-field" style="flex: 1;">
               <label>Adicionar exercício do catálogo</label>
               <select v-model="exercicioParaAdicionar">
@@ -395,52 +533,15 @@ function metaItem(item) {
                 <option v-for="ex in catalogo" :key="ex.id" :value="ex.id">{{ ex.nome }}{{ ex.equipe_id ? '' : ' (global)' }}</option>
               </select>
             </div>
-            <button type="button" class="btn btn-secondary" :disabled="!exercicioParaAdicionar" @click="adicionarItem">+ Adicionar</button>
+            <button type="button" class="btn btn-secondary" :disabled="!exercicioParaAdicionar" @click="adicionarExercicio">+ Adicionar</button>
           </div>
-
-          <div v-if="!itensForm.length" class="empty-state" style="padding: 24px;">Nenhum exercício adicionado ainda.</div>
-          <div v-for="(item, indice) in itensForm" :key="item.exercicioId" class="exercise-card">
-            <div class="exercise-card-top">
-              <div style="display: flex; align-items: center; gap: 12px;">
-                <ExercicioMidia
-                  :exercicio-id="item.exercicioId"
-                  :tem-inicio="item.temImagemInicio"
-                  :tem-fim="item.temImagemFim"
-                  :video-url="item.midiaVideoUrl"
-                  :instrucoes="item.instrucoes"
-                  :nome="item.nome"
-                  size="md"
-                />
-                <div>
-                  <div class="exercise-name">{{ item.nome }}</div>
-                  <div class="exercise-meta">{{ item.grupoMuscular }}</div>
-                </div>
-              </div>
-              <button type="button" class="exercise-remove" @click="removerItem(indice)">Remover</button>
-            </div>
-            <div class="field-row" style="grid-template-columns: 1fr 1fr 2fr;">
-              <div class="field-group">
-                <label>Séries</label>
-                <input v-model="item.series" type="number" min="1" />
-              </div>
-              <div class="field-group">
-                <label>Repetições</label>
-                <input v-model="item.repeticoes" type="text" placeholder="Ex.: 8-12" />
-              </div>
-              <div class="field-group obs-field">
-                <label>Carga / observações</label>
-                <input v-model="item.cargaObs" type="text" placeholder="Ex.: 20kg, aumentar progressivamente" />
-              </div>
-            </div>
-            <div style="display: flex; gap: 8px; margin-top: 10px;">
-              <button type="button" class="btn btn-ghost btn-sm" :disabled="indice === 0" @click="mover(indice, -1)">↑ Subir</button>
-              <button type="button" class="btn btn-ghost btn-sm" :disabled="indice === itensForm.length - 1" @click="mover(indice, 1)">↓ Descer</button>
-            </div>
-          </div>
+          <p class="list-row-sub" style="margin-top: 8px;">
+            Para um bi-set, tri-set ou circuito, adicione os exercícios em sequência e use “Conjugar com o próximo”.
+          </p>
 
           <div class="revisao-actions">
             <button type="button" class="btn btn-ghost" @click="cancelarEdicao">Cancelar</button>
-            <button type="button" class="btn btn-primary" :disabled="salvando || !itensForm.length" @click="salvarNovaVersao">Salvar ficha</button>
+            <button type="button" class="btn btn-primary" :disabled="salvando || !gruposForm.length" @click="salvarNovaVersao">Salvar ficha</button>
           </div>
         </div>
       </template>
@@ -480,5 +581,62 @@ function metaItem(item) {
   height: 15px;
   cursor: pointer;
   accent-color: var(--color-primary);
+}
+.ficha-cabecalho {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.ficha-acoes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rotulo-secao {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-faint);
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  margin: 8px 0 10px;
+}
+.posicao {
+  flex: none;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.grupo-conjugado {
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  padding: 4px 18px 14px;
+  margin-bottom: 12px;
+  background: var(--color-surface);
+}
+.grupo-item-edicao {
+  border-top: 1px dashed var(--color-border);
+  margin-top: 12px;
+  padding-top: 12px;
+}
+.item-campos {
+  grid-template-columns: 1fr 2fr;
+}
+.grupo-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
 }
 </style>

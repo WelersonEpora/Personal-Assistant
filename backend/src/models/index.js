@@ -17,6 +17,7 @@ db.Validacao = require("./validacao")(sequelize);
 db.PropostaAvaliacaoFisica = require("./propostaAvaliacaoFisica")(sequelize);
 db.Exercicio = require("./exercicio")(sequelize);
 db.FichaTreino = require("./fichaTreino")(sequelize);
+db.FichaTreinoGrupo = require("./fichaTreinoGrupo")(sequelize);
 db.FichaTreinoExercicio = require("./fichaTreinoExercicio")(sequelize);
 db.FichaAcessoLink = require("./fichaAcessoLink")(sequelize);
 db.AvaliacaoMensal = require("./avaliacaoMensal")(sequelize);

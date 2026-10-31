@@ -404,6 +404,7 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
 | 0023 | Compartilhar a avaliação mensal com o aluno (PDF com revisão do personal) |
 | 0024 | Cálculo da % de gordura por protocolo de dobras (Pollock 7) |
 | 0025 | Avaliação física do mês como contexto do Acompanhamento Mensal |
+| 0026 | Exercícios conjugados na Ficha de Treino e várias fichas ativas por aluno |
 
 ## Estado atual
 
@@ -411,7 +412,8 @@ MVP completo e verificado de ponta a ponta:
 
 - **Backend**: auth (JWT, com Equipe/Membro — ver docs/adr/0011), Aluno
   (CRUD simples escopado por equipe), catálogo de exercícios + Ficha de
-  Treino (docs/adr/0013) com link público por token (docs/adr/0014),
+  Treino (docs/adr/0013; grupos conjugados e várias fichas ativas —
+  docs/adr/0026) com link público por token (docs/adr/0014),
   sincronização de Registro (idempotente, multipart), pipeline de IA
   (Gemini, fila em processo), revisão/confirmação (`validacao` como único
   dado oficial), Acompanhamento Individual Mensal (docs/adr/0015 — avaliação
@@ -489,7 +491,16 @@ MVP completo e verificado de ponta a ponta:
   **Relatos** (`/admin/registros`) virou a caixa de entrada do pipeline (só não
   confirmados; confirmado vive só no Histórico), sem filtro de tempo e sem a aba
   "Confirmados".
-  355 testes automatizados (`node --test`, unitários +
+  Ficha de Treino com exercícios conjugados e várias fichas ativas
+  (docs/adr/0026): `ficha_treino_grupo` (tipo `simples|biset|triset|circuito`,
+  `series` = séries ou voltas, `descanso` em texto) entre a ficha e os itens —
+  todo item tem grupo, `series` saiu do item; `ficha_treino.substitui_id`
+  (nova versão desativa só a ficha substituída; índice único parcial impede
+  substituir duas vezes) no lugar do índice "uma ativa por aluno";
+  `GET /alunos/:id/fichas-treino/ativas`, `POST /fichas-treino/:id/arquivar`.
+  Link do aluno devolve `fichas: [...]`; painel: "ficha antiga" pela ativa
+  mais recente e `catalogo.alunos_com_ficha_ativa`.
+  364 testes automatizados (`node --test`, unitários +
   integração contra banco de teste dedicado).
 - **Frontend**: app Vue 3 + Vite + PWA único (`/captura` mobile-first
   offline, `/admin` gestão/validação), IndexedDB + fila de sincronização
@@ -579,11 +590,18 @@ MVP completo e verificado de ponta a ponta:
   liga/desliga tipos; meses antigos recolhidos. Montagem pura em
   `utils/linhaDoTempo.js` (testada); avaliação física capturada por voz e
   confirmada aparece uma vez só (pela avaliação, via `registro_id`).
-  95 testes automatizados (`node --test` + `fake-indexeddb`; +
+  Ficha de Treino com grupos e várias fichas ativas (docs/adr/0026):
+  `FichaTreinoSecao.vue` lista as ativas (por nome) com "Editar" (nova versão,
+  `substituiFichaId`) e "Arquivar", histórico "Substituída"/"Arquivada"; editor
+  com "Conjugar com o próximo" / "Separar exercícios", tipo + voltas + descanso
+  no grupo; leitura em `components/FichaGruposLeitura.vue` (numeração 2A/2B).
+  `FichaPublicaView.vue` (link do aluno) mostra todas as ativas com chips para
+  escolher a do dia. Helpers puros em `utils/fichaTreino.js` (testados).
+  108 testes automatizados (`node --test` + `fake-indexeddb`; +
   `echarts-option-builder.test.js`, `echarts-bar-option-builder.test.js`,
   `periodos.test.js`, `avaliacaoFisica.test.js`, `gravacaoVoz.test.js`,
   `avaliacaoMensalCompartilhada.test.js`, `registroStatus.test.js`,
-  `protocolosGordura.test.js` e `linhaDoTempo.test.js` puros).
+  `protocolosGordura.test.js`, `linhaDoTempo.test.js` e `fichaTreino.test.js` puros).
 - **Docker**: `compose.dev.yml` (Postgres + pgAdmin) e `compose.prod.yml`
   (Postgres + backend + frontend) validados; Dockerfiles com healthcheck
   em ambos os serviços da aplicação.

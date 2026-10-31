@@ -12,5 +12,7 @@ router.use(autenticar);
 // tela do aluno). Criação/listagem por aluno vivem em aluno.routes.js -
 // mesmo critério de nested path já usado para as entradas de Registro.
 router.get("/:id", fichaTreinoController.obterDetalhe);
+// Desliga a ficha sem substituta (docs/adr/0026) - continua no histórico.
+router.post("/:id/arquivar", fichaTreinoController.arquivar);
 
 module.exports = router;

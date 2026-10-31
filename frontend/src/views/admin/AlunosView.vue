@@ -27,6 +27,13 @@ const modalAberto = ref(false)
 const novoNome = ref('')
 const novoTelefone = ref('')
 const novasObservacoes = ref('')
+// Data de nascimento e sexo: obrigatórios só aqui no front - a % de gordura
+// Pollock 7 depende deles (docs/adr/0024). O backend segue aceitando nulo,
+// porque há alunos antigos/importados do BodyMove sem esses dados.
+const novaDataNascimento = ref('')
+const novoSexo = ref('')
+const hoje = new Date().toLocaleDateString('sv-SE')
+const novoAlunoValido = computed(() => Boolean(novoNome.value.trim() && novaDataNascimento.value && novoSexo.value))
 const salvando = ref(false)
 
 async function carregarFotos() {
@@ -117,7 +124,7 @@ async function alternarAtivo(aluno) {
   if (!ativo) {
     const ok = await confirmar({
       titulo: `Marcar ${aluno.nome} como inativo?`,
-      mensagem: 'O aluno sai da lista de ativos e do lote de avaliação mensal. O cadastro e o histórico continuam intactos — dá pra reativar quando quiser.',
+      mensagem: 'O aluno sai da lista de ativos e da geração do Acompanhamento Mensal. O cadastro e o histórico continuam intactos — dá pra reativar quando quiser.',
       confirmarLabel: 'Marcar como inativo'
     })
     if (!ok) return
@@ -136,17 +143,21 @@ function abrirModal() {
   novoNome.value = ''
   novoTelefone.value = ''
   novasObservacoes.value = ''
+  novaDataNascimento.value = ''
+  novoSexo.value = ''
   modalAberto.value = true
 }
 
 async function salvarNovoAluno() {
-  if (!novoNome.value.trim()) return
+  if (!novoAlunoValido.value) return
   salvando.value = true
   try {
     await alunosService.criar({
       nome: novoNome.value.trim(),
       telefone: novoTelefone.value.trim() || null,
-      observacoes: novasObservacoes.value.trim() || null
+      observacoes: novasObservacoes.value.trim() || null,
+      data_nascimento: novaDataNascimento.value,
+      sexo: novoSexo.value
     })
     modalAberto.value = false
     showToast('Aluno cadastrado.', 'success')
@@ -260,6 +271,20 @@ async function salvarNovoAluno() {
             <label>Nome</label>
             <input v-model="novoNome" type="text" required autofocus />
           </div>
+          <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+            <div class="form-field" style="flex: 1;">
+              <label>Data de nascimento</label>
+              <input v-model="novaDataNascimento" type="date" :max="hoje" required />
+            </div>
+            <div class="form-field" style="width: 120px;">
+              <label>Sexo</label>
+              <select v-model="novoSexo" required>
+                <option value="" disabled>Selecione</option>
+                <option value="F">Feminino</option>
+                <option value="M">Masculino</option>
+              </select>
+            </div>
+          </div>
           <div class="form-field" style="margin-bottom: 12px;">
             <label>Telefone (opcional)</label>
             <input v-model="novoTelefone" type="tel" placeholder="(11) 99999-0000" />
@@ -270,7 +295,7 @@ async function salvarNovoAluno() {
           </div>
           <div style="display: flex; gap: 10px; justify-content: flex-end;">
             <button type="button" class="btn btn-ghost" @click="modalAberto = false">Cancelar</button>
-            <button type="submit" class="btn btn-primary" :disabled="salvando || !novoNome.trim()">Salvar</button>
+            <button type="submit" class="btn btn-primary" :disabled="salvando || !novoAlunoValido">Salvar</button>
           </div>
         </form>
       </div>

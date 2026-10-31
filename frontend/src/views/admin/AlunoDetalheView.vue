@@ -20,7 +20,7 @@ const router = useRouter()
 // abas. A aba fica no query da URL (?aba=ficha) - refresh e link direto
 // continuam funcionando; as rotas antigas redirecionam pra cá.
 const ABAS = [
-  { id: 'acompanhamento', label: 'Acompanhamento' },
+  { id: 'acompanhamento', label: 'Linha do Tempo' },
   { id: 'ficha', label: '📋 Ficha de Treino' },
   { id: 'avaliacoes', label: '🩺 Avaliações Físicas' }
 ]
@@ -47,6 +47,15 @@ const telefoneEdit = ref('')
 const observacoesEdit = ref('')
 const dataNascimentoEdit = ref('')
 const sexoEdit = ref('')
+// Data de nascimento e sexo: obrigatórios só no front (a % de gordura Pollock 7
+// depende deles - docs/adr/0024); o backend aceita nulo por causa dos alunos
+// antigos/importados sem o dado, que ganham o aviso "cadastro incompleto".
+const hoje = new Date().toLocaleDateString('sv-SE')
+const edicaoValida = computed(() => Boolean(nomeEdit.value.trim() && dataNascimentoEdit.value && sexoEdit.value))
+const cadastroIncompleto = computed(() => Boolean(aluno.value && (!aluno.value.data_nascimento || !aluno.value.sexo)))
+const faltandoNoCadastro = computed(() =>
+  [!aluno.value?.data_nascimento && 'data de nascimento', !aluno.value?.sexo && 'sexo'].filter(Boolean).join(' e ')
+)
 const salvando = ref(false)
 const enviandoFoto = ref(false)
 const removendoFoto = ref(false)
@@ -106,15 +115,15 @@ function iniciarEdicao() {
 }
 
 async function salvarEdicao() {
-  if (!nomeEdit.value.trim()) return
+  if (!edicaoValida.value) return
   salvando.value = true
   try {
     aluno.value = await alunosService.atualizar(props.id, {
       nome: nomeEdit.value.trim(),
       telefone: telefoneEdit.value.trim() || null,
       observacoes: observacoesEdit.value.trim() || null,
-      data_nascimento: dataNascimentoEdit.value || null,
-      sexo: sexoEdit.value || null
+      data_nascimento: dataNascimentoEdit.value,
+      sexo: sexoEdit.value
     })
     editando.value = false
     showToast('Dados do aluno atualizados.', 'success')
@@ -178,7 +187,7 @@ async function alternarAtivo() {
   if (!ativo) {
     const ok = await confirmar({
       titulo: `Marcar ${aluno.value.nome} como inativo?`,
-      mensagem: 'O aluno sai da lista de ativos e do lote de avaliação mensal. O cadastro e o histórico continuam intactos — dá pra reativar quando quiser.',
+      mensagem: 'O aluno sai da lista de ativos e da geração do Acompanhamento Mensal. O cadastro e o histórico continuam intactos — dá pra reativar quando quiser.',
       confirmarLabel: 'Marcar como inativo'
     })
     if (!ok) return
@@ -251,6 +260,9 @@ async function excluirAluno() {
             </span>
             <span v-if="aluno.sexo">{{ aluno.sexo === 'F' ? 'Feminino' : 'Masculino' }}</span>
           </div>
+          <button v-if="cadastroIncompleto" type="button" class="aluno-cadastro-incompleto" @click.stop="iniciarEdicao">
+            ⚠ Cadastro incompleto: falta {{ faltandoNoCadastro }} (necessário para a % de gordura). Completar
+          </button>
           <div v-if="aluno.observacoes" class="aluno-identidade-obs">{{ aluno.observacoes }}</div>
         </div>
       </div>
@@ -301,12 +313,12 @@ async function excluirAluno() {
           <div style="display: flex; gap: 10px; margin-bottom: 10px;">
             <div class="form-field" style="flex: 1;">
               <label>Data de nascimento</label>
-              <input v-model="dataNascimentoEdit" type="date" />
+              <input v-model="dataNascimentoEdit" type="date" :max="hoje" required />
             </div>
             <div class="form-field" style="width: 120px;">
               <label>Sexo</label>
-              <select v-model="sexoEdit">
-                <option value="">—</option>
+              <select v-model="sexoEdit" required>
+                <option value="" disabled>Selecione</option>
                 <option value="F">Feminino</option>
                 <option value="M">Masculino</option>
               </select>
@@ -318,7 +330,7 @@ async function excluirAluno() {
           </div>
           <div style="display: flex; gap: 10px; justify-content: flex-end;">
             <button type="button" class="btn btn-ghost" @click="editando = false">Cancelar</button>
-            <button type="submit" class="btn btn-primary" :disabled="salvando || !nomeEdit.trim()">Salvar</button>
+            <button type="submit" class="btn btn-primary" :disabled="salvando || !edicaoValida">Salvar</button>
           </div>
         </form>
       </div>
@@ -364,6 +376,19 @@ async function excluirAluno() {
   margin-top: 6px;
   font-size: 13px;
   color: var(--color-text-faint);
+}
+.aluno-cadastro-incompleto {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 3px 8px;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-warning-light);
+  color: var(--color-warning);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
 }
 .aluno-identidade-obs {
   margin-top: 6px;

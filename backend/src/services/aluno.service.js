@@ -17,7 +17,9 @@ async function getAluno(equipeId, id) {
 }
 
 // docs/adr/0016: data de nascimento e sexo são atributos estáveis da pessoa
-// (entram na avaliação física). Opcionais - o cadastro mínimo não os exige.
+// (entram na avaliação física). O front exige os dois no cadastro/edição (a %
+// de gordura Pollock 7 depende deles - docs/adr/0024), mas aqui seguem
+// opcionais: há alunos antigos/importados do BodyMove sem esses dados.
 function validarDataNascimento(valor) {
   if (valor === undefined) return undefined;
   if (valor === null || valor === "") return null;

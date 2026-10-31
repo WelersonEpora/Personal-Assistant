@@ -292,8 +292,10 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
   nem por IA. A % de gordura do **Pollock 7 dobras** (ADR-0024) também é
   calculada pelo service, a pedido (`calcular: true`), a partir das dobras +
   `aluno.sexo` + idade na data (Jackson & Pollock + constantes de Lohman — mesma
-  conta do BodyMove); faltando dado, a avaliação salva sem a % e o formulário
-  avisa o que falta. Os demais protocolos continuam digitados.
+  conta do BodyMove); com o protocolo na avaliação, o formulário exige as 7
+  dobras (`*`, vermelho; adendo 2026-10-31) — faltando sexo/nascimento do
+  cadastro, salva sem a % e avisa. O backend segue aceitando dado faltando.
+  Os demais protocolos continuam digitados.
   Importação do legado é idempotente por `(aluno_id, data, origem)` e mantém
   `origem = legado_bodymove`. A ADR-0018 permite que a IA gere um **rascunho**
   de avaliação (tabela `proposta_avaliacao_fisica`, descartável, nunca oficial,

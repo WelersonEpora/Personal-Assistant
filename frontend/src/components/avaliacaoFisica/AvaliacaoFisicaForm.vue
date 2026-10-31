@@ -18,7 +18,12 @@ import {
   LADOS,
   calcularIdade
 } from '../../utils/avaliacaoFisica.js'
-import { calcularPercentualGordura, descreverFaltando, ehProtocoloCalculado } from '../../utils/protocolosGordura.js'
+import {
+  DOBRAS_POR_PROTOCOLO,
+  calcularPercentualGordura,
+  descreverFaltando,
+  ehProtocoloCalculado
+} from '../../utils/protocolosGordura.js'
 
 const props = defineProps({
   alunoId: { type: String, required: true },
@@ -103,6 +108,21 @@ function valorPercentualDaLinha(linha) {
   const v = Number(linha.valor)
   return v > 0 ? v : null
 }
+// Enquanto houver um protocolo calculado (Pollock 7) na avaliação, as dobras
+// dele são obrigatórias - sem elas a % não sai. Quem não mediu dobras remove o
+// protocolo. Sexo/nascimento ficam no cadastro: só avisam, não bloqueiam.
+const dobrasObrigatorias = computed(() => {
+  const set = new Set()
+  for (const linha of multi.percentual_gordura) {
+    if (linha.calcular) for (const c of DOBRAS_POR_PROTOCOLO[linha.metodo] || []) set.add(c)
+  }
+  return set
+})
+function dobraPendente(codigo) {
+  return dobrasObrigatorias.value.has(codigo) && !(Number(valores[codigo]) > 0)
+}
+const dobrasPendentes = computed(() => [...dobrasObrigatorias.value].filter(dobraPendente))
+
 function aoTrocarMetodo(codigo, linha) {
   linha.calcular = codigo === 'percentual_gordura' && ehProtocoloCalculado(linha.metodo)
   if (linha.calcular) linha.valor = ''
@@ -382,6 +402,13 @@ async function salvar() {
     showToast('Informe a data da avaliação.', 'warning')
     return
   }
+  if (dobrasPendentes.value.length) {
+    showToast(
+      `Faltam dobras do Pollock 7: ${dobrasPendentes.value.map(rotuloMetrica).join(', ')}. Se não mediu dobras, remova o protocolo.`,
+      'warning'
+    )
+    return
+  }
   const payload = montarPayload()
 
   // docs/adr/0018 - em 'revisao' quem persiste é a tela de revisão, pelo
@@ -418,7 +445,7 @@ async function salvar() {
     <div class="card card-pad" style="margin-bottom: 16px;">
       <div class="field-row" style="grid-template-columns: 200px 1fr;">
         <div class="field-group">
-          <label>Data da avaliação *</label>
+          <label>Data da avaliação<span class="obrigatorio">*</span></label>
           <input v-model="data" type="date" required />
         </div>
         <div class="field-group">
@@ -432,9 +459,10 @@ async function salvar() {
     <div v-for="grupo in metricasSimples" :key="grupo.categoria" class="card card-pad" style="margin-bottom: 16px;">
       <div style="font-size: 15px; font-weight: 700; margin-bottom: 10px;">{{ grupo.rotulo }}</div>
       <div class="af-grid">
-        <div v-for="m in grupo.metricas" :key="m.codigo" class="field-group">
+        <div v-for="m in grupo.metricas" :key="m.codigo" class="field-group" :class="{ 'af-pendente': dobraPendente(m.codigo) }">
           <label>
-            {{ m.rotulo }} <span class="af-unidade">({{ m.unidade }})</span>
+            {{ m.rotulo }}<span v-if="dobrasObrigatorias.has(m.codigo)" class="obrigatorio" title="Necessária para o Pollock 7">*</span>
+            <span class="af-unidade">({{ m.unidade }})</span>
             <template v-if="revisao && confiancas[m.codigo]">
               <span class="confidence-note af-campo-confianca" :class="confiancas[m.codigo].confianca">
                 ● {{ ROTULO_CONFIANCA[confiancas[m.codigo].confianca] || confiancas[m.codigo].confianca }}
@@ -487,7 +515,8 @@ async function salvar() {
           <ul>
             <li v-for="item in faltandoDaLinha(linha)" :key="item">{{ item }}</li>
           </ul>
-          <span>Sem isso a avaliação é salva normalmente, só sem a % de gordura, a massa gorda e a massa magra.</span>
+          <span v-if="dobrasPendentes.length">As dobras marcadas com * são obrigatórias com este protocolo; se não mediu dobras, remova-o.</span>
+          <span v-else>Sem isso a avaliação é salva normalmente, só sem a % de gordura, a massa gorda e a massa magra.</span>
         </div>
       </div>
       <button
@@ -608,6 +637,8 @@ async function salvar() {
 
 <style scoped>
 .af-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+.af-pendente label { color: var(--color-danger); }
+.af-pendente input { border-color: var(--color-danger); background: var(--color-danger-light); }
 .af-unidade { font-weight: 400; color: var(--color-text-faint, #888); font-size: 12px; }
 .af-campo-confianca { display: inline-flex; margin-left: 6px; font-size: 10.5px; }
 .af-trecho-toggle {

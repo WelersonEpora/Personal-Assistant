@@ -100,3 +100,14 @@ comparáveis com o histórico de cada aluno (gráficos, tabela comparativa).
 - Migration: `NUMERIC(10,4)` + unidade `g/mL`; seeder novo insere
   `densidade_corporal` no catálogo de bancos já existentes.
 - VO₂ e os demais protocolos de dobras continuam fora de escopo.
+
+## Adendo (2026-10-31) — dobras obrigatórias no formulário
+
+Enquanto a linha "Pollock 7 dobras" estiver na avaliação (ela vem por padrão
+quando não há outra %), as 7 dobras são **obrigatórias no formulário**:
+marcadas com `*`, em vermelho quando vazias, e salvar fica bloqueado com a
+lista do que falta. Quem não mediu dobras remove o protocolo. Sexo e data de
+nascimento continuam só avisando (estão no cadastro do aluno, não no
+formulário) — sem eles a avaliação salva sem a %, como antes. O backend não
+mudou: continua aceitando `calcular: true` com dado faltando (importação,
+chamadas antigas).

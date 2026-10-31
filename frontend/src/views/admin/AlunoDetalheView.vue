@@ -302,8 +302,8 @@ async function excluirAluno() {
       <div class="card" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 380px; max-width: calc(100vw - 32px); padding: 22px;">
         <h3 style="margin-bottom: 14px;">Editar cadastro</h3>
         <form @submit.prevent="salvarEdicao">
-          <div class="form-field" style="margin-bottom: 10px;">
-            <label>Nome</label>
+          <div class="form-field" :class="{ 'form-field-pendente': !nomeEdit.trim() }" style="margin-bottom: 10px;">
+            <label>Nome<span class="obrigatorio">*</span></label>
             <input v-model="nomeEdit" type="text" required autofocus />
           </div>
           <div class="form-field" style="margin-bottom: 10px;">
@@ -311,12 +311,12 @@ async function excluirAluno() {
             <input v-model="telefoneEdit" type="tel" placeholder="(11) 99999-0000" />
           </div>
           <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-            <div class="form-field" style="flex: 1;">
-              <label>Data de nascimento</label>
+            <div class="form-field" :class="{ 'form-field-pendente': !dataNascimentoEdit }" style="flex: 1;">
+              <label>Data de nascimento<span class="obrigatorio">*</span></label>
               <input v-model="dataNascimentoEdit" type="date" :max="hoje" required />
             </div>
-            <div class="form-field" style="width: 120px;">
-              <label>Sexo</label>
+            <div class="form-field" :class="{ 'form-field-pendente': !sexoEdit }" style="width: 120px;">
+              <label>Sexo<span class="obrigatorio">*</span></label>
               <select v-model="sexoEdit" required>
                 <option value="" disabled>Selecione</option>
                 <option value="F">Feminino</option>
@@ -324,6 +324,9 @@ async function excluirAluno() {
               </select>
             </div>
           </div>
+          <p v-if="!dataNascimentoEdit || !sexoEdit" class="form-field-aviso" style="margin: -4px 0 10px;">
+            Necessários para calcular a % de gordura (Pollock 7) na avaliação física.
+          </p>
           <div class="form-field" style="margin-bottom: 16px;">
             <label>Observações</label>
             <textarea v-model="observacoesEdit" rows="2"></textarea>

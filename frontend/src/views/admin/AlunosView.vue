@@ -268,16 +268,16 @@ async function salvarNovoAluno() {
         <h3 style="margin-bottom: 14px;">Novo aluno</h3>
         <form @submit.prevent="salvarNovoAluno">
           <div class="form-field" style="margin-bottom: 12px;">
-            <label>Nome</label>
+            <label>Nome<span class="obrigatorio">*</span></label>
             <input v-model="novoNome" type="text" required autofocus />
           </div>
           <div style="display: flex; gap: 10px; margin-bottom: 12px;">
             <div class="form-field" style="flex: 1;">
-              <label>Data de nascimento</label>
+              <label>Data de nascimento<span class="obrigatorio">*</span></label>
               <input v-model="novaDataNascimento" type="date" :max="hoje" required />
             </div>
             <div class="form-field" style="width: 120px;">
-              <label>Sexo</label>
+              <label>Sexo<span class="obrigatorio">*</span></label>
               <select v-model="novoSexo" required>
                 <option value="" disabled>Selecione</option>
                 <option value="F">Feminino</option>

@@ -571,7 +571,7 @@ async function excluirAvaliacaoPersonal(avaliacao) {
                       <span class="lt-fechamento-rotulo">Fechamento do mês</span>
                       <span class="badge" :class="estadoMes(m).badge">{{ estadoMes(m).rotulo }}</span>
                     </span>
-                    <span class="lt-fechamento-titulo">Acompanhamento Mensal de {{ nomeMes(m.anoMes) }}</span>
+                    <span class="lt-fechamento-titulo">Acompanhamento Mensal de {{ nomeMes(m.anoMes) }} <span class="tipo-tag tipo-analise lt-selo-ia" title="Gerado pela IA">IA</span></span>
                     <span class="list-row-sub">{{ subLinhaMensal(m.mensal) }}</span>
                     <span v-if="estadoCompartilhamento(m.mensal)?.stale" class="list-row-sub acomp-compartilhar-stale">
                       {{ estadoCompartilhamento(m.mensal).rotulo }}
@@ -628,7 +628,7 @@ async function excluirAvaliacaoPersonal(avaliacao) {
                 <div class="lt-previsto-corpo">
                   <div class="acomp-feed-cab">
                     <span class="lt-fechamento-rotulo">Fechamento do mês</span>
-                    <span class="lt-fechamento-titulo">Acompanhamento Mensal de {{ nomeMes(m.anoMes) }}</span>
+                    <span class="lt-fechamento-titulo">Acompanhamento Mensal de {{ nomeMes(m.anoMes) }} <span class="tipo-tag tipo-analise lt-selo-ia" title="Será gerado pela IA">IA</span></span>
                     <span class="list-row-sub">{{ subLinhaPrevisto(m) }}</span>
                   </div>
                   <button
@@ -1021,6 +1021,12 @@ async function excluirAvaliacaoPersonal(avaliacao) {
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--color-primary-dark);
+}
+.lt-selo-ia {
+  margin-left: 4px;
+  vertical-align: 2px;
+  /* Contorno: o fundo do fechamento também é arroxeado e o selo se perdia nele. */
+  border: 1px solid #c4b5fd;
 }
 .lt-fechamento-titulo {
   font-size: 15.5px;

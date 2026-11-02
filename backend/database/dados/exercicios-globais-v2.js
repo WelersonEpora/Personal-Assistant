@@ -200,10 +200,15 @@ const NOVOS = [
   ["gluteo-4-apoios", "Glúteo 4 apoios", "Glúteos", "Caneleira", "iniciante", "Em quatro apoios, estenda a perna para trás e para cima contraindo o glúteo.", ["coice 4 apoios", "coice com caneleira", "glúteo quatro apoios", "glúteo caneleira", "quatro apoios"]],
   ["gluteo-maquina", "Glúteo máquina", "Glúteos", "Máquina", "iniciante", "Na máquina, empurre a plataforma para trás estendendo o quadril.", ["glúteo no aparelho", "coice máquina"]],
   // Incluído depois (2026-11-02) - nos bancos que já rodaram o v2, entra pelo
-  // seeder 20261102160000-seed-exercicio-abducao-quadril-miniband.js. A versão
-  // com arco de pilates (por fora dos joelhos) é o mesmo movimento e vira
-  // apelido. Sem "abdução de quadril" - já é da Cadeira abdutora.
-  ["abducao-quadril-miniband", "Abdução de quadril com miniband", "Glúteos", "Miniband", "iniciante", "Deitado de costas, joelhos dobrados e pés no chão, com a miniband logo acima dos joelhos (ou o arco de pilates por fora deles): afaste os joelhos contra a resistência, segure um instante e volte controlando.", ["abdução com miniband", "abdução com elástico", "abdução deitada com elástico", "abdução com arco", "abdução de quadril com arco", "abdução com anel"]],
+  // seeder 20261102160000-seed-exercicio-abducao-quadril-miniband.js. Sem
+  // "abdução de quadril" - já é da Cadeira abdutora. "abdução com arco" e
+  // "abdução de quadril com arco" passaram para a versão em ponte (abaixo).
+  ["abducao-quadril-miniband", "Abdução de quadril com miniband", "Glúteos", "Miniband", "iniciante", "Deitado de costas, joelhos dobrados e pés no chão, com a miniband logo acima dos joelhos (ou o arco de pilates por fora deles): afaste os joelhos contra a resistência, segure um instante e volte controlando.", ["abdução com miniband", "abdução com elástico", "abdução deitada com elástico", "abdução com anel"]],
+  // Incluído depois (2026-11-02) - nos bancos que já rodaram o v2, entra pelo
+  // seeder 20261102190000-seed-exercicio-abducao-elevacao-pelvica.js. Quadril
+  // no alto o tempo todo; a abdução deitada (sem ponte) é a de cima. A
+  // "abdução com arco" é feita em ponte - os apelidos vieram da de cima.
+  ["abducao-quadril-elevacao-pelvica", "Abdução de quadril com elevação pélvica", "Glúteos", "Miniband", "iniciante", "Deitado de costas com a miniband logo acima dos joelhos, eleve o quadril em ponte e, mantendo-o no alto, afaste os joelhos contra o elástico e volte controlando.", ["ponte com abdução", "ponte com miniband", "ponte com elástico", "elevação pélvica com abdução", "abdução na ponte", "abdução com arco", "abdução de quadril com arco"]],
 
   // Adutores - incluído depois (2026-11-02), nos bancos que já rodaram o v2
   // entra pelo seeder 20261102150000-seed-exercicio-aducao-quadril-arco.js.

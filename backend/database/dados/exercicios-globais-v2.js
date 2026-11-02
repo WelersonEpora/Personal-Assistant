@@ -158,9 +158,13 @@ const NOVOS = [
   ["puxada-triangulo", "Puxada com triângulo", "Costas", "Polia (cabo)", "iniciante", "Sentado, puxe o triângulo até a parte alta do peito mantendo o tronco ereto.", ["puxada triângulo", "puxada fechada", "puxada neutra"]],
   ["puxada-articulada", "Puxada articulada", "Costas", "Máquina", "iniciante", "Sentado na máquina, puxe as alças para baixo até a linha dos ombros.", ["puxada máquina", "puxada hammer"]],
   ["remada-articulada", "Remada articulada", "Costas", "Máquina", "iniciante", "Com o peito apoiado, puxe as alças em direção ao tronco aproximando as escápulas.", ["remada máquina", "remada sentada máquina", "remada hammer"]],
-  // Incluído depois (2026-11-02) - nos bancos que já rodaram o v2, entra pelo
-  // seeder 20261102120000-seed-exercicio-paraquedas.js.
-  ["paraquedas", "Paraquedas", "Costas", "Peso corporal", "iniciante", "Deitado de bruços, braços à frente: eleve o peito e as pernas do chão levando os braços para trás, segure um instante e volte controlando.", ["paraquedista", "superman", "extensão de tronco no solo"]],
+  // Incluídos depois (2026-11-02) - nos bancos que já rodaram o v2, entram
+  // pelos seeders 20261102120000-seed-exercicio-paraquedas.js e
+  // 20261102130000-seed-exercicio-superman.js. Paraquedas (cotovelos e
+  // joelhos dobrados) e Superman (braços e pernas estendidos) são exercícios
+  // diferentes - "superman" não é apelido do Paraquedas.
+  ["paraquedas", "Paraquedas", "Costas", "Peso corporal", "iniciante", "Deitado de bruços: eleve o peito e as pernas do chão com os cotovelos e os joelhos dobrados, segure um instante e volte controlando.", ["paraquedista", "extensão de tronco no solo"]],
+  ["superman", "Superman", "Costas", "Peso corporal", "iniciante", "Deitado de bruços, braços estendidos à frente: eleve braços, peito e pernas do chão mantendo-os estendidos, segure um instante e volte controlando.", ["super-homem", "voo do superman"]],
 
   // Ombros
   ["desenvolvimento-maquina", "Desenvolvimento máquina", "Ombros", "Máquina", "iniciante", "Sentado, empurre as alças acima da cabeça e desça até a linha das orelhas.", ["desenvolvimento articulado", "shoulder press"]],

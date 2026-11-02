@@ -196,6 +196,17 @@ const NOVOS = [
   // Glúteos
   ["gluteo-4-apoios", "Glúteo 4 apoios", "Glúteos", "Caneleira", "iniciante", "Em quatro apoios, estenda a perna para trás e para cima contraindo o glúteo.", ["coice 4 apoios", "coice com caneleira", "glúteo quatro apoios", "glúteo caneleira", "quatro apoios"]],
   ["gluteo-maquina", "Glúteo máquina", "Glúteos", "Máquina", "iniciante", "Na máquina, empurre a plataforma para trás estendendo o quadril.", ["glúteo no aparelho", "coice máquina"]],
+  // Incluído depois (2026-11-02) - nos bancos que já rodaram o v2, entra pelo
+  // seeder 20261102160000-seed-exercicio-abducao-quadril-miniband.js. A versão
+  // com arco de pilates (por fora dos joelhos) é o mesmo movimento e vira
+  // apelido. Sem "abdução de quadril" - já é da Cadeira abdutora.
+  ["abducao-quadril-miniband", "Abdução de quadril com miniband", "Glúteos", "Miniband", "iniciante", "Deitado de costas, joelhos dobrados e pés no chão, com a miniband logo acima dos joelhos (ou o arco de pilates por fora deles): afaste os joelhos contra a resistência, segure um instante e volte controlando.", ["abdução com miniband", "abdução com elástico", "abdução deitada com elástico", "abdução com arco", "abdução de quadril com arco", "abdução com anel"]],
+
+  // Adutores - incluído depois (2026-11-02), nos bancos que já rodaram o v2
+  // entra pelo seeder 20261102150000-seed-exercicio-aducao-quadril-arco.js.
+  // Arco ENTRE os joelhos, apertando; a abdução com arco (por fora) é outro
+  // exercício. Sem "adução de quadril" nos apelidos - já é da Cadeira adutora.
+  ["aducao-quadril-arco", "Adução de quadril com arco", "Adutores", "Arco de pilates", "iniciante", "Deitado de costas, joelhos dobrados e pés no chão, com o arco entre os joelhos: aperte o arco aproximando os joelhos, segure um instante e volte controlando.", ["adução com arco", "adução com anel", "adução com arco de pilates", "apertar o arco"]],
 
   // Abdômen
   ["abdominal-maquina", "Abdominal máquina", "Abdômen", "Máquina", "iniciante", "Sentado, flexione o tronco contra a resistência da máquina.", ["abdominal no aparelho", "crunch máquina"]],

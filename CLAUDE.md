@@ -555,7 +555,7 @@ MVP completo e verificado de ponta a ponta:
   parciais). `POST/DELETE /api/v1/exercicios/:id/apelidos[/:apelidoId]`; a
   listagem traz `apelidos`. Catálogo global revisado (seeder
   `…-seed-exercicios-globais-v2.js`, dados em `database/dados/`): 87 originais
-  com o mesmo id e nome de academia + 27 novos = 114 (Paraquedas, Superman e Afundo reverso entraram depois, 2026-11-02, por seeders próprios), ~290 apelidos; não renomeia
+  com o mesmo id e nome de academia + 27 novos = 114 (Paraquedas, Superman, Afundo reverso, Adução de quadril com arco e Abdução de quadril com miniband entraram depois, 2026-11-02, por seeders próprios), ~290 apelidos; não renomeia
   global que o personal já corrigiu pela tela.
   Ficha de treino por voz (docs/adr/0028): `registro.tipo = ficha_treino`,
   `interpretarFichaTreino` no `gemini.service` (`temperature: 0`; catálogo da

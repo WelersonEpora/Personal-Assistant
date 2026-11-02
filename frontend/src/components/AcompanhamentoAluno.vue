@@ -7,7 +7,7 @@ import avaliacoesPersonalService from '../services/avaliacoesPersonal.service.js
 import avaliacoesFisicasService from '../services/avaliacoesFisicas.service.js'
 import registrosService from '../services/registros.service.js'
 import { formatarDataHora } from '../utils/registroStatus.js'
-import { revisaoDesatualizada } from '../utils/avaliacaoMensalCompartilhada.js'
+import { revisaoDesatualizada, temTextoAjustado } from '../utils/avaliacaoMensalCompartilhada.js'
 import {
   TIPOS_EVENTO,
   diaDe,
@@ -319,6 +319,20 @@ onMounted(carregar)
 
 // ---- Ações: Acompanhamento Mensal ----------------------------------------
 async function gerar(anoMes) {
+  // Regerar descarta os ajustes de texto da revisão (adendo 2026-11-02 da
+  // docs/adr/0023) - o comentário e os itens desmarcados continuam.
+  const atual = avaliacoes.value.find((a) => a.ano_mes === anoMes)
+  if (temTextoAjustado(atual, atual?.revisao)) {
+    const ok = await confirmar({
+      titulo: 'Regerar o Acompanhamento Mensal?',
+      mensagem:
+        'Este mês tem ajustes de texto na revisão para o aluno. Regerar descarta esses ajustes — ' +
+        'o seu comentário continua, mas você vai precisar revisar o texto novo antes de gerar o PDF.',
+      confirmarLabel: 'Regerar e descartar ajustes',
+      perigo: true
+    })
+    if (!ok) return
+  }
   gerandoMes.value = anoMes
   avisoInsuficiente.value = null
   try {
@@ -579,6 +593,9 @@ async function excluirAvaliacaoPersonal(avaliacao) {
                     </span>
                     <span class="lt-fechamento-titulo">Acompanhamento Mensal de {{ nomeMes(m.anoMes) }} <span class="tipo-tag tipo-analise lt-selo-ia" title="Gerado pela IA">IA</span></span>
                     <span class="list-row-sub">{{ subLinhaMensal(m.mensal) }}</span>
+                    <span v-if="temTextoAjustado(m.mensal, m.mensal?.revisao)" class="list-row-sub">
+                      Texto ajustado na revisão — o PDF usa a sua versão
+                    </span>
                     <span v-if="estadoCompartilhamento(m.mensal)?.stale" class="list-row-sub acomp-compartilhar-stale">
                       {{ estadoCompartilhamento(m.mensal).rotulo }}
                     </span>

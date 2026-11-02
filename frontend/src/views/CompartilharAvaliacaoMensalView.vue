@@ -7,14 +7,27 @@ import compartilhadaService from '../services/avaliacaoMensalCompartilhada.servi
 import equipeService from '../services/equipe.service.js'
 import { useAuthStore } from '../stores/auth.store.js'
 import { useToasts } from '../composables/useToasts.js'
-import { listarItensExcluiveis, filtrarAvaliacaoParaAluno, exclusoesPadrao } from '../utils/avaliacaoMensalCompartilhada.js'
+import {
+  listarItensExcluiveis,
+  filtrarAvaliacaoParaAluno,
+  exclusoesPadrao,
+  textosOriginais,
+  limparTextosEditados,
+  chaveTextoDimensao,
+  CHAVE_RESUMO
+} from '../utils/avaliacaoMensalCompartilhada.js'
 import ToastStack from '../components/ToastStack.vue'
+import TrechoEditavel from '../components/TrechoEditavel.vue'
 
 // docs/adr/0023-compartilhar-avaliacao-mensal-com-o-aluno.md: tela de
 // preparação do PDF. Fora do AdminShell para o print sair limpo (@media print
 // esconde tudo menos o documento). O personal escreve um comentário, escolhe
 // quais itens da avaliação mostrar e gera o PDF pelo "salvar como PDF" do
 // navegador. O comentário entra no próximo ciclo mensal como insumo de peso alto.
+// Adendo 2026-11-02: o personal ajusta o texto de cada trecho direto no
+// documento (lápis) e escreve o comentário no próprio documento; o painel da
+// esquerda fica só com o que entra no PDF e o que falta. Regerar a avaliação
+// descarta os ajustes de texto (a revisão desatualizada não os aplica).
 const props = defineProps({
   id: { type: String, required: true },
   anoMes: { type: String, required: true }
@@ -35,6 +48,9 @@ const desatualizada = ref(false)
 
 const comentario = ref('')
 const excluidos = ref(new Set())
+const textosEditados = ref({}) // { chave do trecho: texto ajustado }
+const ajustesDescartados = ref(false) // revisão desatualizada tinha ajustes
+const campoComentario = ref(null)
 
 // docs/adr/0030: identidade da equipe no topo do documento. Falhar aqui não
 // impede o PDF - sem logo fica só o nome (ou nada).
@@ -89,7 +105,9 @@ const hoje = computed(() => new Date().toLocaleDateString('pt-BR', { day: '2-dig
 // docs/adr/0029: tabela da avaliação física do mês (calculada pelo código na
 // geração) + parágrafo da IA para o aluno.
 const resumoFisica = computed(() => avaliacao.value?.avaliacao_fisica_resumo_json || null)
-const itensExcluiveis = computed(() => listarItensExcluiveis(avaliacao.value?.avaliacao_json, resumoFisica.value))
+const itensExcluiveis = computed(() =>
+  listarItensExcluiveis(avaliacao.value?.avaliacao_json, resumoFisica.value, textosEditados.value)
+)
 const grupos = computed(() => {
   const g = { avaliacao_fisica: [], dimensao: [], destaque: [], recomendacao: [] }
   for (const item of itensExcluiveis.value) g[item.secao].push(item)
@@ -98,8 +116,35 @@ const grupos = computed(() => {
 const TITULO_GRUPO = { avaliacao_fisica: 'Avaliação física', dimensao: 'Evolução por dimensão', destaque: 'Destaques', recomendacao: 'Recomendações' }
 
 const documento = computed(() =>
-  filtrarAvaliacaoParaAluno(avaliacao.value?.avaliacao_json, [...excluidos.value], resumoFisica.value)
+  filtrarAvaliacaoParaAluno(avaliacao.value?.avaliacao_json, [...excluidos.value], resumoFisica.value, textosEditados.value)
 )
+
+const originais = computed(() => textosOriginais(avaliacao.value?.avaliacao_json))
+function editado(chave) {
+  return chave in textosEditados.value
+}
+// Voltar ao texto da IA (ou deixar igual a ele) tira o ajuste.
+function ajustarTexto(chave, texto) {
+  const t = { ...textosEditados.value }
+  const limpo = String(texto || '').trim()
+  if (!limpo || limpo === originais.value[chave]) delete t[chave]
+  else t[chave] = limpo
+  textosEditados.value = t
+}
+function restaurarTexto(chave) {
+  ajustarTexto(chave, '')
+}
+// "dimensao:2" -> "dimensao:2:situacao_atual"
+function chaveDim(dim, campo) {
+  return chaveTextoDimensao(dim.chave.split(':')[1], campo)
+}
+
+function irParaComentario() {
+  const el = campoComentario.value
+  if (!el) return
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  el.focus({ preventScroll: true })
+}
 
 function formatarDia(ymd) {
   if (!ymd) return ''
@@ -143,6 +188,15 @@ async function carregar() {
     revisao.value = compart.revisao
     desatualizada.value = compart.desatualizada
     comentario.value = compart.revisao?.comentario || ''
+    // Ajustes de texto valem só para o texto que foi revisado: avaliação
+    // regerada depois = parte do texto novo da IA.
+    const ajustesSalvos = compart.revisao?.textos_editados || {}
+    if (compart.desatualizada) {
+      textosEditados.value = {}
+      ajustesDescartados.value = Object.keys(ajustesSalvos).length > 0
+    } else {
+      textosEditados.value = { ...ajustesSalvos }
+    }
     // Primeira preparação: sugestões padrão (docs/adr/0029); depois, o que o
     // personal salvou.
     excluidos.value = new Set(
@@ -173,10 +227,12 @@ async function salvar({ silencioso = false } = {}) {
   try {
     const resultado = await compartilhadaService.salvar(props.id, props.anoMes, {
       comentario: comentario.value.trim(),
-      itensExcluidos: [...excluidos.value]
+      itensExcluidos: [...excluidos.value],
+      textosEditados: limparTextosEditados(textosEditados.value, avaliacao.value?.avaliacao_json)
     })
     revisao.value = resultado.revisao
     desatualizada.value = false
+    ajustesDescartados.value = false
     if (!silencioso) showToast('Revisão salva.', 'success')
     return true
   } catch (e) {
@@ -212,6 +268,7 @@ function voltar() {
           type="button"
           class="btn btn-primary btn-sm"
           :disabled="salvando || !!erro || !comentario.trim()"
+          :title="!erro && !comentario.trim() ? 'Escreva o comentário para o aluno' : undefined"
           @click="gerarPdf"
         >
           {{ desatualizada ? 'Revisar e gerar PDF' : '🖨️ Gerar PDF' }}
@@ -236,23 +293,21 @@ function voltar() {
         <p class="list-row-sub">
           O aluno recebe um PDF com o resumo, a avaliação física do mês (quando houver), a evolução por dimensão, os
           destaques e as recomendações abaixo — mais o seu comentário. Alertas, pendências e o contexto interno da IA nunca vão no PDF.
+          Para ajustar um texto, use o lápis ao lado dele no documento.
         </p>
 
         <div v-if="desatualizada" class="prep-aviso">
           O Acompanhamento Mensal foi <strong>regerado</strong> depois da sua última revisão. Confira o texto atualizado e salve de novo
           antes de gerar o PDF.
+          <template v-if="ajustesDescartados"> Os ajustes de texto que você tinha feito foram descartados.</template>
         </div>
 
-        <div class="prep-bloco">
-          <label class="prep-rotulo" for="comentario-personal">Seu comentário para o aluno <span class="prep-obrigatorio">*</span></label>
-          <textarea
-            id="comentario-personal"
-            v-model="comentario"
-            rows="6"
-            maxlength="5000"
-            placeholder="Ex.: Mês muito bom! A constância nos treinos apareceu na força. Vamos focar na mobilidade de quadril no próximo ciclo."
-          ></textarea>
-          <p class="list-row-sub">Também entra no próximo Acompanhamento Mensal como a sua leitura (peso alto).</p>
+        <div class="prep-status" :class="comentario.trim() ? 'prep-status-ok' : 'prep-status-pendente'">
+          <template v-if="comentario.trim()">✓ Comentário para o aluno escrito</template>
+          <template v-else>
+            <span>Comentário para o aluno <span class="prep-obrigatorio">*</span> — falta escrever</span>
+            <button type="button" class="prep-status-link" @click="irParaComentario">Escrever</button>
+          </template>
         </div>
 
         <div v-for="secao in ['avaliacao_fisica', 'dimensao', 'destaque', 'recomendacao']" :key="secao" class="prep-bloco">
@@ -262,6 +317,7 @@ function voltar() {
               <input type="checkbox" :checked="incluido(item.chave)" @change="alternar(item.chave)" />
               <span>
                 <strong>{{ item.rotulo }}</strong>
+                <span v-if="item.editado" class="prep-item-ajustado">ajustado</span>
                 <span v-if="item.texto" class="prep-item-texto"> — {{ item.texto }}</span>
               </span>
             </label>
@@ -284,7 +340,14 @@ function voltar() {
         </header>
 
         <section v-if="documento.resumo_geral" class="doc-secao">
-          <p class="doc-resumo">{{ documento.resumo_geral }}</p>
+          <TrechoEditavel
+            class="doc-resumo"
+            :texto="documento.resumo_geral"
+            :editado="editado(CHAVE_RESUMO)"
+            :linhas="6"
+            @alterar="ajustarTexto(CHAVE_RESUMO, $event)"
+            @restaurar="restaurarTexto(CHAVE_RESUMO)"
+          />
         </section>
 
         <section v-if="documento.avaliacao_fisica" class="doc-secao">
@@ -316,35 +379,78 @@ function voltar() {
               * Medido por outro método na avaliação anterior — os valores não são comparáveis.
             </p>
           </template>
-          <p v-if="documento.avaliacao_fisica.leitura" class="doc-leitura-fisica">{{ documento.avaliacao_fisica.leitura }}</p>
+          <TrechoEditavel
+            v-if="documento.avaliacao_fisica.leitura"
+            class="doc-leitura-fisica"
+            :texto="documento.avaliacao_fisica.leitura"
+            :editado="editado('avaliacao_fisica:leitura')"
+            :linhas="5"
+            @alterar="ajustarTexto('avaliacao_fisica:leitura', $event)"
+            @restaurar="restaurarTexto('avaliacao_fisica:leitura')"
+          />
         </section>
 
         <section v-if="documento.dimensoes.length" class="doc-secao">
           <h2>Evolução por dimensão</h2>
-          <div v-for="(dim, i) in documento.dimensoes" :key="i" class="doc-dimensao">
+          <div v-for="dim in documento.dimensoes" :key="dim.chave" class="doc-dimensao">
             <div class="doc-dimensao-nome">
               {{ dim.nome }}
               <span v-if="dim.tipo === 'hipotese'" class="doc-selo-possibilidade">possibilidade, não diagnóstico</span>
             </div>
-            <div v-if="dim.situacao_atual" class="doc-dimensao-sit">{{ dim.situacao_atual }}</div>
-            <div v-if="dim.evolucao_no_mes" class="doc-dimensao-evo">{{ dim.evolucao_no_mes }}</div>
+            <TrechoEditavel
+              v-if="dim.situacao_atual"
+              class="doc-dimensao-sit"
+              :texto="dim.situacao_atual"
+              :editado="editado(chaveDim(dim, 'situacao_atual'))"
+              @alterar="ajustarTexto(chaveDim(dim, 'situacao_atual'), $event)"
+              @restaurar="restaurarTexto(chaveDim(dim, 'situacao_atual'))"
+            />
+            <TrechoEditavel
+              v-if="dim.evolucao_no_mes"
+              class="doc-dimensao-evo"
+              :texto="dim.evolucao_no_mes"
+              :editado="editado(chaveDim(dim, 'evolucao_no_mes'))"
+              @alterar="ajustarTexto(chaveDim(dim, 'evolucao_no_mes'), $event)"
+              @restaurar="restaurarTexto(chaveDim(dim, 'evolucao_no_mes'))"
+            />
           </div>
         </section>
 
         <section v-if="documento.destaques.length" class="doc-secao">
           <h2>Destaques do mês</h2>
-          <ul><li v-for="(d, i) in documento.destaques" :key="i">{{ d }}</li></ul>
+          <ul>
+            <li v-for="d in documento.destaques" :key="d.chave">
+              <TrechoEditavel :texto="d.texto" :editado="editado(d.chave)" @alterar="ajustarTexto(d.chave, $event)" @restaurar="restaurarTexto(d.chave)" />
+            </li>
+          </ul>
         </section>
 
         <section v-if="documento.recomendacoes.length" class="doc-secao">
           <h2>Recomendações</h2>
-          <ul><li v-for="(r, i) in documento.recomendacoes" :key="i">{{ r }}</li></ul>
+          <ul>
+            <li v-for="r in documento.recomendacoes" :key="r.chave">
+              <TrechoEditavel :texto="r.texto" :editado="editado(r.chave)" @alterar="ajustarTexto(r.chave, $event)" @restaurar="restaurarTexto(r.chave)" />
+            </li>
+          </ul>
         </section>
 
-        <section class="doc-secao doc-comentario">
-          <h2>Comentário do seu personal</h2>
-          <p v-if="comentario.trim()">{{ comentario }}</p>
-          <p v-else class="doc-placeholder">— escreva um comentário ao lado —</p>
+        <!-- Comentário: caixa sempre aberta em tela (obrigatório); no PDF, só o texto. -->
+        <section class="doc-secao doc-comentario" :class="{ 'doc-comentario-vazio': !comentario.trim() }">
+          <h2>
+            <label for="comentario-personal">Comentário do seu personal</label>
+            <span class="so-tela prep-obrigatorio"> *</span>
+          </h2>
+          <textarea
+            id="comentario-personal"
+            ref="campoComentario"
+            v-model="comentario"
+            class="so-tela doc-comentario-campo"
+            rows="5"
+            maxlength="5000"
+            placeholder="Ex.: Mês muito bom! A constância nos treinos apareceu na força. Vamos focar na mobilidade de quadril no próximo ciclo."
+          ></textarea>
+          <p class="so-tela doc-comentario-nota">Também entra no próximo Acompanhamento Mensal como a sua leitura (peso alto).</p>
+          <p class="so-print">{{ comentario }}</p>
         </section>
 
         <footer class="doc-rodape">
@@ -424,8 +530,48 @@ function voltar() {
 .prep-obrigatorio {
   color: var(--color-danger, #dc2626);
 }
-.preparacao textarea {
-  width: 100%;
+.prep-status {
+  margin-top: 14px;
+  padding: 9px 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  border-radius: var(--radius-sm, 8px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.prep-status-pendente {
+  background: #fef2f2;
+  color: #991b1b;
+}
+.prep-status-ok {
+  background: #f0fdf4;
+  color: #166534;
+  font-weight: 600;
+}
+.prep-status-link {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.prep-item-ajustado {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-radius: 999px;
+  background: #ede9fe;
+  color: #6d28d9;
 }
 .prep-item {
   display: flex;
@@ -587,11 +733,30 @@ function voltar() {
   background: #f4f4f5;
   border-left: 3px solid #18181b;
   border-radius: 0 6px 6px 0;
+}
+.doc-comentario .so-print {
   white-space: pre-wrap;
 }
-.doc-placeholder {
-  color: #a1a1aa;
-  font-style: italic;
+.doc-comentario h2 label {
+  cursor: text;
+}
+.doc-comentario-campo {
+  width: 100%;
+  background: #fff;
+  font: inherit;
+  line-height: 1.55;
+}
+.doc-comentario-vazio .doc-comentario-campo {
+  border-color: var(--color-danger, #dc2626);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+}
+.doc-comentario-nota {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: #71717a;
+}
+.so-print {
+  display: none;
 }
 .doc-rodape {
   margin-top: 30px;
@@ -633,6 +798,12 @@ function voltar() {
   }
   .doc-secao {
     break-inside: avoid;
+  }
+  .so-tela {
+    display: none !important;
+  }
+  .so-print {
+    display: block;
   }
 }
 </style>

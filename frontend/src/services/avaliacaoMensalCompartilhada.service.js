@@ -11,10 +11,11 @@ async function obter(alunoId, anoMes) {
   return data.data
 }
 
-async function salvar(alunoId, anoMes, { comentario, itensExcluidos }) {
+async function salvar(alunoId, anoMes, { comentario, itensExcluidos, textosEditados }) {
   const { data } = await http.put(base(alunoId, anoMes), {
     comentario,
-    itens_excluidos: itensExcluidos || []
+    itens_excluidos: itensExcluidos || [],
+    textos_editados: textosEditados || {}
   })
   return data.data
 }

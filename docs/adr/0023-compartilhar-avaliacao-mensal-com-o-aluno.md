@@ -239,6 +239,66 @@ chamada.
   compartilhamento, nunca torna a avaliação oficial). Atualização de texto
   feita junto da implementação (mesmo critério das ADRs anteriores).
 
+## Adendo (2026-11-02) — o personal ajusta o texto que vai no PDF
+
+**Amplia "O que o PDF mostra (lista branca)": além de excluir itens, o personal
+pode reescrever cada trecho que vai ao aluno.**
+
+### Contexto
+
+Um personal perguntou se conseguia editar o texto da tela de compartilhamento.
+Antes deste adendo, não. Para discordar de um trecho, ele só podia excluir o item
+ou corrigir no comentário. O resumo do topo nem podia ser excluído. Uma palavra
+errada da IA ("hóquei in-line" num aluno que não pratica hóquei, por exemplo)
+obrigava a regerar o mês inteiro e torcer para a IA acertar.
+
+### Decisão
+
+- **`revisao_avaliacao_mensal.textos_editados`** (JSONB, default `{}`):
+  `{ chave do trecho: texto que vai ao aluno }`. A `avaliacao_mensal.avaliacao_json`
+  (saída da IA) não muda. O ajuste é de apresentação, como `itens_excluidos`.
+- **Trechos editáveis** (as mesmas chaves por índice das exclusões):
+  `resumo_geral`, `avaliacao_fisica:leitura`, `destaque:N`, `recomendacao:N`,
+  `dimensao:N:situacao_atual` e `dimensao:N:evolucao_no_mes`. A tabela da
+  avaliação física é calculada pelo código e não é editável. O backend valida
+  as chaves contra esse formato e recusa trecho vazio: para tirar um trecho do
+  PDF, o caminho é desmarcar o item. O frontend só envia os trechos que
+  diferem do texto da IA, então "Restaurar o da IA" remove a chave.
+- **Regerar descarta os ajustes.** As chaves são por posição, e depois de
+  regerar o "destaque 0" pode tratar de outro assunto. Em vez de tentar casar a
+  edição com o texto novo, a revisão desatualizada (mecanismo já existente) não
+  aplica os ajustes. A tela parte do texto novo da IA, avisa que os ajustes
+  foram descartados, e o próximo salvamento os substitui. Antes de regerar um
+  mês com ajustes vigentes, a Linha do Tempo pede confirmação. O comentário e
+  os itens desmarcados continuam, como antes.
+- **Onde se edita:** no próprio documento da tela de compartilhamento. Um lápis
+  aparece ao passar o mouse (sempre visível no toque) e abre uma caixa com
+  "OK", "Cancelar" e "Restaurar o da IA". O trecho ajustado ganha o selo
+  "ajustado", que aparece também no checklist da esquerda. O print esconde o
+  lápis e os selos.
+- **O comentário também passa para o documento**, como uma caixa sempre aberta
+  (é obrigatório), com borda vermelha enquanto estiver vazio. O painel da
+  esquerda fica só com o checklist e uma linha de status ("falta escrever" +
+  "Escrever", que rola até a caixa e põe o cursor nela).
+- **Linha do Tempo:** o fechamento do mês mostra "Texto ajustado na revisão — o
+  PDF usa a sua versão" enquanto houver ajuste vigente. O detalhe do
+  Acompanhamento continua mostrando o texto da IA.
+- **A IA não recebe os ajustes, por enquanto.** O próximo ciclo continua
+  recebendo só o comentário (bloco "REVISÃO DA AVALIAÇÃO DO MÊS ANTERIOR"). Se
+  os ajustes vão ou não ao prompt é uma decisão separada.
+
+### Consequências
+
+- Não cria `validacao` nem torna a avaliação oficial (ADR-0007): continua sendo
+  texto de apresentação para o PDF, revisado por humano.
+- O PDF pode trazer texto que a IA não escreveu. O rodapé ("Elaborado com apoio
+  de inteligência artificial e revisado por…") continua valendo, porque o
+  personal é quem revisa.
+- `GET .../avaliacoes-mensais` passa a trazer `revisao.textos_editados` (selo e
+  aviso antes de regerar). O endpoint `PUT .../compartilhamento` aceita
+  `textos_editados`, e salvar sem o campo zera os ajustes (a tela sempre envia
+  o estado inteiro).
+
 ## Índice de ADRs (atualizar no CLAUDE.md)
 
 | # | Título |

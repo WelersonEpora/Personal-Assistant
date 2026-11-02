@@ -14,7 +14,7 @@ function obterPorAvaliacao(avaliacaoMensalId) {
 
 // Upsert 1:1 por avaliacao_mensal_id (ADR-0023). `compartilhada_em` avança a
 // cada salvamento; `avaliacao_gerada_em` fixa o snapshot do texto revisado.
-async function salvar({ avaliacaoMensalId, alunoId, equipeId, autorId, comentario, itensExcluidos, avaliacaoGeradaEm }) {
+async function salvar({ avaliacaoMensalId, alunoId, equipeId, autorId, comentario, itensExcluidos, textosEditados, avaliacaoGeradaEm }) {
   const agora = new Date();
   const [revisao] = await RevisaoAvaliacaoMensal.findOrCreate({
     where: { avaliacao_mensal_id: avaliacaoMensalId },
@@ -25,6 +25,7 @@ async function salvar({ avaliacaoMensalId, alunoId, equipeId, autorId, comentari
       autor_id: autorId,
       comentario,
       itens_excluidos: itensExcluidos,
+      textos_editados: textosEditados,
       avaliacao_gerada_em: avaliacaoGeradaEm,
       compartilhada_em: agora
     }
@@ -33,6 +34,7 @@ async function salvar({ avaliacaoMensalId, alunoId, equipeId, autorId, comentari
     autor_id: autorId,
     comentario,
     itens_excluidos: itensExcluidos,
+    textos_editados: textosEditados,
     avaliacao_gerada_em: avaliacaoGeradaEm,
     compartilhada_em: agora
   });

@@ -93,6 +93,42 @@ test("salvar de novo faz upsert (1:1), não cria uma segunda linha", async () =>
   assert.equal(linhas[0].comentario, "segunda versão");
 });
 
+test("salvar grava os textos ajustados pelo personal sem tocar na avaliação da IA", async () => {
+  const avaliacao = await criarAvaliacaoMensal();
+
+  const { revisao } = await service.salvar(equipe.id, aluno.id, "2026-08", usuario.id, {
+    comentario: "ok",
+    textos_editados: { resumo_geral: "  Mês muito bom.  ", "dimensao:0:evolucao_no_mes": "Subiu carga no agachamento" }
+  });
+
+  assert.deepEqual(revisao.textos_editados, {
+    resumo_geral: "Mês muito bom.",
+    "dimensao:0:evolucao_no_mes": "Subiu carga no agachamento"
+  });
+  await avaliacao.reload();
+  assert.equal(avaliacao.avaliacao_json.resumo_geral, "Evolução consistente.");
+
+  // Salvar sem o campo zera os ajustes (a tela sempre manda o estado inteiro).
+  const { revisao: sem } = await service.salvar(equipe.id, aluno.id, "2026-08", usuario.id, { comentario: "ok" });
+  assert.deepEqual(sem.textos_editados, {});
+});
+
+test("textos ajustados: recusa chave desconhecida e trecho vazio", async () => {
+  await criarAvaliacaoMensal();
+  await assert.rejects(
+    () => service.salvar(equipe.id, aluno.id, "2026-08", usuario.id, { comentario: "x", textos_editados: { alertas: "y" } }),
+    /desconhecido/i
+  );
+  await assert.rejects(
+    () => service.salvar(equipe.id, aluno.id, "2026-08", usuario.id, { comentario: "x", textos_editados: { "destaque:0": "  " } }),
+    /vazio/i
+  );
+  await assert.rejects(
+    () => service.salvar(equipe.id, aluno.id, "2026-08", usuario.id, { comentario: "x", textos_editados: ["a"] }),
+    /objeto/i
+  );
+});
+
 test("comentário é obrigatório", async () => {
   await criarAvaliacaoMensal();
   await assert.rejects(

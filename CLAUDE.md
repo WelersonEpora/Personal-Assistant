@@ -359,7 +359,10 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
   (Adendos 2026-09-02.)
 - **A avaliação mensal só chega ao aluno via PDF, depois de uma revisão do
   personal** (ADR-0023). Tabela `revisao_avaliacao_mensal` (1:1 com
-  `avaliacao_mensal`): comentário obrigatório + `itens_excluidos`. A revisão
+  `avaliacao_mensal`): comentário obrigatório + `itens_excluidos` +
+  `textos_editados` (adendo 2026-11-02 — o personal reescreve trechos do PDF
+  pelo lápis no documento; `avaliacao_json` nunca muda; regerar a avaliação
+  descarta os ajustes; ainda não vão ao prompt do mês seguinte). A revisão
   **habilita o compartilhamento e nada mais** — não torna a avaliação oficial
   (só `validacao` é), nenhum job/worker escreve nela, e o fluxo não cria
   `validacao`. O comentário entra no ciclo do mês seguinte como leitura do
@@ -565,7 +568,7 @@ MVP completo e verificado de ponta a ponta:
   interpretação" vale também a partir de `aguardando_revisao`.
   Logo da equipe (docs/adr/0030): `equipe.logo_caminho`, endpoints
   `/api/v1/equipe/{identidade,logo}` e `/ficha-publica/:token/logo`.
-  397 testes automatizados (`node --test`, unitários +
+  399 testes automatizados (`node --test`, unitários +
   integração contra banco de teste dedicado).
 - **Frontend**: app Vue 3 + Vite + PWA único (`/captura` mobile-first
   offline, `/admin` gestão/validação), IndexedDB + fila de sincronização
@@ -603,8 +606,11 @@ MVP completo e verificado de ponta a ponta:
   avaliação mensal `gerada` do Acompanhamento, botão que leva a
   `views/CompartilharAvaliacaoMensalView.vue` (rota top-level
   `/compartilhar/avaliacao-mensal/:id/:anoMes`, fora do `AdminShell`): painel
-  de preparação (comentário obrigatório + checklist de itens a incluir) só em
-  tela, documento (o que vira PDF) em tela e no `@media print`; "Gerar PDF"
+  de preparação (status do comentário + checklist de itens a incluir) só em
+  tela, documento (o que vira PDF) em tela e no `@media print` — o comentário
+  obrigatório e os ajustes de texto (`components/TrechoEditavel.vue`, lápis por
+  trecho, selo "ajustado", "Restaurar o da IA"; adendo 2026-11-02) ficam no
+  próprio documento; "Gerar PDF"
   salva a revisão e chama `window.print()`. Selo "Compartilhada em DD/MM" /
   "Revisão desatualizada" no card. Util puro `utils/avaliacaoMensalCompartilhada.js`
   (`listarItensExcluiveis`, `filtrarAvaliacaoParaAluno`, `revisaoDesatualizada`,
@@ -687,7 +693,7 @@ MVP completo e verificado de ponta a ponta:
   e no Comparar; toque na linha abre `ReferenciaMedida.vue` (o que é, régua de
   faixas, faixas em texto, fonte, aviso, variação para a avaliação anterior do
   mesmo método). Toda métrica tem explicação, mesmo sem faixa.
-  148 testes automatizados (`node --test` + `fake-indexeddb`; +
+  153 testes automatizados (`node --test` + `fake-indexeddb`; +
   `echarts-option-builder.test.js`, `echarts-bar-option-builder.test.js`,
   `periodos.test.js`, `avaliacaoFisica.test.js`, `gravacaoVoz.test.js`,
   `avaliacaoMensalCompartilhada.test.js`, `registroStatus.test.js`,

@@ -19,6 +19,8 @@ module.exports = (sequelize) => {
       autor_id: { type: DataTypes.UUID, allowNull: false },
       comentario: { type: DataTypes.TEXT, allowNull: false },
       itens_excluidos: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+      // Adendo 2026-11-02: { chave do trecho: texto ajustado pelo personal }.
+      textos_editados: { type: DataTypes.JSONB, allowNull: false, defaultValue: {} },
       avaliacao_gerada_em: { type: DataTypes.DATE, allowNull: false },
       compartilhada_em: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW }
     },

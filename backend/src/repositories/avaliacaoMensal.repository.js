@@ -6,10 +6,11 @@ const { AvaliacaoMensal, Aluno, Registro, Validacao, RevisaoAvaliacaoMensal } = 
 // Resumo da revisão do personal (docs/adr/0023) - o suficiente para a tela de
 // Acompanhamento sinalizar "compartilhada" / "revisão desatualizada" sem uma
 // segunda chamada. O comentário completo só vem no endpoint de compartilhamento.
+// `textos_editados` vem para o selo "texto ajustado" e o aviso antes de regerar.
 const INCLUDE_REVISAO = {
   model: RevisaoAvaliacaoMensal,
   as: "revisao",
-  attributes: ["id", "compartilhada_em", "avaliacao_gerada_em"]
+  attributes: ["id", "compartilhada_em", "avaliacao_gerada_em", "textos_editados"]
 };
 
 function listarPorAluno({ alunoId, equipeId }) {

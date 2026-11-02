@@ -6,7 +6,10 @@ import {
   listarItensExcluiveis,
   filtrarAvaliacaoParaAluno,
   exclusoesPadrao,
-  revisaoDesatualizada
+  revisaoDesatualizada,
+  textosOriginais,
+  limparTextosEditados,
+  temTextoAjustado
 } from './avaliacaoMensalCompartilhada.js'
 
 const AVALIACAO = {
@@ -33,7 +36,7 @@ test('listarItensExcluiveis lista dimensões, destaques e recomendações com ch
 test('filtrarAvaliacaoParaAluno tira evidências/origem/confiança das dimensões', () => {
   const out = filtrarAvaliacaoParaAluno(AVALIACAO, [])
   assert.deepEqual(Object.keys(out), ['resumo_geral', 'dimensoes', 'destaques', 'recomendacoes', 'avaliacao_fisica'])
-  assert.deepEqual(out.dimensoes[0], { nome: 'Força', situacao_atual: 'boa', evolucao_no_mes: 'subindo carga' })
+  assert.deepEqual(out.dimensoes[0], { chave: 'dimensao:0', nome: 'Força', situacao_atual: 'boa', evolucao_no_mes: 'subindo carga' })
   assert.equal(out.dimensoes[0].evidencias, undefined)
   assert.equal(out.dimensoes[0].confianca, undefined)
 })
@@ -49,7 +52,7 @@ test('filtrarAvaliacaoParaAluno preserva "tipo" quando presente (hipótese preci
 
 test('filtrarAvaliacaoParaAluno não introduz "tipo" quando a dimensão não tem (avaliação antiga)', () => {
   const out = filtrarAvaliacaoParaAluno(AVALIACAO, [])
-  assert.deepEqual(Object.keys(out.dimensoes[0]), ['nome', 'situacao_atual', 'evolucao_no_mes'])
+  assert.deepEqual(Object.keys(out.dimensoes[0]), ['chave', 'nome', 'situacao_atual', 'evolucao_no_mes'])
 })
 
 test('filtrarAvaliacaoParaAluno nunca expõe alertas ou mudanças vs. mês anterior', () => {
@@ -61,8 +64,8 @@ test('filtrarAvaliacaoParaAluno nunca expõe alertas ou mudanças vs. mês anter
 test('filtrarAvaliacaoParaAluno remove os itens excluídos', () => {
   const out = filtrarAvaliacaoParaAluno(AVALIACAO, ['dimensao:1', 'destaque:0', 'recomendacao:1'])
   assert.deepEqual(out.dimensoes.map((d) => d.nome), ['Força'])
-  assert.deepEqual(out.destaques, ['Dormindo melhor'])
-  assert.deepEqual(out.recomendacoes, ['Manter progressão'])
+  assert.deepEqual(out.destaques, [{ chave: 'destaque:1', texto: 'Dormindo melhor' }])
+  assert.deepEqual(out.recomendacoes, [{ chave: 'recomendacao:0', texto: 'Manter progressão' }])
 })
 
 test('chave órfã (avaliação regerada) não quebra: item simplesmente aparece', () => {
@@ -137,4 +140,59 @@ test('exclusoesPadrao desmarca "Composição corporal" só quando há leitura da
   const indice = COM_LEITURA.dimensoes.length - 1
   assert.deepEqual(exclusoesPadrao(COM_LEITURA), [`dimensao:${indice}`])
   assert.deepEqual(exclusoesPadrao({ ...COM_LEITURA, leitura_avaliacao_fisica: '' }), [])
+})
+
+// ---- Adendo 2026-11-02: textos ajustados pelo personal ----
+
+test('textosOriginais lista os trechos editáveis com as chaves do backend', () => {
+  assert.deepEqual(Object.keys(textosOriginais(AVALIACAO)), [
+    'resumo_geral',
+    'dimensao:0:situacao_atual',
+    'dimensao:0:evolucao_no_mes',
+    'dimensao:1:situacao_atual',
+    'dimensao:1:evolucao_no_mes',
+    'destaque:0',
+    'destaque:1',
+    'recomendacao:0',
+    'recomendacao:1'
+  ])
+})
+
+test('filtrarAvaliacaoParaAluno aplica os textos ajustados sem mexer na avaliação da IA', () => {
+  const editados = {
+    resumo_geral: 'Mês excelente.',
+    'dimensao:1:evolucao_no_mes': 'faltou só 1x',
+    'destaque:0': 'Recorde no agachamento: 100 kg'
+  }
+  const out = filtrarAvaliacaoParaAluno(AVALIACAO, ['destaque:1'], null, editados)
+  assert.equal(out.resumo_geral, 'Mês excelente.')
+  assert.equal(out.dimensoes[1].evolucao_no_mes, 'faltou só 1x')
+  assert.equal(out.dimensoes[1].situacao_atual, 'irregular')
+  assert.deepEqual(out.destaques, [{ chave: 'destaque:0', texto: 'Recorde no agachamento: 100 kg' }])
+  assert.equal(AVALIACAO.resumo_geral, 'Mês consistente.')
+  assert.equal(out.alertas, undefined)
+})
+
+test('listarItensExcluiveis mostra o texto ajustado e marca o item como editado', () => {
+  const itens = listarItensExcluiveis(AVALIACAO, null, { 'dimensao:0:situacao_atual': 'ótima', 'recomendacao:1': 'Mobilidade 2x' })
+  const porChave = Object.fromEntries(itens.map((i) => [i.chave, i]))
+  assert.equal(porChave['dimensao:0'].editado, true)
+  assert.equal(porChave['dimensao:1'].editado, false)
+  assert.equal(porChave['recomendacao:1'].texto, 'Mobilidade 2x')
+  assert.equal(porChave['recomendacao:1'].editado, true)
+})
+
+test('limparTextosEditados descarta chave inexistente, vazia ou igual ao original', () => {
+  const limpo = limparTextosEditados(
+    { resumo_geral: '  Mês consistente.  ', 'destaque:0': ' novo ', 'destaque:9': 'órfã', 'recomendacao:0': '  ', 'alertas': 'x' },
+    AVALIACAO
+  )
+  assert.deepEqual(limpo, { 'destaque:0': 'novo' })
+})
+
+test('temTextoAjustado ignora os ajustes de uma revisão desatualizada (regerar descarta)', () => {
+  const revisao = { avaliacao_gerada_em: '2026-09-01T10:00:00Z', textos_editados: { resumo_geral: 'x' } }
+  assert.equal(temTextoAjustado({ gerada_em: '2026-09-01T10:00:00Z' }, revisao), true)
+  assert.equal(temTextoAjustado({ gerada_em: '2026-09-05T10:00:00Z' }, revisao), false)
+  assert.equal(temTextoAjustado({ gerada_em: '2026-09-01T10:00:00Z' }, { ...revisao, textos_editados: {} }), false)
 })

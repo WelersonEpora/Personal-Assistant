@@ -178,6 +178,9 @@ const NOVOS = [
   // Tríceps
   ["triceps-pulley", "Tríceps pulley", "Tríceps", "Polia (cabo)", "iniciante", "Com a barra na polia alta, estenda os cotovelos empurrando a barra para baixo.", ["tríceps na polia", "tríceps no pulley", "tríceps pulley barra", "tríceps barra"]],
   ["triceps-unilateral-polia", "Tríceps unilateral na polia", "Tríceps", "Polia (cabo)", "intermediario", "Com uma mão na polia alta, estenda o cotovelo mantendo o braço junto ao corpo.", ["tríceps unilateral", "tríceps polia unilateral"]],
+  // Incluído depois (2026-11-02) - nos bancos que já rodaram o v2, entra pelo
+  // seeder 20261102180000-seed-exercicio-triceps-supinado.js.
+  ["triceps-supinado-halteres", "Tríceps supinado com halteres", "Tríceps", "Halteres", "iniciante", "Deitado de costas, joelhos dobrados, halteres juntos acima do peito com as palmas voltadas uma para a outra: desça flexionando os cotovelos rente ao corpo até os halteres chegarem ao peito e estenda os braços de volta.", ["tríceps supinado", "tríceps supinado com halter", "supino fechado com halteres", "supino fechado halter", "crush press"]],
 
   // Quadríceps
   ["passada", "Passada", "Quadríceps", "Halteres", "intermediario", "Avance alternando as pernas a cada passo, descendo até quase tocar o joelho de trás no chão.", ["passada com halteres", "passada andando", "afundo caminhando", "avanço", "lunge"]],

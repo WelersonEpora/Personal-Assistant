@@ -184,6 +184,10 @@ const NOVOS = [
   ["leg-press-horizontal", "Leg press horizontal", "Quadríceps", "Máquina", "iniciante", "Sentado, empurre a plataforma estendendo os joelhos sem travar completamente.", ["leg horizontal", "leg press sentado"]],
   ["agachamento-goblet", "Agachamento goblet", "Quadríceps", "Halteres", "iniciante", "Segurando um halter ou kettlebell junto ao peito, agache mantendo o tronco ereto.", ["goblet", "goblet squat", "agachamento com halter"]],
   ["afundo-smith", "Afundo no Smith", "Quadríceps", "Smith", "intermediario", "Na barra guiada, com um pé à frente e outro atrás, desça e suba sem sair do lugar.", ["afundo smith", "avanço no smith"]],
+  // Incluído depois (2026-11-02) - nos bancos que já rodaram o v2, entra pelo
+  // seeder 20261102140000-seed-exercicio-afundo-reverso.js. Passo para trás,
+  // diferente da Passada (para frente) - nada de "lunge" aqui.
+  ["afundo-reverso", "Afundo reverso", "Quadríceps", "Halteres", "intermediario", "Segurando um halter junto ao peito, dê um passo atrás e desça até o joelho de trás quase tocar o chão; volte à posição inicial e alterne a perna.", ["agachamento alternado para trás", "passada para trás", "afundo para trás", "recuo", "reverse lunge"]],
 
   // Posterior de coxa
   ["cadeira-flexora", "Cadeira flexora", "Posterior de coxa", "Máquina", "iniciante", "Sentado, flexione os joelhos levando o rolo para baixo e volte controlando.", ["flexora sentada", "flexora sentado", "cadeira flexora sentada"]],

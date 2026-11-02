@@ -2,7 +2,7 @@
 
 // docs/adr/0015-acompanhamento-individual-mensal.md. Integração - toca o
 // banco de teste; a chamada ao Gemini é mockada. Cobre as garantias
-// críticas: gatilho mínimo de 3 relatos, filtro por mês de confirmação,
+// críticas: gatilho mínimo de 3 relatos, filtro pelo mês do atendimento,
 // contexto do mês anterior como entrada, regeneração idempotente e - o mais
 // importante - a avaliação mensal NUNCA cria dado oficial (`validacao`).
 
@@ -88,7 +88,13 @@ async function criarAvaliacaoPersonal(texto, quando = new Date()) {
   return avaliacao;
 }
 
-async function criarRelatoConfirmado(confirmadoEm, itens = [{ label: "Agachamento", valor: "4x10", obs: "" }]) {
+// `dataAtendimento` ("YYYY-MM-DD") separa o dia do atendimento do dia da
+// confirmação; omitido, o atendimento é no dia da confirmação.
+async function criarRelatoConfirmado(
+  confirmadoEm,
+  itens = [{ label: "Agachamento", valor: "4x10", obs: "" }],
+  { dataAtendimento } = {}
+) {
   const registro = await Registro.create({
     id: randomUUID(),
     usuario_id: usuario.id,
@@ -96,7 +102,7 @@ async function criarRelatoConfirmado(confirmadoEm, itens = [{ label: "Agachament
     aluno_id: aluno.id,
     iniciado_em: confirmadoEm,
     finalizado_em: confirmadoEm,
-    data_atendimento: new Date(confirmadoEm).toISOString().slice(0, 10),
+    data_atendimento: dataAtendimento || new Date(confirmadoEm).toISOString().slice(0, 10),
     status: Registro.STATUS.CONFIRMADO
   });
   await RegistroEntrada.create({ registro_id: registro.id, ordem: 0, tipo: "texto", conteudo_texto: "relato" });
@@ -240,15 +246,73 @@ test("a avaliação mensal NUNCA cria uma Validacao (não é dado oficial)", asy
   assert.equal(depois, antes);
 });
 
-test("relatos são filtrados pelo mês de CONFIRMAÇÃO (confirmado_em), não pela data da sessão", async (t) => {
+test("relatos são filtrados pelo mês do ATENDIMENTO (data_atendimento), não pela confirmação", async (t) => {
   t.mock.method(geminiService, "gerarAvaliacaoMensal", async () => RESPOSTA_IA_FAKE);
-  for (let i = 0; i < 2; i += 1) await criarRelatoConfirmado(new Date(2026, 6, 10 + i)); // julho
-  for (let i = 0; i < 2; i += 1) await criarRelatoConfirmado(new Date(2026, 7, 1 + i)); // agosto
+  // 1 relato de julho confirmado em julho + 2 de julho confirmados em agosto
+  // (atendimento retroativo / revisão atrasada) + 1 de agosto.
+  await criarRelatoConfirmado(new Date(2026, 6, 20));
+  await criarRelatoConfirmado(new Date(2026, 7, 2), undefined, { dataAtendimento: "2026-07-30" });
+  await criarRelatoConfirmado(new Date(2026, 7, 2), undefined, { dataAtendimento: "2026-07-31" });
+  await criarRelatoConfirmado(new Date(2026, 7, 3));
   t.after(limpar);
 
   const julho = await avaliacaoMensalService.gerarParaAluno({ equipeId: equipe.id, alunoId: aluno.id, anoMes: "2026-07" });
-  assert.equal(julho.relatos_considerados, 2);
-  assert.equal(julho.status, "dados_insuficientes");
+  assert.equal(julho.relatos_considerados, 3);
+  assert.equal(julho.status, "gerada");
+
+  const agosto = await avaliacaoMensalService.gerarParaAluno({ equipeId: equipe.id, alunoId: aluno.id, anoMes: "2026-08" });
+  assert.equal(agosto.relatos_considerados, 1);
+  assert.equal(agosto.status, "dados_insuficientes");
+});
+
+test("prompt lista os relatos na ordem do atendimento, com a data da sessão", async (t) => {
+  let promptRecebido = null;
+  t.mock.method(geminiService, "gerarAvaliacaoMensal", async ({ promptContexto }) => {
+    promptRecebido = promptContexto;
+    return RESPOSTA_IA_FAKE;
+  });
+  const tardio = await criarRelatoConfirmado(new Date(2026, 8, 2), undefined, { dataAtendimento: "2026-08-03" });
+  const meio = await criarRelatoConfirmado(new Date(2026, 7, 15));
+  const ultimo = await criarRelatoConfirmado(new Date(2026, 7, 28));
+  t.after(limpar);
+
+  await avaliacaoMensalService.gerarParaAluno({ equipeId: equipe.id, alunoId: aluno.id, anoMes: "2026-08" });
+
+  const posicoes = [tardio, meio, ultimo].map((r) => promptRecebido.indexOf(`[relato:${r.id}`));
+  assert.ok(posicoes.every((p) => p >= 0));
+  assert.deepEqual([...posicoes].sort((a, b) => a - b), posicoes);
+  assert.match(promptRecebido, /sessão em 2026-08-03 \| confirmado em 2026-09-02/);
+});
+
+test("job: retenta 'dados_insuficientes' quando relatos atrasados completam o mínimo; 'gerada' não é refeita", async (t) => {
+  const gerador = require("../jobs/gerador-avaliacao-mensal");
+  const avaliacaoMensalRepository = require("../repositories/avaliacaoMensal.repository");
+  t.mock.method(avaliacaoMensalRepository, "listarAlunosAtivos", async () => [{ id: aluno.id, equipe_id: equipe.id }]);
+  const spy = t.mock.method(geminiService, "gerarAvaliacaoMensal", async () => RESPOSTA_IA_FAKE);
+  t.after(limpar);
+
+  await criarRelatoConfirmado(new Date(2026, 9, 20)); // outubro
+  await gerador.gerarAvaliacoesDoMes("2026-10");
+  let outubro = await AvaliacaoMensal.findOne({ where: { aluno_id: aluno.id, ano_mes: "2026-10" } });
+  assert.equal(outubro.status, "dados_insuficientes");
+
+  // ainda abaixo do mínimo: o job não refaz
+  await criarRelatoConfirmado(new Date(2026, 10, 2), undefined, { dataAtendimento: "2026-10-29" });
+  await gerador.gerarAvaliacoesDoMes("2026-10");
+  assert.equal(spy.mock.callCount(), 0);
+
+  // terceiro relato de outubro confirmado em novembro: o job gera
+  await criarRelatoConfirmado(new Date(2026, 10, 2), undefined, { dataAtendimento: "2026-10-31" });
+  await gerador.gerarAvaliacoesDoMes("2026-10");
+  outubro = await AvaliacaoMensal.findOne({ where: { aluno_id: aluno.id, ano_mes: "2026-10" } });
+  assert.equal(outubro.status, "gerada");
+  assert.equal(outubro.relatos_considerados, 3);
+  assert.equal(spy.mock.callCount(), 1);
+
+  // gerada é um retrato: relato atrasado não dispara nova geração sozinho
+  await criarRelatoConfirmado(new Date(2026, 10, 3), undefined, { dataAtendimento: "2026-10-15" });
+  await gerador.gerarAvaliacoesDoMes("2026-10");
+  assert.equal(spy.mock.callCount(), 1);
 });
 
 test("usa o contexto consolidado do mês anterior como entrada da IA", async (t) => {

@@ -7,6 +7,10 @@
 > ordenado por `created_at`). Introduz um campo novo para *quando o atendimento
 > aconteceu*, distinto de *quando o relato entrou no sistema*.
 
+> **Adendo (2026-11-02):** o bucketing mensal passou a usar `data_atendimento`
+> (ver o adendo da ADR-0015). As menções a "bucketing por `confirmado_em`"
+> abaixo descrevem a decisão original.
+
 ## Contexto
 
 Até aqui o Registro tinha só datas do **sistema**: `iniciado_em` (o personal
@@ -129,7 +133,7 @@ a revisão relaxa para 60 (personal no desktop, pondo o backlog em dia).
 | Pré-preenchimento da avaliação física por captura | `data_ouvida` \|\| hoje | `data_ouvida` \|\| **`data_atendimento`** |
 | Listas de relato / histórico / fila de revisão | `iniciado_em`/`created_at` | exibem `data_atendimento` como data principal |
 
-### Bucketing mensal — inalterado
+### Bucketing mensal — inalterado (revisto no adendo 2026-11-02 da ADR-0015: agora por `data_atendimento`)
 
 Continua por `validacao.confirmado_em` (ADR-0015). Mudar `data_atendimento`
 **não** re-bucketiza nem reabre mês. Ciclos são snapshots: um mês já gerado só

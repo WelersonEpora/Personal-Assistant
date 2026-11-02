@@ -50,25 +50,27 @@ function avaliacaoMensalMaisRecente({ alunoId }) {
   });
 }
 
-// Relatos confirmados do aluno com confirmado_em > `desde` (os ainda não
-// incorporados a um fechamento mensal).
-function listarRelatosConfirmadosDesde({ equipeId, alunoId, desde }) {
+// Relatos confirmados do aluno ainda não incorporados a um fechamento mensal:
+// atendimento (data_atendimento) a partir de `desdeData` ("YYYY-MM-DD"), fora
+// os ids que o último fechamento já leu (`excluirIds` - relato atrasado do mês
+// fechado entra; o que o fechamento já considerou, não). docs/adr/0015,
+// adendo 2026-11-02.
+function listarRelatosConfirmadosDesde({ equipeId, alunoId, desdeData, excluirIds = [] }) {
+  const where = {
+    equipe_id: equipeId,
+    aluno_id: alunoId,
+    status: Registro.STATUS.CONFIRMADO,
+    deletado_em: null,
+    data_atendimento: { [Op.gte]: desdeData }
+  };
+  if (excluirIds.length) where.id = { [Op.notIn]: excluirIds };
   return Registro.findAll({
-    where: {
-      equipe_id: equipeId,
-      aluno_id: alunoId,
-      status: Registro.STATUS.CONFIRMADO,
-      deletado_em: null
-    },
-    include: [
-      {
-        model: Validacao,
-        as: "validacao",
-        required: true,
-        where: { confirmado_em: { [Op.gt]: desde } }
-      }
-    ],
-    order: [[{ model: Validacao, as: "validacao" }, "confirmado_em", "ASC"]]
+    where,
+    include: [{ model: Validacao, as: "validacao", required: true }],
+    order: [
+      ["data_atendimento", "ASC"],
+      ["created_at", "ASC"]
+    ]
   });
 }
 

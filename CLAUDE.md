@@ -320,9 +320,13 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
   oficial), com janela `[iniciado_em::date − 60, hoje]`. Histórico, painel e prompts
   da IA usam `data_atendimento` quando o objetivo é "quando o atendimento
   aconteceu" — inclusive a **Linha do Tempo do aluno** (`utils/linhaDoTempo.js`),
-  que posiciona o relato no mês do atendimento e marca o confirmado depois de o
-  mês virar com o mês em que ele conta; **o bucketing mensal continua por `confirmado_em` (ADR-0015)** e o
-  feed de atividade por `created_at` (ADR-0017). A tela **Atendimentos** (ADR-0020,
+  que posiciona o relato no mês do atendimento — e **o Acompanhamento Mensal
+  também agrupa os relatos por `data_atendimento`** (adendo 2026-11-02 da
+  ADR-0015, que substituiu o bucketing por `confirmado_em`): relato atrasado
+  entra no mês do atendimento; mês já `gerada` não é refeito sozinho — a Linha
+  do Tempo avisa "N relatos fora do Acompanhamento — regere" (compara com
+  `baseada_em_registro_ids`), e o job retenta `dados_insuficientes` quando os
+  atrasados completam o mínimo. O feed de atividade segue por `created_at` (ADR-0017). A tela **Atendimentos** (ADR-0020,
   `GET /api/v1/atividades`, `/admin/atendimentos`) agrega a `registro` por
   `data_atendimento` — somente leitura, sem tabela nova, sem tocar
   `resultado_ia`/`validacao`; atendimento e avaliação física em trilhas
@@ -509,7 +513,7 @@ MVP completo e verificado de ponta a ponta:
   `POST /registros/:id/confirmar` (grava junto com a `validacao`), janela
   `[iniciado_em::date − 60, hoje]`. Prompts (mensal, sob demanda, interpretação de relato) e painel
   ("último relato"/"aluno parado") usam `data_atendimento`; bucketing mensal
-  segue em `confirmado_em`, feed em `created_at`.
+  também (adendo 2026-11-02 da ADR-0015), feed em `created_at`.
   Tela de Atendimentos (docs/adr/0020): `GET /api/v1/atividades`
   (`atividades.{controller,service,repository}`) — agregação somente leitura
   sobre `registro` por `data_atendimento`, escopo por `equipe_id` +
@@ -561,7 +565,7 @@ MVP completo e verificado de ponta a ponta:
   interpretação" vale também a partir de `aguardando_revisao`.
   Logo da equipe (docs/adr/0030): `equipe.logo_caminho`, endpoints
   `/api/v1/equipe/{identidade,logo}` e `/ficha-publica/:token/logo`.
-  394 testes automatizados (`node --test`, unitários +
+  397 testes automatizados (`node --test`, unitários +
   integração contra banco de teste dedicado).
 - **Frontend**: app Vue 3 + Vite + PWA único (`/captura` mobile-first
   offline, `/admin` gestão/validação), IndexedDB + fila de sincronização
@@ -683,7 +687,7 @@ MVP completo e verificado de ponta a ponta:
   e no Comparar; toque na linha abre `ReferenciaMedida.vue` (o que é, régua de
   faixas, faixas em texto, fonte, aviso, variação para a avaliação anterior do
   mesmo método). Toda métrica tem explicação, mesmo sem faixa.
-  146 testes automatizados (`node --test` + `fake-indexeddb`; +
+  148 testes automatizados (`node --test` + `fake-indexeddb`; +
   `echarts-option-builder.test.js`, `echarts-bar-option-builder.test.js`,
   `periodos.test.js`, `avaliacaoFisica.test.js`, `gravacaoVoz.test.js`,
   `avaliacaoMensalCompartilhada.test.js`, `registroStatus.test.js`,

@@ -4,7 +4,8 @@
 //
 // Gera a avaliação mensal de um aluno a partir de DOIS insumos apenas:
 //   1. o contexto consolidado do mês anterior;
-//   2. os relatos confirmados do mês atual.
+//   2. os relatos confirmados cujo atendimento foi no mês (data_atendimento -
+//      adendo 2026-11-02; não mais a data da confirmação).
 // Relatos de meses anteriores nunca são reenviados (o contexto consolidado
 // os resume). A avaliação é sempre proposta da IA - NUNCA dado oficial, e
 // este service jamais escreve em `validacao` (docs/adr/0007). Para corrigir
@@ -33,9 +34,10 @@ function validarAnoMes(anoMes) {
   return anoMes;
 }
 
-// Limites do mês de referência. As Datas cobrem a janela [inicio, fim) usada
-// na consulta de `confirmado_em`; as strings vão para periodo_inicio/fim
-// (DATEONLY) e são derivadas do próprio "YYYY-MM" para não depender de fuso.
+// Limites do mês de referência. As strings (DATEONLY, derivadas do próprio
+// "YYYY-MM" para não depender de fuso) filtram os relatos por
+// `data_atendimento` e vão para periodo_inicio/fim; as Datas cobrem a janela
+// [inicio, fim) das observações do personal (`created_at`).
 function limitesMes(anoMes) {
   const [ano, mes] = anoMes.split("-").map(Number);
   const ultimoDia = new Date(ano, mes, 0).getDate();
@@ -146,7 +148,7 @@ function montarPromptAvaliacao({
       "=== CONTEXTO CONSOLIDADO (até o mês anterior) ===",
       blocoContexto,
       "",
-      `=== RELATOS CONFIRMADOS DE ${anoMes} (${relatos.length}, na ordem de confirmação) ===`,
+      `=== RELATOS CONFIRMADOS DE ${anoMes} (${relatos.length}, na ordem do atendimento) ===`,
       blocoRelatos
     ].join("\n") +
     blocoAvaliacoesPersonal(avaliacoesPersonal) +
@@ -161,7 +163,7 @@ function avaliacaoDadosInsuficientes({ anoMes, limites, relatos }) {
     dados_insuficientes: true,
     relatos_considerados: relatos.length,
     resumo_geral:
-      `Apenas ${relatos.length} relato(s) confirmado(s) em ${anoMes} - o mínimo para gerar a avaliação é ${MINIMO_RELATOS}. ` +
+      `Apenas ${relatos.length} relato(s) confirmado(s) de atendimentos em ${anoMes} - o mínimo para gerar a avaliação é ${MINIMO_RELATOS}. ` +
       "Ciclo registrado como dados insuficientes; o contexto consolidado do mês anterior foi mantido. " +
       "Para enriquecer o próximo ciclo, registre novos relatos normalmente.",
     dimensoes: [],
@@ -188,8 +190,8 @@ async function gerarParaAluno({ equipeId, alunoId, anoMes, origem = "automatica"
   const relatos = await avaliacaoMensalRepository.listarRelatosConfirmadosNoMes({
     equipeId,
     alunoId,
-    inicio: limites.inicio,
-    fim: limites.fim
+    inicioData: limites.inicioData,
+    fimData: limites.fimData
   });
 
   // Geração MANUAL pelo personal com dados insuficientes: NÃO vira registro.
@@ -206,9 +208,9 @@ async function gerarParaAluno({ equipeId, alunoId, anoMes, origem = "automatica"
       relatos_considerados: relatos.length,
       minimo_relatos: MINIMO_RELATOS,
       mensagem:
-        `Apenas ${relatos.length} relato(s) confirmado(s) em ${anoMes} - o mínimo para gerar a ` +
-        `Acompanhamento Mensal é ${MINIMO_RELATOS}. Nada foi alterado; confirme (ou registre) mais ` +
-        "relatos e gere de novo."
+        `Apenas ${relatos.length} relato(s) confirmado(s) de atendimentos em ${anoMes} - o mínimo ` +
+        `para gerar o Acompanhamento Mensal é ${MINIMO_RELATOS}. Nada foi alterado; confirme (ou ` +
+        "registre) mais relatos do mês e gere de novo."
     };
   }
 
@@ -319,9 +321,24 @@ async function gerarParaAluno({ equipeId, alunoId, anoMes, origem = "automatica"
   }
 }
 
+// Quantos relatos confirmados o mês tem hoje - o job usa para retentar um
+// "dados_insuficientes" quando relatos confirmados com atraso completaram o
+// mínimo.
+async function contarRelatosDoMes({ equipeId, alunoId, anoMes }) {
+  const limites = limitesMes(validarAnoMes(anoMes));
+  const relatos = await avaliacaoMensalRepository.listarRelatosConfirmadosNoMes({
+    equipeId,
+    alunoId,
+    inicioData: limites.inicioData,
+    fimData: limites.fimData
+  });
+  return relatos.length;
+}
+
 module.exports = {
   MINIMO_RELATOS,
   gerarParaAluno,
+  contarRelatosDoMes,
   mesReferenciaAnterior,
   limitesMes,
   montarPromptAvaliacao

@@ -69,7 +69,7 @@ async function limpar() {
   await Registro.destroy({ where: { id: ids } });
 }
 
-async function criarRelatoConfirmado(confirmadoEm) {
+async function criarRelatoConfirmado(confirmadoEm, { dataAtendimento } = {}) {
   const itens = [{ label: "Agachamento", valor: "4x10", obs: "" }];
   const registro = await Registro.create({
     id: randomUUID(),
@@ -78,6 +78,7 @@ async function criarRelatoConfirmado(confirmadoEm) {
     aluno_id: aluno.id,
     iniciado_em: confirmadoEm,
     finalizado_em: confirmadoEm,
+    ...(dataAtendimento ? { data_atendimento: dataAtendimento } : {}),
     status: Registro.STATUS.CONFIRMADO
   });
   await RegistroEntrada.create({ registro_id: registro.id, ordem: 0, tipo: "texto", conteudo_texto: "relato" });
@@ -286,6 +287,31 @@ test("usa o contexto consolidado mensal apenas como referência (contexto_refere
 
   const mensalDepois = await AvaliacaoMensal.findByPk(mensal.id);
   assert.deepEqual(mensalDepois.contexto_consolidado_json.linha_de_base, [{ rotulo: "Objetivo", valor: "corrida de 10k", tipo: "fato" }]);
+});
+
+test("relato do mês já fechado confirmado depois do fechamento entra; o que o fechamento leu, não", async (t) => {
+  const lido = await criarRelatoConfirmado(new Date(2026, 4, 10), { dataAtendimento: "2026-05-10" });
+  const atrasado = await criarRelatoConfirmado(new Date(), { dataAtendimento: "2026-05-30" });
+  const recente = await criarRelatoConfirmado(new Date());
+  await AvaliacaoMensal.create({
+    aluno_id: aluno.id,
+    equipe_id: equipe.id,
+    ano_mes: "2026-05",
+    periodo_inicio: "2026-05-01",
+    periodo_fim: "2026-05-31",
+    status: "dados_insuficientes",
+    origem: "automatica",
+    relatos_considerados: 1,
+    baseada_em_registro_ids: [lido.id],
+    avaliacao_json: {},
+    contexto_consolidado_json: {}
+  });
+  t.mock.method(geminiService, "gerarAnaliseSobDemanda", async () => ANALISE_FAKE);
+  t.after(limpar);
+
+  const analise = await analiseSobDemandaService.solicitar({ equipeId: equipe.id, alunoId: aluno.id, usuarioId: usuario.id });
+
+  assert.deepEqual([...analise.baseada_em_registro_ids].sort(), [atrasado.id, recente.id].sort());
 });
 
 test("rejeita aluno de outra equipe", async () => {

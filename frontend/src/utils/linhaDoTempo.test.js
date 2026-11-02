@@ -42,27 +42,50 @@ test('eventos de tipos diferentes ficam numa lista só, do mais recente ao mais 
   assert.deepEqual(mes.contagem, { relato: 2, fisica: 1, analise: 1, observacao: 1 })
 })
 
-test('relato cai no mês do atendimento; confirmado depois marca o mês em que conta no Acompanhamento', () => {
+test('relato confirmado depois de o mês virar conta no mês do atendimento (adendo 2026-11-02 da ADR-0015)', () => {
   const meses = montarLinhaDoTempo({
     mesAtual: '2026-11',
     registros: [relato('r1', '2026-10-30', { validacao: { confirmado_em: '2026-11-02T10:00:00' } })]
   })
   const outubro = meses.find((m) => m.anoMes === '2026-10')
   const novembro = meses.find((m) => m.anoMes === '2026-11')
-  assert.equal(outubro.eventos[0].contaNoMes, '2026-11')
-  assert.equal(outubro.confirmadosNoMes, 0)
-  assert.equal(novembro.confirmadosNoMes, 1)
+  assert.equal(outubro.confirmadosNoMes, 1)
+  assert.equal(novembro.confirmadosNoMes, 0)
   assert.equal(novembro.eventos.length, 0)
 })
 
-test('relato pendente conta como pendente do mês do atendimento, sem marca', () => {
+test('relato pendente conta como pendente do mês do atendimento', () => {
   const [mes] = montarLinhaDoTempo({
     mesAtual: '2026-10',
     registros: [relato('r1', '2026-10-30', { status: 'aguardando_revisao', validacao: null })]
   })
   assert.equal(mes.pendentes, 1)
   assert.equal(mes.confirmadosNoMes, 0)
-  assert.equal(mes.eventos[0].contaNoMes, null)
+})
+
+test('foraDoMensal: relatos confirmados do mês que o Acompanhamento já gerado não leu', () => {
+  const registros = [relato('r1', '2026-10-05'), relato('r2', '2026-10-30'), relato('r3', '2026-10-31')]
+  const comMensal = montarLinhaDoTempo({
+    mesAtual: '2026-11',
+    registros,
+    mensais: [{ ano_mes: '2026-10', status: 'dados_insuficientes', baseada_em_registro_ids: ['r1'] }]
+  })
+  assert.equal(comMensal.find((m) => m.anoMes === '2026-10').foraDoMensal, 2)
+
+  const semMensal = montarLinhaDoTempo({ mesAtual: '2026-11', registros })
+  assert.equal(semMensal.find((m) => m.anoMes === '2026-10').foraDoMensal, 0)
+})
+
+test('foraDoMensal: relato já lido pelo Acompanhamento de outro mês (regra antiga) não é acusado', () => {
+  const meses = montarLinhaDoTempo({
+    mesAtual: '2026-11',
+    registros: [relato('r1', '2026-09-10'), relato('r2', '2026-09-30', { validacao: { confirmado_em: '2026-10-01T10:00:00' } })],
+    mensais: [
+      { ano_mes: '2026-09', status: 'gerada', baseada_em_registro_ids: ['r1'] },
+      { ano_mes: '2026-10', status: 'gerada', baseada_em_registro_ids: ['r2'] }
+    ]
+  })
+  assert.equal(meses.find((m) => m.anoMes === '2026-09').foraDoMensal, 0)
 })
 
 test('avaliação física capturada por voz aparece uma vez só, pela avaliação', () => {

@@ -31,6 +31,11 @@ function inicioAposMes(anoMes) {
   return new Date(ano, mes, 1);
 }
 
+// "YYYY-MM-DD" no horário local - comparável com `data_atendimento` (DATEONLY).
+function diaLocal(data) {
+  return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}-${String(data.getDate()).padStart(2, "0")}`;
+}
+
 function proximaDisponivelApos(solicitadaEm) {
   return new Date(new Date(solicitadaEm).getTime() + INTERVALO_DIAS * MS_POR_DIA);
 }
@@ -124,7 +129,15 @@ async function solicitar({ equipeId, alunoId, usuarioId }) {
     ? inicioAposMes(mensalMaisRecente.ano_mes)
     : new Date(Date.now() - JANELA_SEM_MENSAL_DIAS * MS_POR_DIA);
 
-  const relatos = await analiseSobDemandaRepository.listarRelatosConfirmadosDesde({ equipeId, alunoId, desde });
+  // Relatos pelo dia do atendimento (adendo 2026-11-02 da ADR-0015): do mês
+  // do último fechamento em diante, menos os que ele já leu - assim o relato
+  // daquele mês confirmado depois da geração também entra.
+  const relatos = await analiseSobDemandaRepository.listarRelatosConfirmadosDesde({
+    equipeId,
+    alunoId,
+    desdeData: mensalMaisRecente ? `${mensalMaisRecente.ano_mes}-01` : diaLocal(desde),
+    excluirIds: mensalMaisRecente?.baseada_em_registro_ids || []
+  });
   const avaliacoesPersonal = await avaliacaoPersonalRepository.listarDesde({ equipeId, alunoId, desde });
 
   const base = {

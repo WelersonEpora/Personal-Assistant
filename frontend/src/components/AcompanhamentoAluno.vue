@@ -51,7 +51,8 @@ const mostrarAjuda = ref(false)
 // Ações
 const gerandoMes = ref(null) // "YYYY-MM" do mês cujo Acompanhamento Mensal está sendo (re)gerado
 const solicitandoAnalise = ref(false)
-const mensagemInsuficiente = ref('')
+// Aviso de dados insuficientes ({ anoMes, texto }) - aparece no mês a que se refere.
+const avisoInsuficiente = ref(null)
 const novaAberta = ref(false) // editor de nova observação, no card do mês corrente
 const editandoId = ref(null) // id da observação em edição inline (na linha dela)
 const textoEditor = ref('')
@@ -264,9 +265,14 @@ function abrirAbaAvaliacoes() {
   router.replace({ query: { aba: 'avaliacoes' } })
 }
 
-function marcaRelato(e) {
-  if (!e.contaNoMes) return ''
-  return `Confirmado em ${nomeMes(e.contaNoMes)} — conta no Acompanhamento Mensal de ${nomeMes(e.contaNoMes)}`
+// Relatos do mês confirmados depois da geração (docs/adr/0015, adendo
+// 2026-11-02): ficam fora até o personal regerar.
+function avisoForaDoMensal(m) {
+  const n = m.foraDoMensal
+  if (!n) return ''
+  return n === 1
+    ? '1 relato deste mês foi confirmado depois da geração e ainda não está no Acompanhamento — regere para incluir.'
+    : `${n} relatos deste mês foram confirmados depois da geração e ainda não estão no Acompanhamento — regere para incluir.`
 }
 
 function vazioDoMes(m) {
@@ -314,13 +320,13 @@ onMounted(carregar)
 // ---- Ações: Acompanhamento Mensal ----------------------------------------
 async function gerar(anoMes) {
   gerandoMes.value = anoMes
-  mensagemInsuficiente.value = ''
+  avisoInsuficiente.value = null
   try {
     const resultado = await avaliacoesMensaisService.gerar(props.id, anoMes)
     // Geração manual com dados insuficientes não vira registro (docs/adr/0015):
     // mostra o motivo, não mexe no feed, e o botão fica livre pra tentar de novo.
     if (resultado.persistida === false) {
-      mensagemInsuficiente.value = resultado.mensagem
+      avisoInsuficiente.value = { anoMes, texto: resultado.mensagem }
       showToast('Relatos insuficientes para gerar o Acompanhamento Mensal — nada foi alterado.', 'neutral')
       return
     }
@@ -353,11 +359,11 @@ async function gerar(anoMes) {
 // ---- Ações: análise intermediária de IA ----------------------------------
 async function solicitarAnalise() {
   solicitandoAnalise.value = true
-  mensagemInsuficiente.value = ''
+  avisoInsuficiente.value = null
   try {
     const resultado = await analisesSobDemandaService.solicitar(props.id)
     if (resultado.persistida === false) {
-      mensagemInsuficiente.value = resultado.mensagem
+      avisoInsuficiente.value = { anoMes: mesCorrente.value, texto: resultado.mensagem }
       showToast('Dados insuficientes para uma análise intermediária de IA — nada foi consumido.', 'neutral')
       return
     }
@@ -534,8 +540,8 @@ async function excluirAvaliacaoPersonal(avaliacao) {
             <span v-if="disponibilidade && !disponibilidade.disponivel_agora" class="list-row-sub">
               Próxima análise intermediária de IA em <strong>{{ formatarDataHora(disponibilidade.proxima_disponivel_em) }}</strong>.
             </span>
-            <div v-if="mensagemInsuficiente" class="exercise-obs acomp-mes-aviso">{{ mensagemInsuficiente }}</div>
           </template>
+          <div v-if="avisoInsuficiente?.anoMes === m.anoMes" class="exercise-obs acomp-mes-aviso">{{ avisoInsuficiente.texto }}</div>
         </header>
 
         <div v-if="mesAberto(m)" class="lt-lista">
@@ -575,6 +581,9 @@ async function excluirAvaliacaoPersonal(avaliacao) {
                     <span class="list-row-sub">{{ subLinhaMensal(m.mensal) }}</span>
                     <span v-if="estadoCompartilhamento(m.mensal)?.stale" class="list-row-sub acomp-compartilhar-stale">
                       {{ estadoCompartilhamento(m.mensal).rotulo }}
+                    </span>
+                    <span v-if="avisoForaDoMensal(m)" class="list-row-sub acomp-compartilhar-stale">
+                      {{ avisoForaDoMensal(m) }}
                     </span>
                   </div>
                   <!-- Ações sempre à vista; o clique nelas não abre/fecha a faixa -->
@@ -662,7 +671,6 @@ async function excluirAvaliacaoPersonal(avaliacao) {
               <div v-if="e.registro" class="lt-item">
                 <RegistroCard
                   :registro="e.registro"
-                  :marca="marcaRelato(e)"
                   :aberto="expandidoId === e.chave"
                   @toggle="alternarExpandido(e.chave)"
                 />

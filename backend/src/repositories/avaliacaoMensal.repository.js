@@ -42,26 +42,26 @@ function obterAnteriorAoMes({ alunoId, anoMes }) {
   });
 }
 
-// Relatos (Registros) do aluno CONFIRMADOS dentro da janela [inicio, fim).
-// O critério é `validacao.confirmado_em`, não a data da sessão: garante que
-// cada relato confirmado caia em exatamente um ciclo mensal (docs/adr/0015).
-function listarRelatosConfirmadosNoMes({ equipeId, alunoId, inicio, fim }) {
+// Relatos (Registros) confirmados do aluno cujo ATENDIMENTO caiu no mês
+// [inicioData, fimData] (docs/adr/0015, adendo 2026-11-02): o critério é
+// `registro.data_atendimento` (docs/adr/0019), não a data da confirmação -
+// relato de outubro confirmado em novembro conta em outubro. Relato que chega
+// depois de o mês já ter sido gerado fica fora até o personal regerar (a tela
+// avisa comparando com `baseada_em_registro_ids`).
+function listarRelatosConfirmadosNoMes({ equipeId, alunoId, inicioData, fimData }) {
   return Registro.findAll({
     where: {
       equipe_id: equipeId,
       aluno_id: alunoId,
       status: Registro.STATUS.CONFIRMADO,
-      deletado_em: null
+      deletado_em: null,
+      data_atendimento: { [Op.between]: [inicioData, fimData] }
     },
-    include: [
-      {
-        model: Validacao,
-        as: "validacao",
-        required: true,
-        where: { confirmado_em: { [Op.gte]: inicio, [Op.lt]: fim } }
-      }
-    ],
-    order: [[{ model: Validacao, as: "validacao" }, "confirmado_em", "ASC"]]
+    include: [{ model: Validacao, as: "validacao", required: true }],
+    order: [
+      ["data_atendimento", "ASC"],
+      ["created_at", "ASC"]
+    ]
   });
 }
 

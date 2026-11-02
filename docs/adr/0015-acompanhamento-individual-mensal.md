@@ -1,6 +1,6 @@
 # ADR-0015: Acompanhamento Individual Mensal
 
-**Status:** Aceita (2026-08-27)
+**Status:** Aceita (2026-08-27); adendo 2026-11-02 — relatos agrupados pelo mês do atendimento
 
 ## Contexto
 
@@ -61,7 +61,7 @@ um novo relato normalmente**, que é considerado no ciclo seguinte.
   "tranque" o mês contra o job automático (que pula qualquer linha que não
   esteja em `falha`).
 
-### Mês de referência = mês de confirmação
+### Mês de referência = mês de confirmação (substituído — ver adendo 2026-11-02)
 
 Um relato entra na avaliação do mês em que sua `validacao.confirmado_em` cai
 — não a data da sessão. Assim cada relato confirmado cai em **exatamente um**
@@ -210,7 +210,7 @@ insuficientes, diferenciar fato/interpretação/hipótese e nunca inventar. É
 - **Redis/BullMQ ou cron externo para o job.** Rejeitada — mesmo raciocínio
   da ADR-0009; um `setInterval` idempotente no processo basta para um lote
   mensal.
-- **Bucketizar relatos pela data da sessão.** Rejeitada — relato confirmado
+- **Bucketizar relatos pela data da sessão.** Rejeitada na v1 (revista no adendo 2026-11-02) — relato confirmado
   depois do fechamento do mês ficaria órfão ou exigiria reabrir meses
   fechados. `confirmado_em` garante cobertura exata.
 - **Análise sob demanda atualizando o contexto consolidado / reusando a
@@ -273,3 +273,52 @@ insuficientes, diferenciar fato/interpretação/hipótese e nunca inventar. É
 - Quando o sistema legado / avaliação física estruturada entrar, ela vira um
   terceiro bloco no prompt e uma dimensão em `estado_atual`, sem quebrar o
   schema atual.
+
+## Adendo (2026-11-02) — mês de referência = mês do atendimento
+
+**Substitui a seção "Mês de referência = mês de confirmação" e a alternativa
+rejeitada "Bucketizar relatos pela data da sessão".**
+
+### Contexto
+
+Com a data do atendimento separada das datas do sistema (ADR-0019), o critério
+por `confirmado_em` passou a produzir fechamentos errados. O personal registra
+ou revisa relatos de dias anteriores, e isso é rotina. Um caso real: os
+atendimentos de 29/10 e 31/10 foram confirmados em 02/11. O job de 01/11 fechou
+outubro com 1 relato ("dados insuficientes"), regerar outubro continuava com 1
+relato, e os relatos de outubro iam parar no Acompanhamento de novembro. A Linha
+do Tempo, que já posicionava o relato pela data do atendimento, mostrava
+"Outubro · 4 relatos" num mês que a geração dizia ter 1.
+
+### Decisão
+
+- Um relato entra no Acompanhamento do mês do seu **atendimento**
+  (`registro.data_atendimento`, `[periodo_inicio, periodo_fim]`), não do mês da
+  confirmação. O prompt lista os relatos na ordem do atendimento.
+- **Relato atrasado em mês sem Acompanhamento gerado** (nenhuma linha,
+  `dados_insuficientes` ou `falha`): entra na próxima geração. O job mensal,
+  além de `falha`, passa a retentar `dados_insuficientes` do mês de referência
+  quando os relatos confirmados daquele mês já alcançaram o mínimo.
+- **Relato atrasado em mês já `gerada`**: o Acompanhamento é um retrato e
+  **não** é refeito sozinho, porque pode já ter ido para o aluno em PDF
+  (ADR-0023). A Linha do Tempo compara os relatos confirmados do mês com
+  `baseada_em_registro_ids` e avisa no fechamento quantos ficaram de fora,
+  sugerindo regerar. Se a avaliação já tinha sido compartilhada, a revisão fica
+  desatualizada e o PDF trava até o personal revisar de novo (mecanismo da
+  ADR-0023).
+- **Análise intermediária de IA**: considera os relatos com atendimento a
+  partir do mês do último fechamento, menos os que esse fechamento já leu
+  (`baseada_em_registro_ids`). Assim o relato atrasado do mês fechado também
+  entra.
+- Avaliações do personal (`created_at`) e avaliação física (`data`) não mudam.
+
+### Consequências
+
+- O problema do "relato órfão", motivo da rejeição original, fica resolvido
+  pelo aviso + regerar. Nenhum relato some, e nada muda sozinho num
+  Acompanhamento já entregue.
+- Regerar um mês passado não reprocessa em cascata os meses seguintes. O
+  contexto consolidado que eles herdaram continua o da geração anterior.
+- Linha do Tempo, contador do mês, mínimo de 3 e geração passam a usar o mesmo
+  critério. A marca "Confirmado em ‹mês› — conta no Acompanhamento de ‹mês›"
+  sai da tela.

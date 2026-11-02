@@ -14,9 +14,7 @@ import { statusMeta, formatarDataHora } from '../utils/registroStatus.js'
 
 const props = defineProps({
   registro: { type: Object, required: true },
-  aberto: { type: Boolean, default: false },
-  // Aviso extra na linha (ex.: confirmado depois de o mês fechar).
-  marca: { type: String, default: '' }
+  aberto: { type: Boolean, default: false }
 })
 const emit = defineEmits(['toggle'])
 const router = useRouter()
@@ -121,7 +119,6 @@ onBeforeUnmount(() => {
         </span>
         <span class="list-row-title registro-card-titulo">{{ titulo() }}</span>
         <span class="list-row-sub">{{ subLinha() }}</span>
-        <span v-if="marca" class="registro-card-marca">{{ marca }}</span>
       </div>
       <ChevronExpandir :aberto="aberto" />
     </div>
@@ -199,11 +196,6 @@ onBeforeUnmount(() => {
 .registro-card-titulo {
   font-weight: 600;
   font-size: 14px;
-}
-.registro-card-marca {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--color-warning);
 }
 .row-clickable:hover .list-row-title {
   color: var(--color-primary);

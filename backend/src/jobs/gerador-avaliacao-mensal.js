@@ -10,8 +10,8 @@ const avaliacaoMensalRepository = require("../repositories/avaliacaoMensal.repos
 const logger = require("../shared/logger");
 
 // A cada 6h. Como gerarAvaliacoesDoMes é idempotente, rodar de novo no mesmo
-// mês só varre alunos já prontos e sai barato - e recolhe relatos que forem
-// confirmados retroativamente ainda dentro do mês de referência.
+// mês só varre alunos já prontos e sai barato - e recolhe relatos do mês de
+// referência confirmados com atraso (retenta "dados_insuficientes").
 const INTERVALO_CHECAGEM_MS = 6 * 60 * 60 * 1000;
 
 async function gerarAvaliacoesDoMes(anoMes) {
@@ -26,11 +26,22 @@ async function gerarAvaliacoesDoMes(anoMes) {
       anoMes
     });
 
-    // Já processado com sucesso ou por falta de dados - não refaz.
-    // Só "falha" é retentado automaticamente no próximo ciclo de checagem.
+    // "gerada" nunca é refeita sozinha (é um retrato - relato atrasado só entra
+    // se o personal regerar). "falha" é retentada sempre; "dados_insuficientes"
+    // só quando relatos confirmados com atraso completaram o mínimo do mês
+    // (docs/adr/0015, adendo 2026-11-02 - o mês é o do atendimento).
     if (existente && existente.status !== "falha") {
-      ignoradas += 1;
-      continue;
+      const retentar =
+        existente.status === "dados_insuficientes" &&
+        (await avaliacaoMensalService.contarRelatosDoMes({
+          equipeId: aluno.equipe_id,
+          alunoId: aluno.id,
+          anoMes
+        })) >= avaliacaoMensalService.MINIMO_RELATOS;
+      if (!retentar) {
+        ignoradas += 1;
+        continue;
+      }
     }
 
     try {

@@ -4,11 +4,11 @@
 // cronológica - mais recente primeiro.
 //
 // Cada evento cai no mês em que ACONTECEU: relato pela data do atendimento
-// (docs/adr/0019), avaliação física pela data dela. O Acompanhamento Mensal,
-// porém, considera os relatos pelo mês da CONFIRMAÇÃO (docs/adr/0015) - o
-// relato confirmado depois de o mês virar é marcado com o mês em que ele
-// realmente conta (`contaNoMes`), para a linha não prometer o que o
-// Acompanhamento daquele mês não leu. Puro (sem Vue) para ser testável.
+// (docs/adr/0019), avaliação física pela data dela. O Acompanhamento Mensal
+// usa o mesmo critério para os relatos (docs/adr/0015, adendo 2026-11-02).
+// Relato confirmado depois de o mês já ter Acompanhamento fica de fora dele
+// até o personal regerar - `foraDoMensal` conta esses (comparando com
+// `baseada_em_registro_ids`). Puro (sem Vue) para ser testável.
 
 export const TIPOS_EVENTO = ['mensal', 'relato', 'fisica', 'analise', 'observacao']
 
@@ -55,7 +55,7 @@ export function montarLinhaDoTempo({
   const mapa = new Map()
   const mes = (anoMes) => {
     if (!mapa.has(anoMes)) {
-      mapa.set(anoMes, { anoMes, mensal: null, eventos: [], confirmadosNoMes: 0, pendentes: 0 })
+      mapa.set(anoMes, { anoMes, mensal: null, eventos: [], confirmados: [], pendentes: 0 })
     }
     return mapa.get(anoMes)
   }
@@ -72,18 +72,15 @@ export function montarLinhaDoTempo({
     if (r.tipo === 'ficha_treino') continue
     const dia = diaDe(r.data_atendimento || r.created_at)
     const alvo = mes(dia.slice(0, 7))
-    const confirmacao = confirmadoEm(r)
-    const contaNoMes = confirmacao && anoMesDe(confirmacao) !== alvo.anoMes ? anoMesDe(confirmacao) : null
     alvo.eventos.push({
       tipo: r.tipo === 'avaliacao_fisica' ? 'fisica' : 'relato',
       chave: `r:${r.id}`,
       dia,
       ordem: r.created_at,
-      registro: r,
-      contaNoMes
+      registro: r
     })
     if (r.tipo !== 'avaliacao_fisica') {
-      if (confirmacao) mes(anoMesDe(confirmacao)).confirmadosNoMes++
+      if (confirmadoEm(r)) alvo.confirmados.push(r.id)
       else alvo.pendentes++
     }
   }
@@ -104,14 +101,19 @@ export function montarLinhaDoTempo({
   }
 
   for (const m of mensais) mes(m.ano_mes).mensal = m
+  // Relato lido por QUALQUER Acompanhamento não conta como "fora": antes do
+  // adendo, um relato de 30/09 confirmado em 01/10 entrou no de outubro -
+  // regerar setembro por ele o leria duas vezes.
+  const lidos = new Set(mensais.flatMap((m) => m.baseada_em_registro_ids || []))
 
   return [...mapa.values()]
     .sort((a, b) => b.anoMes.localeCompare(a.anoMes))
-    .map((m) => {
+    .map(({ confirmados, ...m }) => {
       const eventos = m.eventos.sort(porMaisRecente)
       const contagem = { relato: 0, fisica: 0, analise: 0, observacao: 0 }
       for (const e of eventos) contagem[e.tipo]++
-      return { ...m, eventos, contagem, emAndamento: m.anoMes >= mesAtual }
+      const foraDoMensal = m.mensal ? confirmados.filter((id) => !lidos.has(id)).length : 0
+      return { ...m, eventos, contagem, confirmadosNoMes: confirmados.length, foraDoMensal, emAndamento: m.anoMes >= mesAtual }
     })
 }
 

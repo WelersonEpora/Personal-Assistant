@@ -209,6 +209,11 @@ const NOVOS = [
   // no alto o tempo todo; a abdução deitada (sem ponte) é a de cima. A
   // "abdução com arco" é feita em ponte - os apelidos vieram da de cima.
   ["abducao-quadril-elevacao-pelvica", "Abdução de quadril com elevação pélvica", "Glúteos", "Miniband", "iniciante", "Deitado de costas com a miniband logo acima dos joelhos, eleve o quadril em ponte e, mantendo-o no alto, afaste os joelhos contra o elástico e volte controlando.", ["ponte com abdução", "ponte com miniband", "ponte com elástico", "elevação pélvica com abdução", "abdução na ponte", "abdução com arco", "abdução de quadril com arco"]],
+  // Incluído depois (2026-11-02) - nos bancos que já rodaram o v2, entra pelo
+  // seeder 20261102200000-seed-exercicio-abducao-agachamento-isometrico.js.
+  // Miniband por fora, empurrando para fora - a adução com arco no
+  // agachamento (arco entre os joelhos, apertando) é outro exercício.
+  ["abducao-quadril-miniband-agachamento-isometrico", "Abdução de quadril com miniband em agachamento isométrico", "Glúteos", "Miniband", "iniciante", "Em pé, com a miniband logo acima dos joelhos e os pés na largura do quadril, desça em meio agachamento e segure a posição empurrando os joelhos para fora contra o elástico, sem deixá-los cair para dentro.", ["agachamento isométrico com miniband", "agachamento isométrico com elástico", "agachamento com miniband", "abdução no agachamento", "abdução em agachamento isométrico"]],
 
   // Adutores - incluído depois (2026-11-02), nos bancos que já rodaram o v2
   // entra pelo seeder 20261102150000-seed-exercicio-aducao-quadril-arco.js.

@@ -313,8 +313,9 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
   Registro precisa ser idempotente por esse id.
 - **`registro.data_atendimento` (ADR-0019) é o DIA do atendimento, separado de
   `iniciado_em`/`created_at`/`confirmado_em`** (que nunca ficam editáveis).
-  Nasce no cliente (default hoje; até 7 dias atrás na captura, ancorado em
-  `iniciado_em`). No desktop, o ajuste faz parte do "Editar" da revisão: a data
+  Nasce no cliente (default hoje; até 15 dias atrás na captura — era 7, adendo
+  2026-11-12 —, ancorado em `iniciado_em`, chips também ancorados nele, +1 dia
+  de folga de fuso no piso do servidor). No desktop, o ajuste faz parte do "Editar" da revisão: a data
   é o "item 0" do formulário e vai no payload de `POST /registros/:id/confirmar`
   (gravada na mesma transação da `validacao` — que continua o único dado
   oficial), com janela `[iniciado_em::date − 60, hoje]`. Histórico, painel e prompts
@@ -519,7 +520,7 @@ MVP completo e verificado de ponta a ponta:
   Data do atendimento (docs/adr/0019): `registro.data_atendimento` (`DATE`,
   obrigatória; backfill de `iniciado_em::date`) separa o dia do atendimento das
   datas de captura/sincronização/confirmação. Captura: default hoje, chips dos
-  7 dias anteriores, editável enquanto `em_andamento`. Desktop: o ajuste é o
+  15 dias anteriores (8 de cara + "Dias anteriores"), editável enquanto `em_andamento`. Desktop: o ajuste é o
   "item 0" do "Editar" da revisão e vai no payload de
   `POST /registros/:id/confirmar` (grava junto com a `validacao`), janela
   `[iniciado_em::date − 60, hoje]`. Prompts (mensal, sob demanda, interpretação de relato) e painel
@@ -640,7 +641,8 @@ MVP completo e verificado de ponta a ponta:
   contextual no composer, **só para `tipo = atendimento`** (a avaliação física
   não tem seletor de data na captura; usa `data_ouvida` / o formulário de
   revisão), estilo roteiro de ditado: barra "Atendimento de: Hoje" que expande
-  nos chips dos 7 dias, selo "retroativo". No `/admin` a revisão mostra
+  nos chips dos 15 dias (8 recentes + botão "Dias anteriores"), selo
+  "retroativo". No `/admin` a revisão mostra
   "Atendimento em" vs "registrado em" no cabeçalho (só leitura) e a data vira o
   "item 0" do formulário de "Editar", num `CampoData.vue` (calendário próprio,
   sem `<input type=date>` nativo).

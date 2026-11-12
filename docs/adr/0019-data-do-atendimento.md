@@ -11,6 +11,34 @@
 > (ver o adendo da ADR-0015). As menções a "bucketing por `confirmado_em`"
 > abaixo descrevem a decisão original.
 
+> **Adendo (2026-11-12) — janela da captura de 7 para 15 dias.** Na prática os
+> personais registram atendimentos com mais de uma semana de atraso. A captura
+> passa a aceitar `[iniciado_em::date − 15, iniciado_em::date]`
+> (`DIAS_RETROATIVOS_CAPTURA` no `registro-sync.service` e espelho em
+> `utils/registroStatus.js`). Junto:
+> - **Chips "Dias anteriores":** o seletor mostra de cara os 8 dias mais
+>   recentes; os outros 8 ficam atrás de um botão "Dias anteriores" (abre
+>   sozinho se a data escolhida está entre eles), para 16 chips não empurrarem
+>   o composer no celular.
+> - **Chips ancorados no início do Registro, não em hoje.** Antes, num Registro
+>   iniciado num dia e retomado no outro, o chip "Hoje" ficava depois de
+>   `iniciado_em` e o servidor recusava; o Registro, já finalizado, travava em
+>   erro de sincronização. Agora os chips vão do dia local de `iniciado_em` para
+>   trás — a mesma âncora do servidor.
+> - **1 dia de folga no piso pelo fuso.** O celular conta em dia local, o
+>   servidor em UTC (`iniciado_em` à noite no Brasil já é o dia seguinte em
+>   UTC); sem a folga, o chip mais antigo seria recusado depois das 21h.
+>   O teto continua `iniciado_em::date`.
+> - **Efeito no Acompanhamento Mensal (ADR-0015, bucketing por
+>   `data_atendimento`):** relato do mês anterior pode chegar até ~dia 15, depois
+>   que o lote do dia 1 já gerou o mês. Nada novo no mecanismo — a Linha do
+>   Tempo avisa "relatos fora do Acompanhamento — regere" e o job retenta
+>   `dados_insuficientes` —, só fica mais frequente (e regerar um mês já
+>   compartilhado pede nova revisão do PDF, ADR-0023). Mudar o dia da geração
+>   automática fica como decisão separada, se incomodar.
+> - A janela do desktop (60 dias) não muda. Menções a "7 dias" abaixo descrevem
+>   a decisão original.
+
 ## Contexto
 
 Até aqui o Registro tinha só datas do **sistema**: `iniciado_em` (o personal

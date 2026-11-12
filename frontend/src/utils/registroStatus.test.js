@@ -4,6 +4,8 @@ import assert from 'node:assert/strict'
 import {
   hojeYmd,
   chipsDataAtendimento,
+  DIAS_RETROATIVOS_CAPTURA,
+  CHIPS_DATA_RECENTES,
   rotuloDataAtendimento,
   ehRetroativo,
   formatarDataAtendimento,
@@ -17,9 +19,10 @@ test('hojeYmd: AAAA-MM-DD do dia local', () => {
   assert.equal(hojeYmd(new Date(2026, 7, 3)), '2026-08-03')
 })
 
-test('chipsDataAtendimento: 8 dias, Hoje/Ontem nomeados, ordem decrescente, todos <= hoje', () => {
-  const chips = chipsDataAtendimento(8)
-  assert.equal(chips.length, 8)
+test('chipsDataAtendimento: hoje + 15 dias, Hoje/Ontem nomeados, ordem decrescente, 8 recentes', () => {
+  assert.equal(DIAS_RETROATIVOS_CAPTURA, 15)
+  const chips = chipsDataAtendimento()
+  assert.equal(chips.length, 16)
   assert.equal(chips[0].rotulo, 'Hoje')
   assert.equal(chips[1].rotulo, 'Ontem')
   assert.equal(chips[0].ymd, hojeYmd())
@@ -27,6 +30,27 @@ test('chipsDataAtendimento: 8 dias, Hoje/Ontem nomeados, ordem decrescente, todo
   for (const c of chips) assert.ok(c.ymd <= hoje)
   // estritamente decrescente
   for (let i = 1; i < chips.length; i += 1) assert.ok(chips[i].ymd < chips[i - 1].ymd)
+  assert.equal(chips.filter((c) => c.recente).length, CHIPS_DATA_RECENTES)
+  assert.ok(chips.slice(0, CHIPS_DATA_RECENTES).every((c) => c.recente))
+})
+
+test('chipsDataAtendimento: ancorado no início do Registro, não em hoje (nunca oferece data depois do início)', () => {
+  // Registro iniciado em 10/08 à noite, retomado em 12/08.
+  const chips = chipsDataAtendimento({
+    iniciadoEm: new Date(2026, 7, 10, 22, 30).toISOString(),
+    agora: new Date(2026, 7, 12, 9, 0)
+  })
+  assert.equal(chips.length, 16)
+  assert.equal(chips[0].ymd, '2026-08-10')
+  assert.equal(chips[0].rotulo, 'seg 10')
+  assert.equal(chips[15].ymd, '2026-07-26')
+  assert.ok(chips.every((c) => c.rotulo !== 'Hoje'))
+
+  const deOntem = chipsDataAtendimento({
+    iniciadoEm: new Date(2026, 7, 11, 8, 0).toISOString(),
+    agora: new Date(2026, 7, 12, 9, 0)
+  })
+  assert.equal(deOntem[0].rotulo, 'Ontem')
 })
 
 test('rotuloDataAtendimento: hoje/ontem/data cheia e curta', () => {

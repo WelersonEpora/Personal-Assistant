@@ -423,7 +423,8 @@ async function iniciarRegistro() {
 }
 
 // docs/adr/0019 - data do atendimento, ajustável no composer enquanto o
-// Registro está em andamento (mesma janela de 7 dias da captura). Depois de
+// Registro está em andamento (mesma janela de 15 dias da captura, contada do
+// início do Registro - SeletorDataAtendimento). Depois de
 // finalizado, só o desktop altera.
 async function definirDataAtendimento(ymd) {
   const registro = registroEmAndamento.value
@@ -882,6 +883,7 @@ async function descartar() {
           <SeletorDataAtendimento
             v-if="tipoEmAndamento.tipo === 'atendimento'"
             :model-value="registroEmAndamento.dataAtendimento"
+            :iniciado-em="registroEmAndamento.iniciadoEm"
             @update:model-value="definirDataAtendimento"
           />
           <RoteiroDitado v-else :tipo="registroEmAndamento.tipo" />

@@ -7,7 +7,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 
-const { validarMetadata, resolverDataAtendimento } = require("./registro-sync.service");
+const { validarMetadata, resolverDataAtendimento, DIAS_RETROATIVOS_CAPTURA } = require("./registro-sync.service");
 
 function metadataValida(overrides = {}) {
   return {
@@ -82,17 +82,28 @@ test("resolverDataAtendimento: ausente -> deriva de iniciadoEm::date (compat)", 
   assert.equal(resolverDataAtendimento(INICIO, ""), "2026-08-20");
 });
 
-test("resolverDataAtendimento: aceita o próprio dia e até 7 dias antes", () => {
+test("resolverDataAtendimento: aceita o próprio dia e até 15 dias antes", () => {
+  assert.equal(DIAS_RETROATIVOS_CAPTURA, 15);
   assert.equal(resolverDataAtendimento(INICIO, "2026-08-20"), "2026-08-20");
   assert.equal(resolverDataAtendimento(INICIO, "2026-08-13"), "2026-08-13");
+  assert.equal(resolverDataAtendimento(INICIO, "2026-08-05"), "2026-08-05");
+});
+
+test("resolverDataAtendimento: folga de 1 dia no piso pelo fuso (início à noite no Brasil já é amanhã em UTC)", () => {
+  // 12/08 22:30 em Brasília = 13/08 01:30 UTC. O celular oferece até 28/07
+  // (12/08 - 15); o servidor, ancorado em 13/08 UTC, precisa aceitar.
+  const inicioNoite = "2026-08-13T01:30:00.000Z";
+  assert.equal(resolverDataAtendimento(inicioNoite, "2026-07-28"), "2026-07-28");
+  assert.throws(() => resolverDataAtendimento(inicioNoite, "2026-07-27"), /desktop/);
 });
 
 test("resolverDataAtendimento: rejeita data futura (depois do início da captura)", () => {
   assert.throws(() => resolverDataAtendimento(INICIO, "2026-08-21"), /entre .* e 2026-08-20/);
 });
 
-test("resolverDataAtendimento: rejeita mais de 7 dias antes (é caso de desktop)", () => {
-  assert.throws(() => resolverDataAtendimento(INICIO, "2026-08-12"), /desktop/);
+test("resolverDataAtendimento: rejeita além de 15 dias (+1 de folga de fuso) antes (é caso de desktop)", () => {
+  assert.equal(resolverDataAtendimento(INICIO, "2026-08-04"), "2026-08-04"); // folga de fuso
+  assert.throws(() => resolverDataAtendimento(INICIO, "2026-08-03"), /desktop/);
 });
 
 test("resolverDataAtendimento: rejeita formato inválido", () => {

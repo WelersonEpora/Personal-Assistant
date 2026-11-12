@@ -96,21 +96,39 @@ export function hojeYmd(base = new Date()) {
   return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`
 }
 
-// Chips de dia relativo para o seletor "quando foi o atendimento?" (captura):
-// Hoje, Ontem e os demais como "qua 26", limitado aos últimos `qtd` dias
-// (docs/adr/0019 - captura só retroage 7 dias; datas mais antigas, no desktop).
-export function chipsDataAtendimento(qtd = 8) {
-  const hoje = new Date()
-  hoje.setHours(0, 0, 0, 0)
+// Quantos dias a CAPTURA pode retroagir (docs/adr/0019, adendo 2026-11-12:
+// era 7). Espelho de DIAS_RETROATIVOS_CAPTURA do registro-sync.service -
+// mudar nos dois. Datas mais antigas, só no desktop.
+export const DIAS_RETROATIVOS_CAPTURA = 15
+
+// Quantos chips aparecem de cara; os demais ficam atrás de "Dias anteriores".
+export const CHIPS_DATA_RECENTES = 8
+
+// Chips de dia para o seletor "quando foi o atendimento?" (captura), do dia do
+// INÍCIO do Registro até DIAS_RETROATIVOS_CAPTURA dias antes - a mesma âncora
+// da janela do servidor. Ancorar em "hoje" oferecia, num Registro iniciado
+// ontem e retomado hoje, um "Hoje" que o servidor recusa (data depois do
+// início) e o Registro finalizado travava na sincronização.
+// Rótulo relativo a `agora`: Hoje, Ontem e os demais como "qua 26".
+// `recente` marca os CHIPS_DATA_RECENTES primeiros.
+export function chipsDataAtendimento({ iniciadoEm, agora = new Date() } = {}) {
+  const ancora = iniciadoEm ? new Date(iniciadoEm) : new Date(agora)
+  if (Number.isNaN(ancora.getTime())) ancora.setTime(new Date(agora).getTime())
+  ancora.setHours(0, 0, 0, 0)
+  const hoje = hojeYmd(agora)
+  const ontemData = new Date(agora)
+  ontemData.setDate(ontemData.getDate() - 1)
+  const ontem = hojeYmd(ontemData)
   const lista = []
-  for (let i = 0; i < qtd; i += 1) {
-    const d = new Date(hoje)
+  for (let i = 0; i <= DIAS_RETROATIVOS_CAPTURA; i += 1) {
+    const d = new Date(ancora)
     d.setDate(d.getDate() - i)
+    const ymd = hojeYmd(d)
     let rotulo
-    if (i === 0) rotulo = 'Hoje'
-    else if (i === 1) rotulo = 'Ontem'
+    if (ymd === hoje) rotulo = 'Hoje'
+    else if (ymd === ontem) rotulo = 'Ontem'
     else rotulo = `${DIAS_SEMANA_CURTO[d.getDay()]} ${d.getDate()}`
-    lista.push({ ymd: hojeYmd(d), rotulo })
+    lista.push({ ymd, rotulo, recente: i < CHIPS_DATA_RECENTES })
   }
   return lista
 }

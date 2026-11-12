@@ -12,8 +12,15 @@ const TIPOS_REGISTRO = Object.values(Registro.TIPOS);
 
 // Máximo de dias no passado que a CAPTURA pode retroagir (docs/adr/0019). Para
 // datas mais antigas, o personal ajusta pelo desktop (endpoint próprio, sem
-// essa janela).
-const DIAS_RETROATIVOS_CAPTURA = 7;
+// essa janela). Era 7; ampliado para 15 (adendo 2026-11-12 da ADR-0019).
+const DIAS_RETROATIVOS_CAPTURA = 15;
+
+// O celular conta os dias a partir do dia LOCAL do início da captura, mas o
+// servidor só conhece o instante (`iniciadoEm`, em UTC). No Brasil, um
+// Registro iniciado depois das 21h já é o dia seguinte em UTC - sem esta
+// folga, o chip mais antigo oferecido pelo celular seria recusado e o Registro
+// (finalizado, não editável) ficaria preso em erro de sincronização.
+const FOLGA_FUSO_DIAS = 1;
 
 const FORMATO_DATA = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -31,9 +38,10 @@ function somarDias(dataYmd, dias) {
 // - ausente (cliente anterior a esta mudança) -> deriva de iniciadoEm::date,
 //   mesma compatibilidade do `tipo` na ADR-0018;
 // - presente -> precisa ser AAAA-MM-DD válida e cair na janela
-//   [iniciadoEm::date - 7, iniciadoEm::date] (ancorada no INÍCIO da captura,
+//   [iniciadoEm::date - 15, iniciadoEm::date] (ancorada no INÍCIO da captura,
 //   não no relógio do servidor - um Registro iniciado offline e sincronizado
-//   dias depois continua válido).
+//   dias depois continua válido), com 1 dia de folga no piso pelo fuso
+//   (FOLGA_FUSO_DIAS).
 function resolverDataAtendimento(iniciadoEm, dataAtendimento) {
   const iniciadoData = apenasData(iniciadoEm);
   if (!dataAtendimento) {
@@ -46,7 +54,7 @@ function resolverDataAtendimento(iniciadoEm, dataAtendimento) {
   if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== dataAtendimento) {
     throw new ValidationError('"dataAtendimento" é uma data inválida.');
   }
-  const minima = somarDias(iniciadoData, -DIAS_RETROATIVOS_CAPTURA);
+  const minima = somarDias(iniciadoData, -(DIAS_RETROATIVOS_CAPTURA + FOLGA_FUSO_DIAS));
   if (dataAtendimento > iniciadoData || dataAtendimento < minima) {
     throw new ValidationError(
       `"dataAtendimento" deve estar entre ${minima} e ${iniciadoData} (até ${DIAS_RETROATIVOS_CAPTURA} dias ` +

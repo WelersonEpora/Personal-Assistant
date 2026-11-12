@@ -13,7 +13,9 @@
 // docs/adr/0029: avaliação física do mês - a tabela (calculada pelo código,
 // `avaliacao_fisica_resumo_json`) e o parágrafo da IA para o aluno
 // (`avaliacao_json.leitura_avaliacao_fisica`), com chaves fixas
-// "avaliacao_fisica:tabela" / "avaliacao_fisica:leitura".
+// "avaliacao_fisica:tabela" / "avaliacao_fisica:leitura". Adendo 2026-11-12:
+// gráfico da composição corporal (`resumo.composicao`, números crus gravados
+// na geração), chave "avaliacao_fisica:grafico".
 //
 // Adendo 2026-11-02 da ADR-0023: o personal pode ajustar o texto de cada trecho
 // que vai no PDF (`textos_editados`: { chave do trecho: texto }). A avaliação da
@@ -33,6 +35,7 @@ export function chaveItem(secao, indice) {
 
 const CHAVE_TABELA_FISICA = 'avaliacao_fisica:tabela'
 const CHAVE_LEITURA_FISICA = 'avaliacao_fisica:leitura'
+const CHAVE_GRAFICO_FISICA = 'avaliacao_fisica:grafico'
 
 // Chaves dos trechos editáveis (espelhadas na validação do backend):
 // "resumo_geral", "avaliacao_fisica:leitura", "destaque:N", "recomendacao:N" e
@@ -48,6 +51,16 @@ function textoLimpo(valor) {
 
 function temTabelaFisica(resumoFisica) {
   return Array.isArray(resumoFisica?.linhas) && resumoFisica.linhas.length > 0
+}
+// Linhas da tabela do PDF. Com o gráfico de composição incluído, massa magra
+// e massa gorda saem (o gráfico já mostra as duas, com a variação).
+const MASSAS_DO_GRAFICO = new Set(['massa_magra', 'massa_gorda'])
+export function linhasDaTabela(resumoFisica, comGrafico) {
+  const linhas = Array.isArray(resumoFisica?.linhas) ? resumoFisica.linhas : []
+  return comGrafico ? linhas.filter((l) => !MASSAS_DO_GRAFICO.has(l.codigo)) : linhas
+}
+function temGraficoFisica(resumoFisica) {
+  return Boolean(resumoFisica?.composicao?.atual)
 }
 function leituraFisica(avaliacaoJson) {
   return textoLimpo(avaliacaoJson?.leitura_avaliacao_fisica)
@@ -125,6 +138,15 @@ export function listarItensExcluiveis(avaliacaoJson, resumoFisica = null, textos
   if (temTabelaFisica(resumoFisica)) {
     itens.push({ chave: CHAVE_TABELA_FISICA, secao: 'avaliacao_fisica', rotulo: 'Tabela das medidas', texto: `${resumoFisica.linhas.length} medida(s)`, editado: false })
   }
+  if (temGraficoFisica(resumoFisica)) {
+    itens.push({
+      chave: CHAVE_GRAFICO_FISICA,
+      secao: 'avaliacao_fisica',
+      rotulo: 'Gráfico da composição corporal',
+      texto: resumoFisica.composicao.anterior ? 'massa magra × massa gorda, com a anterior' : 'massa magra × massa gorda',
+      editado: false
+    })
+  }
   const leitura = leituraFisica(av)
   if (leitura) {
     itens.push({
@@ -177,20 +199,37 @@ export function filtrarAvaliacaoParaAluno(avaliacaoJson, itensExcluidos = [], re
     .filter(({ i }) => incluir('recomendacao', i))
     .map(({ t, i }) => ({ chave: chaveItem('recomendacao', i), texto: t }))
 
-  // Só os campos de exibição da tabela (lista branca, como o resto).
-  const tabela =
-    temTabelaFisica(resumoFisica) && !excluidos.has(CHAVE_TABELA_FISICA)
+  // Composição: só os números do gráfico (lista branca).
+  const ponto = (p) =>
+    p
       ? {
-          data: resumoFisica.data || null,
-          anterior_data: resumoFisica.anterior_data || null,
-          linhas: resumoFisica.linhas.map((l) => ({
-            rotulo: l.rotulo,
-            atual: l.atual,
-            anterior: l.anterior ?? null,
-            diferenca: l.diferenca ?? null,
-            comparavel: l.comparavel !== false
-          }))
+          data: p.data || null,
+          peso: p.peso,
+          massa_magra: p.massa_magra,
+          massa_gorda: p.massa_gorda,
+          percentual_gordura: p.percentual_gordura ?? null,
+          metodo_rotulo: p.metodo_rotulo || null
         }
+      : null
+  const grafico =
+    temGraficoFisica(resumoFisica) && !excluidos.has(CHAVE_GRAFICO_FISICA)
+      ? { atual: ponto(resumoFisica.composicao.atual), anterior: ponto(resumoFisica.composicao.anterior) }
+      : null
+
+  // Só os campos de exibição da tabela (lista branca, como o resto). Com o
+  // gráfico no PDF, as massas saem da tabela (o gráfico já as mostra).
+  const linhasTabela = temTabelaFisica(resumoFisica)
+    ? linhasDaTabela(resumoFisica, Boolean(grafico)).map((l) => ({
+        rotulo: l.rotulo,
+        atual: l.atual,
+        anterior: l.anterior ?? null,
+        diferenca: l.diferenca ?? null,
+        comparavel: l.comparavel !== false
+      }))
+    : []
+  const tabela =
+    linhasTabela.length && !excluidos.has(CHAVE_TABELA_FISICA)
+      ? { data: resumoFisica.data || null, anterior_data: resumoFisica.anterior_data || null, linhas: linhasTabela }
       : null
   const leitura = excluidos.has(CHAVE_LEITURA_FISICA) ? '' : leituraFisica(av)
 
@@ -199,7 +238,7 @@ export function filtrarAvaliacaoParaAluno(avaliacaoJson, itensExcluidos = [], re
     dimensoes,
     destaques,
     recomendacoes,
-    avaliacao_fisica: tabela || leitura ? { tabela, leitura } : null
+    avaliacao_fisica: tabela || grafico || leitura ? { tabela, grafico, leitura } : null
   }
 }
 

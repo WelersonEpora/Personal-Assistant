@@ -1,14 +1,8 @@
 <script setup>
 import { computed } from 'vue'
-import {
-  explicacao,
-  descreverFaixas,
-  segmentosRegua,
-  posicaoNaEscala,
-  variacao,
-  TEXTO_DIRECAO
-} from '../../utils/referenciasAvaliacaoFisica.js'
+import { explicacao, descreverFaixas, variacao, TEXTO_DIRECAO } from '../../utils/referenciasAvaliacaoFisica.js'
 import { formatarDataAvaliacao } from '../../utils/avaliacaoFisica.js'
+import ReguaReferencia from './ReguaReferencia.vue'
 
 // docs/adr/0031 - o que abre ao tocar na linha da medida: o que ela é, a
 // régua com as faixas (quando há referência), a fonte e a comparação com a
@@ -26,12 +20,6 @@ const texto = computed(() => explicacao(props.metrica.codigo, props.metrica.cate
 const direcao = computed(() => TEXTO_DIRECAO[props.metrica.direcao_favoravel] || null)
 
 const comReferencia = computed(() => props.classificacao && !props.classificacao.semReferencia)
-const segmentos = computed(() =>
-  comReferencia.value ? segmentosRegua(props.classificacao.faixas, props.classificacao.escala) : []
-)
-const marcador = computed(() =>
-  comReferencia.value ? posicaoNaEscala(props.valor, props.classificacao.escala) : 0
-)
 const faixasTexto = computed(() =>
   comReferencia.value ? descreverFaixas(props.classificacao.faixas, casas.value) : []
 )
@@ -62,27 +50,7 @@ const comparacao = computed(() => {
     </p>
 
     <template v-if="comReferencia">
-      <div class="ref-regua" role="img" :aria-label="`${classificacao.rotulo}: ${fmt(valor)}`">
-        <div class="ref-trilho">
-          <div
-            v-for="s in segmentos"
-            :key="s.rotulo"
-            class="ref-seg"
-            :class="`ref-${s.tom}`"
-            :style="{ left: `${s.de}%`, width: `${s.ate - s.de}%` }"
-            :title="s.rotulo"
-          />
-          <div class="ref-marcador" :style="{ left: `${marcador}%` }" />
-        </div>
-        <div class="ref-cortes">
-          <span
-            v-for="s in segmentos.filter((x) => x.corte != null)"
-            :key="s.corte"
-            class="ref-corte"
-            :style="{ left: `${s.ate}%` }"
-          >{{ fmt(s.corte) }}</span>
-        </div>
-      </div>
+      <ReguaReferencia class="ref-regua-painel" :classificacao="classificacao" :valor="valor" :casas="casas" />
 
       <ul class="ref-faixas">
         <li v-for="(f, i) in faixasTexto" :key="f.rotulo" :class="{ atual: i === classificacao.indice }">
@@ -125,29 +93,7 @@ const comparacao = computed(() => {
 .ref-painel p:last-child { margin-bottom: 0; }
 .ref-texto { color: var(--color-text-secondary); }
 
-.ref-regua { margin: 6px 0 14px; padding-top: 6px; }
-.ref-trilho { position: relative; height: 8px; border-radius: 4px; overflow: visible; }
-.ref-seg { position: absolute; top: 0; height: 100%; background: currentColor; opacity: 0.35; }
-.ref-seg:first-child { border-radius: 4px 0 0 4px; }
-.ref-seg:nth-last-child(2) { border-radius: 0 4px 4px 0; }
-.ref-marcador {
-  position: absolute;
-  top: -5px;
-  width: 4px;
-  height: 18px;
-  margin-left: -2px;
-  border-radius: 2px;
-  background: var(--color-text, #111);
-  box-shadow: 0 0 0 2px var(--color-surface, #fff);
-}
-.ref-cortes { position: relative; height: 16px; margin-top: 4px; }
-.ref-corte {
-  position: absolute;
-  transform: translateX(-50%);
-  font-size: 11px;
-  color: var(--color-text-faint);
-  font-variant-numeric: tabular-nums;
-}
+.ref-regua-painel { margin: 6px 0 14px; }
 
 .ref-faixas { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 2px; }
 .ref-faixas li { display: flex; align-items: center; gap: 8px; color: var(--color-text-secondary); }

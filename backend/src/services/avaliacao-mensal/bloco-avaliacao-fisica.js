@@ -193,6 +193,36 @@ function linhaResumo(codigo, atual, base) {
   return linha;
 }
 
+// Adendo 2026-11-12 da ADR-0029: números crus da composição corporal para o
+// gráfico do PDF (massa magra × massa gorda). Sem as duas massas -> null.
+function pontoComposicao(avaliacao) {
+  const magra = principal(avaliacao, "massa_magra");
+  const gorda = principal(avaliacao, "massa_gorda");
+  if (!magra || !gorda) return null;
+  const peso = principal(avaliacao, "peso")?.valor ?? magra.valor + gorda.valor;
+  const metodo = metodoComparavel(avaliacao, "percentual_gordura");
+  return {
+    data: avaliacao.data,
+    peso,
+    massa_magra: magra.valor,
+    massa_gorda: gorda.valor,
+    percentual_gordura: principal(avaliacao, "percentual_gordura")?.valor ?? null,
+    metodo,
+    metodo_rotulo: metodo && metodo !== "direto" ? ROTULOS_METODO[metodo] || metodo : null
+  };
+}
+
+// A anterior só entra se a % de gordura foi pelo mesmo método (mesma regra da
+// tabela): barras de métodos diferentes lado a lado sugeririam uma variação
+// que não existe.
+function composicaoParaAluno(atual, base) {
+  const pontoAtual = pontoComposicao(atual);
+  if (!pontoAtual) return null;
+  const pontoBase = base ? pontoComposicao(base) : null;
+  const comparavel = pontoBase && pontoBase.metodo === pontoAtual.metodo;
+  return { atual: pontoAtual, anterior: comparavel ? pontoBase : null };
+}
+
 // A mais recente do mês, comparada com a imediatamente anterior (do mesmo mês
 // ou a base `anterior`). Sem avaliação no mês -> null.
 function montarResumoParaAluno({ doMes = [], anterior = null }) {
@@ -204,7 +234,8 @@ function montarResumoParaAluno({ doMes = [], anterior = null }) {
     avaliacao_id: atual.id,
     data: atual.data,
     anterior_data: base?.data || null,
-    linhas: METRICAS_ALUNO.map((codigo) => linhaResumo(codigo, atual, base)).filter(Boolean)
+    linhas: METRICAS_ALUNO.map((codigo) => linhaResumo(codigo, atual, base)).filter(Boolean),
+    composicao: composicaoParaAluno(atual, base)
   };
 }
 

@@ -378,7 +378,14 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
   calculada pelo código na geração (`avaliacao_mensal.avaliacao_fisica_resumo_json`,
   recorte sem dobras/IMC/RCQ/PA/FC) + parágrafo da IA escrito para o aluno
   (`avaliacao_json.leitura_avaliacao_fisica`); chaves `avaliacao_fisica:tabela`
-  / `avaliacao_fisica:leitura` em `itens_excluidos`.
+  / `avaliacao_fisica:leitura` em `itens_excluidos`. Adendo 2026-11-12: rosca
+  da composição corporal da avaliação atual (massa magra × massa gorda, peso e
+  % no centro) + variação para a anterior **em texto** (kg, verde/âmbar pela
+  direção favorável; só com o mesmo método da %) — nunca duas roscas; com o
+  gráfico, massa magra/gorda saem da tabela (`linhasDaTabela`); massa
+  óssea/muscular por fórmula ficou fora. A partir de `resumo.composicao` (números crus gravados na
+  geração), chave `avaliacao_fisica:grafico`; réguas de referência e perímetros
+  **não** vão ao PDF.
 - **Identidade da equipe (ADR-0030): o logo aparece só no que chega ao aluno**
   (topo do PDF do Acompanhamento Mensal e cabeçalho do link da ficha; sem logo,
   aparece o nome). `equipe.logo_caminho` no `storage-foto.service` (chave
@@ -395,7 +402,8 @@ valor real): `GEMINI_API_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD`.
   Gallagher 2000, cintura e RCQ OMS, cintura-estatura Ashwell, pressão
   Diretriz SBC 2020, FC de repouso AHA). Linguagem de referência, nunca de
   diagnóstico. Ainda **não** vão ao prompt do Acompanhamento Mensal nem ao PDF
-  do aluno — decisão própria.
+  do aluno — decisão própria (reafirmada no adendo 2026-11-12 da ADR-0029: o
+  PDF leva só o gráfico de composição, não as réguas).
 - Toda decisão arquitetural relevante e difícil de reverter vira ADR em
   `docs/adr/`, numerada sequencialmente, com Contexto/Decisão/Alternativas
   consideradas/Consequências. Decisões operacionais ou de baixa relevância
@@ -568,7 +576,9 @@ MVP completo e verificado de ponta a ponta:
   interpretação" vale também a partir de `aguardando_revisao`.
   Logo da equipe (docs/adr/0030): `equipe.logo_caminho`, endpoints
   `/api/v1/equipe/{identidade,logo}` e `/ficha-publica/:token/logo`.
-  399 testes automatizados (`node --test`, unitários +
+  Composição corporal numérica no resumo do PDF (adendo 2026-11-12 da
+  ADR-0029: `montarResumoParaAluno` grava `composicao`).
+  403 testes automatizados (`node --test`, unitários +
   integração contra banco de teste dedicado).
 - **Frontend**: app Vue 3 + Vite + PWA único (`/captura` mobile-first
   offline, `/admin` gestão/validação), IndexedDB + fila de sincronização
@@ -692,13 +702,29 @@ MVP completo e verificado de ponta a ponta:
   (IMC e % de gordura — o toque abre o card na medida), no formulário (ao vivo)
   e no Comparar; toque na linha abre `ReferenciaMedida.vue` (o que é, régua de
   faixas, faixas em texto, fonte, aviso, variação para a avaliação anterior do
-  mesmo método). Toda métrica tem explicação, mesmo sem faixa.
-  153 testes automatizados (`node --test` + `fake-indexeddb`; +
+  mesmo método). Toda métrica tem explicação, mesmo sem faixa. A régua virou
+  `ReguaReferencia.vue` (reusada no retrato).
+  Retrato da avaliação física: `RetratoAvaliacao.vue` no topo do detalhe da
+  avaliação, **desde a 1ª avaliação** (o "Comparar" segue com 2+), em três
+  **Cards Resumo** (fundo cinza leve, sem sombra — ficam dentro do card da
+  avaliação; cada um abre com uma linha de leitura colorida: "% de gordura ·
+  variação", "N de M fora da faixa adequada", "Assimetria em N regiões") —
+  composição corporal (`GraficoComposicao.vue`, rosca em SVG puro, o mesmo do
+  PDF; variação para a anterior do mesmo método em texto), indicadores com referência aplicável
+  na régua (toque abre a medida na lista) e perímetros (tronco/membros com
+  escala própria, D/E lado a lado, selo de assimetria ≥ 1 cm, informativo).
+  Montagem pura em `utils/retratoAvaliacaoFisica.js` (testada).
+  Abaixo do retrato, a lista de medidas (o "laudo": dobras, método,
+  calculado, explicações) fica **recolhida** em "Todas as medidas (N)" —
+  abre ao tocar num indicador do retrato ou num selo do card fechado, sozinha
+  quando não há retrato, e a escolha de deixar aberta fica no `localStorage`.
+  168 testes automatizados (`node --test` + `fake-indexeddb`; +
   `echarts-option-builder.test.js`, `echarts-bar-option-builder.test.js`,
   `periodos.test.js`, `avaliacaoFisica.test.js`, `gravacaoVoz.test.js`,
   `avaliacaoMensalCompartilhada.test.js`, `registroStatus.test.js`,
   `protocolosGordura.test.js`, `linhaDoTempo.test.js`, `fichaTreino.test.js`,
-  `buscaExercicio.test.js` e `referenciasAvaliacaoFisica.test.js` puros).
+  `buscaExercicio.test.js`, `referenciasAvaliacaoFisica.test.js` e
+  `retratoAvaliacaoFisica.test.js` puros).
 - **Docker**: `compose.dev.yml` (Postgres + pgAdmin) e `compose.prod.yml`
   (Postgres + backend + frontend) validados; Dockerfiles com healthcheck
   em ambos os serviços da aplicação.

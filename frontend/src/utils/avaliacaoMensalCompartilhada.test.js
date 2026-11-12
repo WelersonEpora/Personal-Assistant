@@ -196,3 +196,53 @@ test('temTextoAjustado ignora os ajustes de uma revisão desatualizada (regerar 
   assert.equal(temTextoAjustado({ gerada_em: '2026-09-05T10:00:00Z' }, revisao), false)
   assert.equal(temTextoAjustado({ gerada_em: '2026-09-01T10:00:00Z' }, { ...revisao, textos_editados: {} }), false)
 })
+
+// Adendo 2026-11-12 da ADR-0029: gráfico da composição corporal.
+const RESUMO_COM_COMPOSICAO = {
+  ...RESUMO_FISICA,
+  composicao: {
+    atual: { data: '2026-10-10', peso: 72.4, massa_magra: 60.1, massa_gorda: 12.3, percentual_gordura: 17, metodo: 'pollock_7', metodo_rotulo: 'Pollock 7 dobras' },
+    anterior: null
+  }
+}
+
+test('avaliação física: gráfico da composição entra no checklist e no documento, só com números', () => {
+  const itens = listarItensExcluiveis(COM_LEITURA, RESUMO_COM_COMPOSICAO).filter((i) => i.secao === 'avaliacao_fisica')
+  assert.deepEqual(itens.map((i) => i.chave), ['avaliacao_fisica:tabela', 'avaliacao_fisica:grafico', 'avaliacao_fisica:leitura'])
+  const out = filtrarAvaliacaoParaAluno(COM_LEITURA, [], RESUMO_COM_COMPOSICAO)
+  assert.equal(out.avaliacao_fisica.grafico.atual.massa_gorda, 12.3)
+  assert.equal(out.avaliacao_fisica.grafico.anterior, null)
+  assert.equal('metodo' in out.avaliacao_fisica.grafico.atual, false)
+})
+
+test('avaliação física: excluir o gráfico; só o gráfico mantém a seção', () => {
+  const semGrafico = filtrarAvaliacaoParaAluno(COM_LEITURA, ['avaliacao_fisica:grafico'], RESUMO_COM_COMPOSICAO)
+  assert.equal(semGrafico.avaliacao_fisica.grafico, null)
+  const soGrafico = filtrarAvaliacaoParaAluno(
+    COM_LEITURA,
+    ['avaliacao_fisica:tabela', 'avaliacao_fisica:leitura'],
+    RESUMO_COM_COMPOSICAO
+  )
+  assert.ok(soGrafico.avaliacao_fisica.grafico)
+  assert.equal(soGrafico.avaliacao_fisica.tabela, null)
+})
+
+test('avaliação física: resumo antigo (sem composicao) não cria gráfico', () => {
+  assert.equal(listarItensExcluiveis(COM_LEITURA, RESUMO_FISICA).some((i) => i.chave === 'avaliacao_fisica:grafico'), false)
+  assert.equal(filtrarAvaliacaoParaAluno(COM_LEITURA, [], RESUMO_FISICA).avaliacao_fisica.grafico, null)
+})
+
+test('avaliação física: com o gráfico, massa magra/gorda saem da tabela; sem ele, voltam', () => {
+  const resumo = {
+    ...RESUMO_COM_COMPOSICAO,
+    linhas: [
+      { codigo: 'peso', rotulo: 'Peso corporal', atual: '72,4 kg', comparavel: true },
+      { codigo: 'massa_magra', rotulo: 'Massa magra', atual: '60,1 kg', comparavel: true },
+      { codigo: 'massa_gorda', rotulo: 'Massa gorda', atual: '12,3 kg', comparavel: true }
+    ]
+  }
+  const comGrafico = filtrarAvaliacaoParaAluno(COM_LEITURA, [], resumo)
+  assert.deepEqual(comGrafico.avaliacao_fisica.tabela.linhas.map((l) => l.rotulo), ['Peso corporal'])
+  const semGrafico = filtrarAvaliacaoParaAluno(COM_LEITURA, ['avaliacao_fisica:grafico'], resumo)
+  assert.deepEqual(semGrafico.avaliacao_fisica.tabela.linhas.map((l) => l.rotulo), ['Peso corporal', 'Massa magra', 'Massa gorda'])
+})

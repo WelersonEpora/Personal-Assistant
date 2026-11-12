@@ -1,5 +1,7 @@
 <script setup>
 import { ref } from 'vue'
+import GraficoComposicao from './avaliacaoFisica/GraficoComposicao.vue'
+import { linhasDaTabela } from '../utils/avaliacaoMensalCompartilhada.js'
 
 // Detalhe expandido de uma avaliação de IA - serve tanto o acompanhamento
 // mensal quanto a análise sob demanda (docs/adr/0015). O contexto
@@ -86,7 +88,7 @@ function rotuloMes(anoMes) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="linha in resumoFisica.linhas" :key="linha.codigo">
+            <tr v-for="linha in linhasDaTabela(resumoFisica, Boolean(resumoFisica.composicao?.atual))" :key="linha.codigo">
               <td>{{ linha.rotulo }}</td>
               <td>{{ linha.atual }}</td>
               <template v-if="resumoFisica.anterior_data">
@@ -96,6 +98,9 @@ function rotuloMes(anoMes) {
             </tr>
           </tbody>
         </table>
+        <div v-if="resumoFisica?.composicao?.atual" style="margin-top: 12px; max-width: 520px;">
+          <GraficoComposicao :composicao="resumoFisica.composicao" />
+        </div>
         <div v-if="avaliacao.leitura_avaliacao_fisica" class="exercise-obs" style="margin-top: 10px;">
           {{ avaliacao.leitura_avaliacao_fisica }}
         </div>

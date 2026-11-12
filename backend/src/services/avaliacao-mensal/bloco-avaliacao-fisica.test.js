@@ -178,3 +178,57 @@ test("resumo do aluno: primeira avaliação, sem anterior", () => {
     codigo: "peso", rotulo: "Peso corporal", atual: "70,0 kg", anterior: null, diferenca: null, comparavel: true
   });
 });
+
+// Adendo 2026-11-12 da ADR-0029: números crus para o gráfico de composição.
+function comComposicao(id, data, gordura, metodo, magra, massaGorda, peso) {
+  return avaliacao(id, data, [
+    medida("peso", peso),
+    medida("percentual_gordura", gordura, metodo),
+    medida("massa_magra", magra),
+    medida("massa_gorda", massaGorda)
+  ]);
+}
+
+test("composição: primeira avaliação vira gráfico sem anterior", () => {
+  const resumo = montarResumoParaAluno({
+    doMes: [comComposicao("a1", "2026-10-10", "20", "pollock_7", "64", "16", "80")],
+    anterior: null
+  });
+  assert.deepEqual(resumo.composicao, {
+    atual: {
+      data: "2026-10-10", peso: 80, massa_magra: 64, massa_gorda: 16,
+      percentual_gordura: 20, metodo: "pollock_7", metodo_rotulo: "Pollock 7 dobras"
+    },
+    anterior: null
+  });
+});
+
+test("composição: anterior entra só com o mesmo método da % de gordura", () => {
+  const atual = comComposicao("a1", "2026-10-10", "20", "pollock_7", "64", "16", "80");
+  const mesmo = montarResumoParaAluno({
+    doMes: [atual],
+    anterior: comComposicao("a0", "2026-09-06", "22", "pollock_7", "63", "17.8", "80.8")
+  });
+  assert.equal(mesmo.composicao.anterior.data, "2026-09-06");
+  assert.equal(mesmo.composicao.anterior.massa_gorda, 17.8);
+
+  const outro = montarResumoParaAluno({
+    doMes: [atual],
+    anterior: comComposicao("a0", "2026-09-06", "24", "bioimpedancia", "61", "19", "80")
+  });
+  assert.equal(outro.composicao.anterior, null);
+  assert.ok(outro.composicao.atual);
+});
+
+test("composição: sem massa magra/gorda não há gráfico; peso ausente vira a soma", () => {
+  const sem = montarResumoParaAluno({ doMes: [avaliacao("a1", "2026-10-10", [medida("peso", "70")])], anterior: null });
+  assert.equal(sem.composicao, null);
+
+  const semPeso = montarResumoParaAluno({
+    doMes: [avaliacao("a1", "2026-10-10", [medida("massa_magra", "60"), medida("massa_gorda", "15.5")])],
+    anterior: null
+  });
+  assert.equal(semPeso.composicao.atual.peso, 75.5);
+  assert.equal(semPeso.composicao.atual.percentual_gordura, null);
+  assert.equal(semPeso.composicao.atual.metodo_rotulo, null);
+});

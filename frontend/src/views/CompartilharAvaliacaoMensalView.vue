@@ -18,6 +18,7 @@ import {
 } from '../utils/avaliacaoMensalCompartilhada.js'
 import ToastStack from '../components/ToastStack.vue'
 import TrechoEditavel from '../components/TrechoEditavel.vue'
+import GraficoComposicao from '../components/avaliacaoFisica/GraficoComposicao.vue'
 
 // docs/adr/0023-compartilhar-avaliacao-mensal-com-o-aluno.md: tela de
 // preparação do PDF. Fora do AdminShell para o print sair limpo (@media print
@@ -379,6 +380,11 @@ function voltar() {
               * Medido por outro método na avaliação anterior — os valores não são comparáveis.
             </p>
           </template>
+          <!-- adendo 2026-11-12 da ADR-0029: composição corporal em gráfico -->
+          <div v-if="documento.avaliacao_fisica.grafico" class="doc-grafico-fisica">
+            <div class="doc-subtitulo">Composição corporal</div>
+            <GraficoComposicao :composicao="documento.avaliacao_fisica.grafico" />
+          </div>
           <TrechoEditavel
             v-if="documento.avaliacao_fisica.leitura"
             class="doc-leitura-fisica"
@@ -685,6 +691,16 @@ function voltar() {
   font-size: 11.5px;
   color: #71717a;
   margin-top: 6px;
+}
+.doc-grafico-fisica {
+  margin-top: 14px;
+  break-inside: avoid;
+}
+.doc-subtitulo {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #3f3f46;
+  margin-bottom: 6px;
 }
 .doc-leitura-fisica {
   margin-top: 12px;

@@ -13,6 +13,9 @@ import {
 import { classificar, contextoDoAluno } from '../../utils/referenciasAvaliacaoFisica.js'
 import SeloReferencia from './SeloReferencia.vue'
 import ReferenciaMedida from './ReferenciaMedida.vue'
+import RetratoAvaliacao from './RetratoAvaliacao.vue'
+import ChevronExpandir from '../ChevronExpandir.vue'
+import { retratoTemConteudo } from '../../utils/retratoAvaliacaoFisica.js'
 
 const props = defineProps({
   avaliacao: { type: Object, required: true },
@@ -68,18 +71,56 @@ function anteriorDe(m) {
   )
   return a ? { valor: a.valor, data: props.anterior.data } : null
 }
+// "Todas as medidas": recolhida por padrão quando há retrato (ele é a leitura;
+// a lista é o laudo - dobras, método, calculado, explicações). Sem retrato,
+// abre sozinha. A escolha de deixar aberta fica no navegador.
+const CHAVE_LISTA = 'af:lista-medidas-aberta'
+function lerPreferencia() {
+  try {
+    return localStorage.getItem(CHAVE_LISTA) === '1'
+  } catch (_err) {
+    return false
+  }
+}
+const temRetrato = computed(() => retratoTemConteudo(props.avaliacao, contexto.value))
+const totalMedidas = computed(() => (props.avaliacao.medidas || []).length)
+const listaAberta = ref(lerPreferencia())
+const listaVisivel = computed(() => listaAberta.value || !temRetrato.value)
+function alternarLista() {
+  listaAberta.value = !listaVisivel.value
+  try {
+    localStorage.setItem(CHAVE_LISTA, listaAberta.value ? '1' : '0')
+  } catch (_err) {
+    // sem storage (aba privada etc.): só não lembra a escolha
+  }
+}
+
 const abertaId = ref(null)
 watch(
   () => props.abrirCodigo,
   (codigo) => {
     if (!codigo) return
     const m = (props.avaliacao.medidas || []).find((x) => x.metrica_codigo === codigo && x.principal)
-    if (m) abertaId.value = m.id
+    if (m) {
+      abertaId.value = m.id
+      listaAberta.value = true
+    }
   },
   { immediate: true }
 )
 function alternarLinha(m) {
   abertaId.value = abertaId.value === m.id ? null : m.id
+}
+// Toque num indicador do retrato: abre a explicação da medida na lista e rola até ela.
+const raiz = ref(null)
+function abrirPeloRetrato(codigo) {
+  const m = (props.avaliacao.medidas || []).find((x) => x.metrica_codigo === codigo && x.principal)
+  if (!m) return
+  abertaId.value = m.id
+  listaAberta.value = true
+  requestAnimationFrame(() => {
+    raiz.value?.querySelector(`[data-medida="${m.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  })
 }
 
 const anamnese = computed(() => props.avaliacao.anamnese_json || null)
@@ -103,7 +144,7 @@ const temPostural = computed(() => {
 </script>
 
 <template>
-  <div>
+  <div ref="raiz">
     <div v-if="!compacto" class="view-header">
       <div>
         <h1>Avaliação de {{ formatarDataAvaliacao(avaliacao.data) }}</h1>
@@ -115,16 +156,31 @@ const temPostural = computed(() => {
       <slot name="acoes" />
     </div>
 
+    <div :class="blocoClass" class="af-retrato-wrap">
+      <RetratoAvaliacao :avaliacao="avaliacao" :anterior="anterior" :aluno="aluno" @abrir="abrirPeloRetrato" />
+    </div>
+
     <div v-if="avaliacao.observacoes" :class="blocoClass">
       <div class="exercise-obs">{{ avaliacao.observacoes }}</div>
     </div>
 
-    <div v-for="grupo in gruposMedidas" :key="grupo.categoria" :class="blocoClass">
+    <button
+      v-if="temRetrato && totalMedidas"
+      type="button"
+      class="af-lista-toggle"
+      :aria-expanded="listaVisivel"
+      @click="alternarLista"
+    >
+      <span>Todas as medidas <span class="af-lista-total">({{ totalMedidas }})</span></span>
+      <ChevronExpandir :aberto="listaVisivel" />
+    </button>
+
+    <div v-for="grupo in listaVisivel ? gruposMedidas : []" :key="grupo.categoria" :class="blocoClass">
       <div style="font-size: 15px; font-weight: 700; margin-bottom: 10px;">{{ grupo.rotulo }}</div>
       <table class="af-tabela">
         <tbody>
           <template v-for="m in grupo.medidas" :key="m.id">
-            <tr class="af-linha" :class="{ aberta: abertaId === m.id }" @click="alternarLinha(m)">
+            <tr class="af-linha" :class="{ aberta: abertaId === m.id }" :data-medida="m.id" @click="alternarLinha(m)">
               <td>{{ m.metrica?.rotulo || m.metrica_codigo }}</td>
               <td class="af-valor">{{ valorFormatado(m) }} <span class="af-unidade">{{ m.metrica?.unidade }}</span></td>
               <td>
@@ -230,6 +286,27 @@ const temPostural = computed(() => {
 .af-dl dd { margin: 0; }
 
 .af-bloco { margin-bottom: 16px; }
+/* retrato sem nenhum dado não renderiza nada - o invólucro some junto */
+.af-retrato-wrap:empty { display: none; }
+.af-lista-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin: 4px 0 12px;
+  padding: 10px 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 10px);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text);
+  cursor: pointer;
+}
+.af-lista-toggle:hover,
+.af-lista-toggle:focus-visible { background: var(--color-surface-alt); }
+.af-lista-total { font-weight: 400; color: var(--color-text-faint); }
 .af-secao { padding: 14px 0; border-top: 1px solid var(--color-border, #e5e5e5); }
 .af-secao:first-child { border-top: none; padding-top: 2px; }
 </style>

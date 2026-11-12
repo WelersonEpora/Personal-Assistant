@@ -105,3 +105,70 @@ continua valendo (mês sem Acompanhamento não leva a avaliação).
   seção, as duas chaves e o padrão desmarcado da dimensão.
 - O detalhe do Acompanhamento no `/admin` mostra o parágrafo e a tabela para o
   personal conferir antes de compartilhar.
+
+## Adendo (2026-11-12) — gráfico da composição corporal no PDF
+
+**Contexto.** O personal sentiu falta de informação visual da avaliação física,
+inclusive para o aluno com uma avaliação só (o "Comparar", com gráficos de
+evolução, exige duas ou mais). Na tela do personal isso virou o **retrato da
+avaliação** (composição, indicadores na régua de referência da ADR-0031 e
+perímetros, desde a 1ª avaliação, calculado na hora, sem ADR própria). Para o
+aluno, vai só a parte do retrato que se lê sem contexto profissional.
+
+**Decisão.**
+
+- `avaliacao_fisica_resumo_json` ganha `composicao: { atual, anterior }`
+  (números crus: `data`, `peso`, `massa_magra`, `massa_gorda`,
+  `percentual_gordura`, `metodo`, `metodo_rotulo`), gravado na geração por
+  `montarResumoParaAluno` junto da tabela. Sem as duas massas, `null`.
+- A `anterior` só entra com o **mesmo método** da % de gordura, a mesma regra
+  de comparabilidade da tabela. Com método diferente, o gráfico mostra só a
+  atual: comparar métodos diferentes sugeriria uma variação que não existe.
+- **Formato: rosca da avaliação atual** (massa magra × massa gorda, com peso e
+  % de gordura no centro, fatias rotuladas em kg e %), o formato dos laudos que
+  o aluno já conhece. A comparação com a anterior **não** vira uma segunda
+  rosca: ângulo se compara mal (−3,4 p.p. de gordura viram ~12° de arco) e a
+  rosca não mostra o tamanho absoluto. Ela aparece em texto ao lado
+  ("Desde DD/MM/AAAA: Gordura −3,2 kg · Massa magra +0,9 kg"), colorido pela
+  direção favorável (gordura caindo / massa magra subindo = verde; o contrário
+  = âmbar).
+- Com o gráfico incluído, **massa magra e massa gorda saem da tabela** (o
+  gráfico já mostra as duas, com a variação); desmarcar o gráfico as devolve.
+  Regra única em `linhasDaTabela` (`utils/avaliacaoMensalCompartilhada.js`),
+  usada no PDF e no detalhe do Acompanhamento no `/admin`.
+- No PDF, o gráfico vai na seção "Sua avaliação física", entre a tabela e o parágrafo, com a
+  chave nova `avaliacao_fisica:grafico` em `itens_excluidos`, marcado por
+  padrão. Passa pela lista branca: só os números do gráfico vão ao documento.
+- O componente (`components/avaliacaoFisica/GraficoComposicao.vue`) é
+  SVG/CSS puro, sem ECharts, e é o mesmo do retrato do personal: sai igual no
+  "salvar como PDF" e não carrega o chunk `vendor-echarts` na rota de
+  compartilhar.
+- **Fica fora do PDF:** as réguas de referência (IMC, % de gordura, cintura,
+  RCQ, PA, FC) e os perímetros. A ADR-0031 continua valendo: um aluno vendo o
+  próprio ponto numa faixa "de risco" num documento entregue sem conversa é
+  leitura de diagnóstico. Na tela do personal, que explica junto, as réguas
+  aparecem.
+
+**Alternativas consideradas.**
+
+- *Montar o gráfico no cliente a partir da avaliação ao vivo.* Rejeitada pelo
+  mesmo motivo da tabela: o PDF precisa mostrar os números que a IA leu.
+- *Levar o retrato inteiro ao PDF.* Rejeitada: réguas de referência e
+  perímetros pedem contexto profissional (ver acima).
+- *Gráfico com ECharts em modo SVG.* Rejeitada: é uma rosca de duas fatias, e
+  carregar o ECharts na rota do PDF só para isso não compensa.
+- *Barra empilhada com a anterior embaixo* (a 1ª versão deste adendo).
+  Trocada pela rosca: com uma avaliação só, que é o caso que motivou o retrato,
+  a barra comunica menos que o formato de laudo; a vantagem da barra na
+  comparação foi mantida passando a variação para o texto.
+- *Massa óssea / muscular / residual (modelo de 4 componentes, De Rose/Würch).*
+  Fora: a massa óssea exige diâmetros ósseos que o catálogo não tem, a residual
+  é uma constante por sexo e a muscular sai por subtração — números com cara
+  de precisos em cima de estimativas, num aluno avaliado por dobras.
+
+**Consequências.**
+
+- Sem migration (a coluna JSONB já existe). Acompanhamentos gerados antes do
+  adendo não têm `composicao`: o PDF deles sai sem o gráfico até **Regerar**.
+- O detalhe do Acompanhamento no `/admin` mostra o gráfico junto da tabela
+  ("como o aluno vê no PDF").
